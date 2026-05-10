@@ -1,0 +1,9 @@
+node_modules/
+dist/
+outputs/frames/
+outputs/*.mp4
+outputs/*.mov
+outputs/*.webm
+outputs/*.png
+*.log
+.env

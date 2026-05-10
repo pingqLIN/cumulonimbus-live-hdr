@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Cumulonimbus Live HDR</title>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="viewport" aria-label="Cumulonimbus cloud preview">
+        <canvas id="cloud-canvas"></canvas>
+      </section>
+      <aside class="controls" aria-label="Render controls">
+        <div>
+          <p class="eyebrow">Algorithmic cloud field</p>
+          <h1>Cumulonimbus Live HDR</h1>
+        </div>
+        <label>
+          Seed
+          <input id="seed" type="number" value="20260510" />
+        </label>
+        <label>
+          Growth
+          <input id="growth" type="range" min="0" max="1" step="0.01" value="0.56" />
+        </label>
+        <label>
+          Edge drift
+          <input id="edgeDrift" type="range" min="0" max="1" step="0.01" value="0.18" />
+        </label>
+        <label>
+          Tower height
+          <input id="towerHeight" type="range" min="0" max="1" step="0.01" value="0.72" />
+        </label>
+        <label>
+          Anvil spread
+          <input id="anvilSpread" type="range" min="0" max="1" step="0.01" value="0.64" />
+        </label>
+        <label>
+          Silver lining
+          <input id="silverLining" type="range" min="0" max="1" step="0.01" value="0.77" />
+        </label>
+        <label>
+          Atmospheric haze
+          <input id="haze" type="range" min="0" max="1" step="0.01" value="0.42" />
+        </label>
+        <div class="actions">
+          <button id="pause" type="button">Pause</button>
+          <button id="reset" type="button">Reset</button>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="/src/app/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "cumulonimbus-live-hdr",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Algorithmic cumulonimbus cloud field prototype for live HDR video loops.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc && vite build",
+    "build:core": "tsc --project tsconfig.json",
+    "preview": "vite preview --host 127.0.0.1",
+    "render:quick": "npm run build:core && node scripts/render-test-video.mjs --quick",
+    "render:test": "npm run build:core && node scripts/render-test-video.mjs",
+    "format": "prettier --write .",
+    "check": "tsc --noEmit",
+    "test": "npm run test:smoke",
+    "test:smoke": "npm run build:core && node scripts/smoke-render.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

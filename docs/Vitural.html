@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D積雨雲發展模擬</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- 引入 OrbitControls 進行攝影機互動 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- 引入 Post-Processing 用於 Filter 柔化交界表面 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0f172a; color: white; font-family: sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #ui-layer { position: absolute; top: 0; left: 0; z-index: 10; pointer-events: none; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 1.5rem; box-sizing: border-box; }
+        .pointer-events-auto { pointer-events: auto; }
+        /* 自訂滾動條 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <!-- 3D 畫布容器 -->
+    <div id="canvas-container"></div>
+
+    <!-- UI 覆蓋層 -->
+    <div id="ui-layer">
+        <div class="flex justify-between items-start">
+            <div class="bg-slate-800/80 backdrop-blur-md p-6 rounded-xl border border-slate-600 shadow-2xl max-w-sm pointer-events-auto">
+                <h1 class="text-2xl font-bold mb-2 text-blue-300">3D 積雨雲發展模擬</h1>
+                <p class="text-sm text-slate-300 mb-4">透過碎形算法與流體動力學概念，模擬積雨雲 (Cumulonimbus) 的立體苞芽結構發展。</p>
+
+                <div class="space-y-4 text-sm">
+                    <div class="bg-slate-700/50 p-3 rounded-lg border-l-4 border-blue-400">
+                        <h3 class="font-bold text-blue-200">1. 潛熱驅動 (Latent Heat)</h3>
+                        <p class="text-slate-300 mt-1">氣塊凝結釋放熱量，產生強烈上升浮力。</p>
+                    </div>
+                    <div class="bg-slate-700/50 p-3 rounded-lg border-l-4 border-purple-400">
+                        <h3 class="font-bold text-purple-200">2. 碎形幾何 (Fractal Structure)</h3>
+                        <p class="text-slate-300 mt-1">大渦旋破裂成小渦旋，在表面不斷生成自我相似的「花椰菜」苞芽。</p>
+                    </div>
+                    <div class="bg-slate-700/50 p-3 rounded-lg border-l-4 border-amber-400">
+                        <h3 class="font-bold text-amber-200">3. 光影強化 (Chiaroscuro)</h3>
+                        <p class="text-slate-300 mt-1">側向強光凸顯雲體深邃的陰影與高亮度邊緣層次。</p>
+                    </div>
+                    <div class="bg-slate-700/50 p-3 rounded-lg border-l-4 border-emerald-400">
+                        <h3 class="font-bold text-emerald-200">4. 算力分配與邊界柔化</h3>
+                        <p class="text-slate-300 mt-1">凍結成熟結構以節省算力，專注發展表面細微苞芽(最小結構限制)。並透過 Bloom 濾鏡柔化幾何交界。</p>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex flex-col gap-3">
+                    <div class="flex gap-3">
+                        <button id="btn-restart" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded transition-colors shadow-lg">
+                            重新生長
+                        </button>
+                        <button id="btn-pause" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded transition-colors shadow-lg">
+                            暫停
+                        </button>
+                    </div>
+                    <button id="btn-ai-analyze" class="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-semibold py-2 px-4 rounded transition-colors shadow-lg flex items-center justify-center gap-2">
+                        本機雲形解析
+                    </button>
+                </div>
+
+                <!-- AI 觀測報告顯示區 -->
+                <div id="ai-response-container" class="mt-4 p-4 bg-slate-900/80 rounded-lg border border-purple-500/50 hidden text-sm text-slate-200 shadow-inner">
+                    <div id="ai-loading" class="hidden flex items-center gap-3 text-purple-300 font-medium">
+                        <svg class="animate-spin h-5 w-5 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        計算本機觀測指標...
+                    </div>
+                    <div id="ai-text" class="whitespace-pre-wrap leading-relaxed"></div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 backdrop-blur-md p-4 rounded-xl border border-slate-600 shadow-2xl pointer-events-auto text-sm text-slate-300 flex flex-col gap-2">
+                <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    <span>左鍵拖曳：旋轉視角</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <span>滾輪：縮放大小</span>
+                </div>
+                <div class="mt-2 pt-2 border-t border-slate-600 text-xs text-slate-400">
+                    模擬狀態: <span id="status-text" class="text-green-400">生長中...</span><br>
+                    氣塊數量: <span id="bubble-count">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let cloudGroup;
+        let activeBubbles = []; // 僅保留正在發展的氣塊以集中算力
+        let totalBubbleCount = 0;
+
+        // 算力與結構限制參數
+        const MAX_INSTANCES = 20000;    // 透過 InstancedMesh 大幅提升渲染極限
+        const MIN_RADIUS = 0.15;        // 【最小結構邊界】小於此值則不再分裂
+        let instancedMesh;
+        let dummy = new THREE.Object3D(); // 用於計算矩陣
+
+        let composer; // Filter 柔化效果合成器
+        let isPaused = false;
+
+        // 氣塊(Bubble)類別：代表積雨雲發展中的一個膨脹單位
+        class CloudBubble {
+            constructor(parentPos, parentRadius, maxRadius, generation, angle, elevation) {
+                this.generation = generation;
+                this.radius = 0.01; // 從很小開始長大
+                this.maxRadius = maxRadius;
+                this.position = new THREE.Vector3();
+
+                if (parentPos) {
+                    // 分裂時，偏向在母氣塊的上半球生成
+                    const upwardBias = 0.6;
+                    const offset = new THREE.Vector3(
+                        Math.cos(angle) * Math.cos(elevation),
+                        Math.sin(elevation) + upwardBias,
+                        Math.sin(angle) * Math.cos(elevation)
+                    ).normalize().multiplyScalar(parentRadius * 0.85);
+                    this.position.copy(parentPos).add(offset);
+                } else {
+                    // 初始底部氣塊
+                    this.position.set(0, 0, 0);
+                }
+
+                this.spawned = false;
+                this.active = true;
+
+                // 向 InstancedMesh 註冊一個專屬 ID
+                this.instanceId = totalBubbleCount++;
+                if(instancedMesh) instancedMesh.count = totalBubbleCount;
+
+                this.updateMatrix();
+            }
+
+            updateMatrix() {
+                if (!instancedMesh) return;
+                dummy.position.copy(this.position);
+                dummy.scale.set(this.radius, this.radius, this.radius);
+                dummy.updateMatrix();
+                // 擷取狀態：只更新變化中的幾何矩陣，不重新建立 Mesh
+                instancedMesh.setMatrixAt(this.instanceId, dummy.matrix);
+                instancedMesh.instanceMatrix.needsUpdate = true;
+            }
+
+            update(dt) {
+                if (!this.active) return;
+
+                // 1. 膨脹生長
+                if (this.radius < this.maxRadius) {
+                    const growthRate = 2.0 / (this.generation * 0.5 + 1);
+                    this.radius += growthRate * dt;
+
+                    // 2. 向上浮力
+                    this.position.y += (1.5 / (this.generation + 1)) * dt;
+
+                    this.updateMatrix();
+                }
+
+                // 3. 碎形分裂機制 (帶有最小結構邊界限制)
+                if (this.radius > this.maxRadius * 0.75 && !this.spawned && totalBubbleCount < MAX_INSTANCES) {
+                    this.spawned = true;
+                    const numChildren = Math.floor(Math.random() * 3) + 2;
+
+                    for(let i=0; i<numChildren; i++) {
+                        if(totalBubbleCount >= MAX_INSTANCES) break;
+
+                        // 計算下一代的目標大小
+                        const childMaxRadius = this.maxRadius * (0.5 + Math.random() * 0.3);
+
+                        // 【最小結構邊界限制】若子結構太小，則停止該分支的發展，將算力留給表面其他部分
+                        if (childMaxRadius < MIN_RADIUS) continue;
+
+                        const angle = Math.random() * Math.PI * 2;
+                        const elevation = Math.random() * (Math.PI / 2);
+
+                        activeBubbles.push(new CloudBubble(this.position, this.maxRadius, childMaxRadius, this.generation + 1, angle, elevation));
+                    }
+                }
+
+                // 當氣塊長到最大，標記為不活躍
+                if (this.radius >= this.maxRadius && this.spawned) {
+                    this.active = false;
+                }
+            }
+        }
+
+        function init() {
+            // 初始化場景
+            scene = new THREE.Scene();
+            // 深色大氣背景
+            scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
+
+            // 初始化攝影機
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 15, 35);
+
+            // 初始化渲染器 (加入 preserveDrawingBuffer: true 以便擷取畫面給 AI)
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // 【加入 Filter 柔化效果】使用 EffectComposer 與 UnrealBloomPass 柔化幾何交界
+            const renderScene = new THREE.RenderPass(scene, camera);
+            // 參數: 解析度, 強度 (影響柔化程度), 半徑, 閾值 (只針對亮部發光)
+            const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.45, 0.7, 0.3);
+
+            composer = new THREE.EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+
+            // 控制器
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 8, 0); // 視角中心略微往上對準雲體
+
+            // 光影設定 (模擬文件中的 Chiaroscuro 戲劇性光影)
+            // 1. 強烈的側頂主光源 (太陽光)
+            const mainLight = new THREE.DirectionalLight(0xfff5e6, 1.8);
+            mainLight.position.set(10, 15, -10);
+            mainLight.castShadow = true;
+            mainLight.shadow.camera.left = -20;
+            mainLight.shadow.camera.right = 20;
+            mainLight.shadow.camera.top = 20;
+            mainLight.shadow.camera.bottom = -20;
+            mainLight.shadow.mapSize.width = 1024;
+            mainLight.shadow.mapSize.height = 1024;
+            scene.add(mainLight);
+
+            // 2. 較冷的環境漫射光 (模擬天空散射)
+            const ambientLight = new THREE.AmbientLight(0x405060, 0.6);
+            scene.add(ambientLight);
+
+            // 3. 底部微弱反射光 (模擬地面反射)
+            const fillLight = new THREE.DirectionalLight(0x4a5568, 0.3);
+            fillLight.position.set(-10, -10, 10);
+            scene.add(fillLight);
+
+            // 雲層群組與 InstancedMesh (保留發展過的外觀，巨幅節省 Draw Calls)
+            cloudGroup = new THREE.Group();
+            scene.add(cloudGroup);
+
+            const geometry = new THREE.SphereGeometry(1, 16, 16);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xeeeeee,
+                roughness: 1.0,  // 增加粗糙度配合濾鏡柔化
+                metalness: 0.0,
+                flatShading: false
+            });
+            instancedMesh = new THREE.InstancedMesh(geometry, material, MAX_INSTANCES);
+            instancedMesh.castShadow = true;
+            instancedMesh.receiveShadow = true;
+            instancedMesh.count = 0; // 初始渲染數量為 0
+            cloudGroup.add(instancedMesh);
+
+            // 綁定按鈕事件
+            document.getElementById('btn-restart').addEventListener('click', startSimulation);
+            document.getElementById('btn-pause').addEventListener('click', togglePause);
+            document.getElementById('btn-ai-analyze').addEventListener('click', performAIAnalysis);
+
+            // 視窗縮放處理
+            window.addEventListener('resize', onWindowResize, false);
+
+            // 啟動模擬
+            startSimulation();
+            animate();
+        }
+
+        // --- 本機雲形解析 ---
+        function performAIAnalysis() {
+            const btn = document.getElementById('btn-ai-analyze');
+            const container = document.getElementById('ai-response-container');
+            const loading = document.getElementById('ai-loading');
+            const textEl = document.getElementById('ai-text');
+
+            if (btn.disabled) return;
+
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            container.classList.remove('hidden');
+            loading.classList.remove('hidden');
+            textEl.innerText = "";
+            textEl.classList.add('hidden');
+
+            window.setTimeout(() => {
+                const matureRatio = Math.min(1, totalBubbleCount / MAX_INSTANCES);
+                const activeRatio = totalBubbleCount === 0 ? 0 : activeBubbles.length / totalBubbleCount;
+                const growthPhase = matureRatio > 0.9 || activeBubbles.length === 0
+                    ? "成熟砧狀期"
+                    : matureRatio > 0.45
+                        ? "旺盛塔狀期"
+                        : "初生上升期";
+                const textureNote = activeRatio > 0.18
+                    ? "邊界仍有大量新生苞芽，代表上升氣流正在把水氣推入更小尺度的渦旋。"
+                    : "主要結構已被凍結保留，細節集中在少數活躍邊界，像熱塔頂端正在緩慢翻捲。";
+                const silhouette = matureRatio > 0.65 ? "花椰菜狀雲塔" : "正在抬升的濕暖氣泡群";
+
+                textEl.innerText =
+                    `本機觀測報告：目前雲系處於「${growthPhase}」，累積 ${totalBubbleCount.toLocaleString()} 個氣塊，` +
+                    `活躍分裂分支 ${activeBubbles.length.toLocaleString()} 個。整體輪廓接近${silhouette}；${textureNote}`;
+                loading.classList.add('hidden');
+                textEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }, 180);
+        }
+
+        function startSimulation() {
+            // 清除現有狀態
+            activeBubbles = [];
+            totalBubbleCount = 0;
+            if(instancedMesh) instancedMesh.count = 0;
+
+            // 建立初代根氣塊
+            // parentPos: null, parentRadius: 0, maxRadius: 5.0, generation: 0
+            const rootBubble = new CloudBubble(null, 0, 5.0, 0, 0, 0);
+            activeBubbles.push(rootBubble);
+
+            isPaused = false;
+            document.getElementById('btn-pause').innerText = "暫停";
+            updateStatusText();
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            document.getElementById('btn-pause').innerText = isPaused ? "繼續" : "暫停";
+            updateStatusText();
+        }
+
+        function updateStatusText() {
+            const statusEl = document.getElementById('status-text');
+            if (isPaused) {
+                statusEl.innerText = "已暫停";
+                statusEl.className = "text-amber-400";
+            } else if (totalBubbleCount >= MAX_INSTANCES || activeBubbles.length === 0) {
+                statusEl.innerText = "發展成熟 (達結構極限)";
+                statusEl.className = "text-blue-400";
+            } else {
+                statusEl.innerText = "生長中...";
+                statusEl.className = "text-green-400";
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        let clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            let dt = clock.getDelta();
+
+            // 限制最大時間步長，避免切換分頁時爆衝
+            if (dt > 0.1) dt = 0.1;
+
+            if (!isPaused) {
+                // 【算力集中】僅對活耀(仍在發展)的結構進行迴圈運算
+                for (let i = activeBubbles.length - 1; i >= 0; i--) {
+                    let b = activeBubbles[i];
+                    b.update(dt);
+
+                    // 當氣塊停止發展，將其移出運算陣列。
+                    // 由於其矩陣已寫入 InstancedMesh，外觀將被完美凍結保留，不再佔用 CPU 更新資源。
+                    if(!b.active) {
+                        activeBubbles.splice(i, 1);
+                    }
+                }
+
+                // 稍微緩慢自轉整個雲系，方便全方位觀察
+                cloudGroup.rotation.y += 0.05 * dt;
+
+                document.getElementById('bubble-count').innerText = totalBubbleCount.toLocaleString();
+
+                // 自動更新狀態若達上限或無活躍氣塊
+                if((totalBubbleCount >= MAX_INSTANCES || activeBubbles.length === 0) && document.getElementById('status-text').innerText === "生長中...") {
+                    updateStatusText();
+                }
+            }
+
+            controls.update();
+            // 使用 composer 替換 renderer 來渲染帶有 Bloom Filter 的畫面
+            composer.render();
+        }
+
+        // 當畫面載入完畢後執行
+        window.onload = init;
+
+    </script>
+</body>
+</html>

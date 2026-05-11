@@ -17,6 +17,7 @@ export class IterativeCloudField {
   private readonly density: Float32Array;
   private readonly nextDensity: Float32Array;
   private readonly edge: Float32Array;
+  private initialized = false;
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -30,12 +31,16 @@ export class IterativeCloudField {
     this.density.fill(0);
     this.nextDensity.fill(0);
     this.edge.fill(0);
+    this.initialized = false;
   }
 
   step(time: number, deltaSeconds: number, params: CloudParams): FieldMetrics {
-    const condensationRate = 0.18 + params.growth * 0.18;
-    const evaporationRate = 0.045 + (1 - params.growth) * 0.04;
-    const memory = Math.exp(-Math.max(0.001, deltaSeconds) * 0.18);
+    const humidity = params.humidityUplift;
+    const lifecycle = params.stormLifecycle;
+    const wind = params.anvilWind;
+    const condensationRate = humidity.condensationRate * (0.72 + humidity.humidity * 0.56);
+    const evaporationRate = humidity.evaporationRate * (lifecycle.phase === "dissipating" ? 1.45 : 1);
+    const memory = Math.exp(-Math.max(0.001, deltaSeconds) * mix(0.12, 0.24, 1 - wind.anvilPersistence));
     let total = 0;
     let activeEdges = 0;
 
@@ -44,18 +49,20 @@ export class IterativeCloudField {
         const index = y * this.width + x;
         const u = x / (this.width - 1);
         const v = y / (this.height - 1);
-        const wind = this.windOffset(u, v, time, params);
-        const carried = this.sampleDensity(u - wind.x, v - wind.y);
+        const windOffset = this.windOffset(u, v, time, params);
+        const carried = this.sampleDensity(u - windOffset.x, v - windOffset.y);
         const target = sampleCloudDensity(u, v, time, params);
         const rate = target > carried ? condensationRate : evaporationRate;
         const assimilated = mix(carried, target, 1 - Math.exp(-deltaSeconds * rate));
-        const next = clamp(mix(assimilated, carried, memory * 0.18));
+        const persistent = mix(assimilated, carried, memory * 0.18);
+        const next = clamp(this.initialized ? persistent : mix(persistent, target, 0.86));
         this.nextDensity[index] = next;
         total += next;
       }
     }
 
     this.density.set(this.nextDensity);
+    this.initialized = true;
     this.rebuildEdges();
 
     for (let index = 0; index < this.edge.length; index += 1) {
@@ -78,12 +85,16 @@ export class IterativeCloudField {
   }
 
   private windOffset(x: number, y: number, time: number, params: CloudParams): { x: number; y: number } {
-    const scale = 0.0015 + params.edgeDrift * 0.006;
+    const anvilWind = params.anvilWind;
+    const humidityUplift = params.humidityUplift;
+    const altitude = 1 - y;
+    const anvilBand = clamp((altitude - anvilWind.tropopauseHeight * 0.72) * 2.2);
+    const scale = 0.0015 + anvilWind.windShear * 0.006 + anvilBand * anvilWind.anvilOutflow * 0.004;
     const slowTime = time * 0.025;
     const shear = fbm3(x * 1.7, y * 1.2, slowTime, params.seed + 811, 3) - 0.5;
-    const verticalLift = (0.35 + params.towerHeight * 0.5) * scale;
+    const verticalLift = (0.28 + humidityUplift.upliftStrength * 0.58) * scale * (1 - anvilBand * 0.46);
     return {
-      x: shear * scale,
+      x: shear * scale + anvilBand * anvilWind.anvilOutflow * scale,
       y: -verticalLift + (fbm3(x * 2.3 + 4, y * 2.0, slowTime, params.seed + 977, 3) - 0.5) * scale
     };
   }

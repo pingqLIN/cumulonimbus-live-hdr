@@ -65,6 +65,12 @@ input {
   text-transform: uppercase;
 }
 
+.renderer-status {
+  margin: 10px 0 0;
+  color: #aebccd;
+  font-size: 0.82rem;
+}
+
 h1 {
   margin: 0;
   font-size: 1.45rem;

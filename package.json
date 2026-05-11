@@ -11,6 +11,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "render:quick": "npm run build:core && node scripts/render-test-video.mjs --quick",
     "render:test": "npm run build:core && node scripts/render-test-video.mjs",
+    "render:demo-loop": "npm run build:core && node scripts/render-demo-loop.mjs",
+    "tune:demo": "npm run build:core && node scripts/tune-demo-params.mjs",
     "format": "prettier --write .",
     "check": "tsc --noEmit",
     "test": "npm run test:smoke",

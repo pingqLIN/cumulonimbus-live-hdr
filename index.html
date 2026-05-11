@@ -15,30 +15,39 @@
         <div>
           <p class="eyebrow">Algorithmic cloud field</p>
           <h1>Cumulonimbus Live HDR</h1>
+          <p id="renderer-status" class="renderer-status">Renderer: starting</p>
         </div>
         <label>
           Seed
           <input id="seed" type="number" value="20260510" />
         </label>
         <label>
-          Growth
-          <input id="growth" type="range" min="0" max="1" step="0.01" value="0.56" />
+          Storm age
+          <input id="stormAge" type="range" min="0" max="1" step="0.01" value="0.48" />
         </label>
         <label>
-          Edge drift
-          <input id="edgeDrift" type="range" min="0" max="1" step="0.01" value="0.18" />
+          Humidity
+          <input id="humidity" type="range" min="0" max="1" step="0.01" value="0.66" />
         </label>
         <label>
-          Tower height
-          <input id="towerHeight" type="range" min="0" max="1" step="0.01" value="0.72" />
+          Uplift strength
+          <input id="upliftStrength" type="range" min="0" max="1" step="0.01" value="0.72" />
         </label>
         <label>
-          Anvil spread
-          <input id="anvilSpread" type="range" min="0" max="1" step="0.01" value="0.64" />
+          Wind shear
+          <input id="windShear" type="range" min="0" max="1" step="0.01" value="0.18" />
         </label>
         <label>
-          Silver lining
-          <input id="silverLining" type="range" min="0" max="1" step="0.01" value="0.77" />
+          Anvil outflow
+          <input id="anvilOutflow" type="range" min="0" max="1" step="0.01" value="0.64" />
+        </label>
+        <label>
+          Anvil persistence
+          <input id="anvilPersistence" type="range" min="0" max="1" step="0.01" value="0.68" />
+        </label>
+        <label>
+          Sun edge peak nits
+          <input id="sunEdgePeakNits" type="range" min="250" max="2000" step="10" value="1000" />
         </label>
         <label>
           Atmospheric haze

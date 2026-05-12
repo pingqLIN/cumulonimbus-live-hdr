@@ -340,7 +340,8 @@ function resolveViewMode(): "field" | "3d" {
 }
 
 function resolveThreeBubbleLookPresetName(): ThreeBubbleLookPresetName {
-  return normalizeThreeBubbleLookPresetName(query.get("look") ?? query.get("lookPreset"));
+  const rawLook = query.get("look") ?? query.get("lookPreset");
+  return rawLook ? normalizeThreeBubbleLookPresetName(rawLook) : "demo-like";
 }
 
 function renderPreviewMetrics(now: number): void {

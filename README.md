@@ -83,7 +83,7 @@ http://127.0.0.1:5173/?preset=billow&simPreset=low&fps=15
 若要啟動新的 3D bubble model 預覽：
 
 ```text
-http://127.0.0.1:5173/?view=3d&simPreset=mid&fps=30
+http://127.0.0.1:5173/?view=3d&look=demo-like&simPreset=mid&fps=30
 ```
 
 若要用 OBS Browser Source 或本機全螢幕輸出入口，可用 `live=1` 隱藏控制面板：

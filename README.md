@@ -84,6 +84,12 @@ http://127.0.0.1:5173/?preset=billow&simPreset=low&fps=15
 http://127.0.0.1:5173/?view=3d&simPreset=mid&fps=30
 ```
 
+若要用 OBS Browser Source 或本機全螢幕輸出入口，可用 `live=1` 隱藏控制面板：
+
+```text
+http://127.0.0.1:5173/?live=1&view=3d&look=demo-like&simPreset=mid&fps=30
+```
+
 3D look-dev presets 可用 `look` 切換，用目前 bubble model 骨架做不同視覺語言：
 
 ```text

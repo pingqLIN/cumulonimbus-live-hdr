@@ -16,7 +16,12 @@ if (!canvasElement) {
 const canvas: HTMLCanvasElement = canvasElement;
 
 const query = new URLSearchParams(window.location.search);
-if (query.get("capture") === "1" || query.get("capture") === "canvas") {
+if (
+  query.get("capture") === "1" ||
+  query.get("capture") === "canvas" ||
+  query.get("live") === "1" ||
+  query.get("live") === "canvas"
+) {
   document.documentElement.dataset.capture = "canvas";
 }
 const cloudPresetName = normalizeCloudPresetName(query.get("cloudPreset") ?? query.get("preset"));

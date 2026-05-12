@@ -5,7 +5,7 @@ export default defineConfig({
     target: "es2022"
   },
   server: {
-    port: 5176,
+    port: 5173,
     strictPort: false
   }
 });

@@ -3,6 +3,10 @@ import type { CloudParams } from "../core/cloud-field.js";
 import { createCloudPresetParams, normalizeCloudPresetName } from "../core/presets.js";
 import { CpuPreviewRenderer } from "./cpu-preview-renderer.js";
 import type { PreviewRenderer } from "./preview-renderer.js";
+import {
+  normalizeThreeBubbleLookPresetName,
+  type ThreeBubbleLookPresetName
+} from "./three-bubble-look.js";
 import { WebGpuPreviewRenderer } from "./webgpu-preview-renderer.js";
 
 const canvasElement = document.querySelector<HTMLCanvasElement>("#cloud-canvas");
@@ -12,7 +16,12 @@ if (!canvasElement) {
 const canvas: HTMLCanvasElement = canvasElement;
 
 const query = new URLSearchParams(window.location.search);
+if (query.get("capture") === "1" || query.get("capture") === "canvas") {
+  document.documentElement.dataset.capture = "canvas";
+}
 const cloudPresetName = normalizeCloudPresetName(query.get("cloudPreset") ?? query.get("preset"));
+const viewMode = resolveViewMode();
+const threeBubbleLookPreset = resolveThreeBubbleLookPresetName();
 const params: CloudParams = createCloudPresetParams(cloudPresetName);
 let paused = false;
 let start = performance.now();
@@ -34,7 +43,10 @@ const PRESET_PREVIEW_RESOLUTIONS = {
   high: { width: 720, height: 1280, label: "high (720x1280)" }
 } as const;
 type PresetResolutionName = keyof typeof PRESET_PREVIEW_RESOLUTIONS;
-const FORCE_CPU = query.get("renderer") === "cpu" || cloudPresetName === "billow" || cloudPresetName === "billow-v1";
+const FORCE_CPU =
+  query.get("renderer") === "cpu" ||
+  cloudPresetName === "billow" ||
+  cloudPresetName === "billow-v1";
 let previewResolution: PreviewResolution = { width: 360, height: 640, label: "auto fallback" };
 const simFps = resolveSimFps();
 
@@ -56,7 +68,8 @@ function setNumericParam(id: NumericParamId, value: number): void {
       break;
     case "stormAge":
       params.stormLifecycle.stormAge = value;
-      params.stormLifecycle.phase = value < 0.33 ? "developing" : value > 0.78 ? "dissipating" : "mature";
+      params.stormLifecycle.phase =
+        value < 0.33 ? "developing" : value > 0.78 ? "dissipating" : "mature";
       break;
     case "humidity":
       params.humidityUplift.humidity = value;
@@ -195,12 +208,21 @@ const numericParamIds: readonly NumericParamId[] = [
 ];
 
 async function createRenderer(): Promise<PreviewRenderer> {
-  const webGpuRenderer = FORCE_CPU ? null : await WebGpuPreviewRenderer.create(canvas);
   const rendererStatus = document.querySelector<HTMLElement>("#renderer-status");
+  if (viewMode === "3d") {
+    const { ThreeBubblePreviewRenderer } = await import("./three-bubble-preview-renderer.js");
+    previewResolution = resolvePreviewResolution("webgpu");
+    if (rendererStatus) {
+      rendererStatus.textContent = `Renderer: Three.js bubble model (${previewResolution.label}) · look=${threeBubbleLookPreset}${resolvePresetLabel()}${resolveFpsLabel()}`;
+    }
+    return new ThreeBubblePreviewRenderer(canvas, threeBubbleLookPreset);
+  }
+
+  const webGpuRenderer = FORCE_CPU ? null : await WebGpuPreviewRenderer.create(canvas);
   if (webGpuRenderer) {
     previewResolution = resolvePreviewResolution("webgpu");
     if (rendererStatus) {
-      rendererStatus.textContent = `Renderer: WebGPU preview (${previewResolution.label})${resolvePresetLabel()}${resolveFpsLabel()}`;
+      rendererStatus.textContent = `Renderer: WebGPU field (${previewResolution.label})${resolvePresetLabel()}${resolveFpsLabel()}`;
     }
     return webGpuRenderer;
   }
@@ -211,7 +233,7 @@ async function createRenderer(): Promise<PreviewRenderer> {
   }
   previewResolution = resolvePreviewResolution("cpu");
   if (rendererStatus) {
-    rendererStatus.textContent = `Renderer: CPU fallback (${previewResolution.label})${resolvePresetLabel()}${resolveFpsLabel()}`;
+    rendererStatus.textContent = `Renderer: CPU field (${previewResolution.label})${resolvePresetLabel()}${resolveFpsLabel()}`;
   }
   return new CpuPreviewRenderer(canvas, contextCandidate);
 }
@@ -265,7 +287,32 @@ function resolvePresetLabel(): string {
   return ` · preset=${cloudPresetName}`;
 }
 
+function resolveViewMode(): "field" | "3d" {
+  const raw = (query.get("view") ?? query.get("model") ?? "field").toLowerCase();
+  if (raw === "3d" || raw === "bubble" || raw === "3d-billow") {
+    return "3d";
+  }
+  return "field";
+}
+
+function resolveThreeBubbleLookPresetName(): ThreeBubbleLookPresetName {
+  return normalizeThreeBubbleLookPresetName(query.get("look") ?? query.get("lookPreset"));
+}
+
 function resolvePreviewResolution(rendererHint: "cpu" | "webgpu"): PreviewResolution {
+  const width = readNumberFromQuery("simWidth", 0);
+  const height = readNumberFromQuery("simHeight", 0);
+  if (width > 0 && height > 0) {
+    const targetWidth = previewDimension(width);
+    const targetHeight = previewDimension(height);
+    const target = {
+      width: targetWidth,
+      height: targetHeight,
+      label: `custom (${targetWidth}x${targetHeight})`
+    };
+    return enforceRendererBudget(target, rendererHint);
+  }
+
   const preset = query.get("simPreset")?.toLowerCase();
   if (preset && isPresetResolution(preset)) {
     const selected = PRESET_PREVIEW_RESOLUTIONS[preset];
@@ -273,14 +320,8 @@ function resolvePreviewResolution(rendererHint: "cpu" | "webgpu"): PreviewResolu
     return { ...capped };
   }
 
-  const width = readNumberFromQuery("simWidth", 0);
-  const height = readNumberFromQuery("simHeight", 0);
-  if (width > 0 && height > 0) {
-    const target = { width: even(width), height: even(height), label: `custom (${even(width)}x${even(height)})` };
-    return enforceRendererBudget(target, rendererHint);
-  }
-
-  const fallback = rendererHint === "webgpu" ? PRESET_PREVIEW_RESOLUTIONS.mid : PRESET_PREVIEW_RESOLUTIONS.low;
+  const fallback =
+    rendererHint === "webgpu" ? PRESET_PREVIEW_RESOLUTIONS.mid : PRESET_PREVIEW_RESOLUTIONS.low;
   return enforceRendererBudget(fallback, rendererHint);
 }
 
@@ -288,7 +329,10 @@ function isPresetResolution(name: string): name is PresetResolutionName {
   return Object.prototype.hasOwnProperty.call(PRESET_PREVIEW_RESOLUTIONS, name);
 }
 
-function enforceRendererBudget(target: PreviewResolution, rendererHint: "cpu" | "webgpu"): PreviewResolution {
+function enforceRendererBudget(
+  target: PreviewResolution,
+  rendererHint: "cpu" | "webgpu"
+): PreviewResolution {
   const maxPixels = rendererHint === "cpu" ? 360 * 640 : 1080 * 1920;
   const currentPixels = target.width * target.height;
   if (currentPixels <= maxPixels) {
@@ -306,4 +350,8 @@ function enforceRendererBudget(target: PreviewResolution, rendererHint: "cpu" | 
 
 function even(value: number): number {
   return Math.max(2, Math.floor(value / 2) * 2);
+}
+
+function previewDimension(value: number): number {
+  return Math.max(2, Math.floor(value));
 }

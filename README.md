@@ -29,6 +29,10 @@ npm run render:test
 
 Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 10-bit HEVC with HDR10 metadata. This is a prototype HDR path, not final color mastering.
 
+`capture:3d-still` launches a local browser-backed 3D preview capture and writes `outputs/cumulonimbus-3d-still.png`.
+
+`spike:raymarch` writes an isolated CPU density-raymarch PPM still to `outputs/analysis/raymarch-density-spike.ppm`.
+
 ## Research
 
 The first source-backed research pass is in [docs/research-notes.md](docs/research-notes.md). It covers atmospheric science, procedural volumetric cloud rendering, HDR standards, and science-art precedents.
@@ -72,6 +76,32 @@ http://127.0.0.1:5173/?simPreset=low&simFps=30
 http://127.0.0.1:5173/?preset=billow&simPreset=low&fps=15
 ```
 
+若要啟動新的 3D bubble model 預覽：
+
+```text
+http://127.0.0.1:5173/?view=3d&simPreset=mid&fps=30
+```
+
+3D look-dev presets 可用 `look` 切換，用目前 bubble model 骨架做不同視覺語言：
+
+```text
+http://127.0.0.1:5173/?view=3d&look=structural&simPreset=mid&fps=30
+http://127.0.0.1:5173/?view=3d&look=demo-like&simPreset=mid&fps=30
+http://127.0.0.1:5173/?view=3d&look=soft-volumetric-ish&simPreset=mid&fps=30
+```
+
+若要輸出目前 3D baseline 的可重複 PNG still：
+
+```powershell
+npm run capture:3d-still -- --look demo-like --simPreset mid --width 540 --height 960
+```
+
+若要執行隔離的 volumetric raymarch still spike：
+
+```powershell
+npm run spike:raymarch -- --width 180 --height 320 --steps 56
+```
+
 新參數：
 
 - `simFps=<正整數>`（或 `fps`、`maxFps`）：限制 preview 目標幀率（例如 `simFps=30`、`fps=15`）。
@@ -81,6 +111,8 @@ http://127.0.0.1:5173/?preset=billow&simPreset=low&fps=15
 - `simPreset=low|mid|high|live4k`：控制預覽解析度。
 - `simWidth`/`simHeight`：自訂解析度（會套上安全上限）。
 - `preset=billow` 或 `cloudPreset=billow`：使用 demo-like 積雨雲起手樣態；目前會自動走 CPU preview，避免 WebGPU preview 與 CPU 模型不同步。
+- `view=3d` 或 `model=3d-billow`：使用 Three.js InstancedMesh 3D bubble model，保留相同參數控制語意。
+- `look=structural|demo-like|soft-volumetric-ish`：切換 3D look-dev preset。`structural` 保留幾何可讀性，`demo-like` 對齊 `outputs/analysis/demo_mid.png` 的暗背景與側逆光，`soft-volumetric-ish` 用更強 fog、halo、edge particles 模擬柔霧體積感。
 
 ## Demo reference tuning
 
@@ -95,4 +127,3 @@ npm run tune:demo -- --samples 16 --frames 18 --width 80 --height 160
 1. Tune the growth and edge drift against the reference video.
 2. Add WebGPU or shader rendering for realtime 4K portrait output.
 3. Add a live output mode for OBS or a streaming pipeline.
-

@@ -12,16 +12,23 @@
     "render:quick": "npm run build:core && node scripts/render-test-video.mjs --quick",
     "render:test": "npm run build:core && node scripts/render-test-video.mjs",
     "render:demo-loop": "npm run build:core && node scripts/render-demo-loop.mjs",
+    "capture:3d-still": "npm run build && node scripts/capture-3d-still.mjs",
+    "spike:raymarch": "node scripts/raymarch-density-spike.mjs",
     "tune:demo": "npm run build:core && node scripts/tune-demo-params.mjs",
     "format": "prettier --write .",
     "check": "tsc --noEmit",
-    "test": "npm run test:smoke",
-    "test:smoke": "npm run build:core && node scripts/smoke-render.mjs"
+    "test": "npm run test:smoke && npm run test:bubble",
+    "test:smoke": "npm run build:core && node scripts/smoke-render.mjs",
+    "test:bubble": "npm run build:core && node scripts/smoke-bubble-model.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/three": "^0.184.1",
     "prettier": "^3.5.3",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "three": "^0.184.0"
   }
 }

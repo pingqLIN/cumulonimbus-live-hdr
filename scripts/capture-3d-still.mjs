@@ -20,7 +20,9 @@ const look = args.look ?? "demo-like";
 const simPreset = args.simPreset ?? "mid";
 const captureFrames = readIntegerArg(args, "captureFrames", 0);
 const outputMode = args.source === "live" ? "live" : "capture";
-const outputPath = resolve(projectRoot, args.out ?? "outputs/cumulonimbus-3d-still.png");
+const defaultOutputPath =
+  view === "field" ? "outputs/cumulonimbus-field-still.png" : "outputs/cumulonimbus-3d-still.png";
+const outputPath = resolve(projectRoot, args.out ?? defaultOutputPath);
 const visualThresholds = {
   minMaxLuma: 42,
   minLumaStdDev: 4,

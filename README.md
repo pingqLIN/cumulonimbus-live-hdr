@@ -34,7 +34,7 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `live:url` prints the canonical local `live=1` Browser Source URL plus suggested OBS Browser Source dimensions.
 
-`capture:field-still` launches a local browser-backed CPU field preview capture and writes `outputs/cumulonimbus-3d-still.png` unless `--out` is provided.
+`capture:field-still` launches a local browser-backed CPU field preview capture and writes `outputs/cumulonimbus-field-still.png` unless `--out` is provided.
 
 `capture:3d-still` launches a local browser-backed 3D preview capture and writes `outputs/cumulonimbus-3d-still.png`.
 

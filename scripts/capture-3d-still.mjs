@@ -238,6 +238,10 @@ function waitForServer(origin, timeoutMs, readServerExit) {
         }
         retry();
       });
+      request.setTimeout(1000, () => {
+        request.destroy();
+        retry();
+      });
       request.on("error", retry);
     };
 
@@ -271,7 +275,7 @@ function resolveBrowser(explicitBrowser) {
     if (candidate.includes("\\") && !existsSync(candidate)) {
       continue;
     }
-    const probe = spawnSync(candidate, ["--version"], { encoding: "utf8" });
+    const probe = spawnSync(candidate, ["--version"], { encoding: "utf8", timeout: 5000 });
     if (probe.status === 0) {
       return candidate;
     }

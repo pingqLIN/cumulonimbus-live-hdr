@@ -41,9 +41,17 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 The first source-backed research pass is in [docs/research-notes.md](docs/research-notes.md). It covers atmospheric science, procedural volumetric cloud rendering, HDR standards, and science-art precedents.
 
-## Next Steps
+## Current State
 
 The current renderer uses a persistent `IterativeCloudField`, so the cloud edge now has memory: target density condenses into the field gradually, previous density is advected by slow wind shear, and evaporation trails behind the ideal mathematical shape.
+
+The 3D preview is a separate `view=3d` mode with selectable looks, a capture smoke test, and a comparison report for tuning portrait framing. The `live=1` query flag provides a local canvas-only browser-source entry; the remaining live work is actual OBS/NDI/Spout, streaming, and HDR capture integration.
+
+## Next Steps
+
+1. Tune growth, turbulence, edge drift, and color response against the reference clip plus the `capture:3d-still` and `report:3d-looks` outputs.
+2. Add shader/WebGPU or raymarch rendering when the 3D bubble baseline needs real volume fidelity.
+3. Extend the `live=1` canvas entry into an OBS/NDI/Spout or streaming pipeline with an explicit HDR capture/export path.
 
 ## 進階使用：持續迭代 Demo 影片
 
@@ -136,6 +144,6 @@ npm run tune:demo -- --samples 16 --frames 18 --width 80 --height 160
 
 輸出會寫到 `outputs/analysis/tuning/`，包含 reference frame、候選 frame 與 `report.json`。
 
-1. Tune the growth and edge drift against the reference video.
-2. Add WebGPU or shader rendering for realtime 4K portrait output.
-3. Add a live output mode for OBS or a streaming pipeline.
+1. Keep tuning growth, edge drift, color response, and 3D framing against `demo.mov`, `capture:3d-still`, and `report:3d-looks`.
+2. Add shader/WebGPU or raymarch rendering when the 3D bubble baseline needs real volume fidelity.
+3. Extend the `live=1` canvas entry into an OBS/NDI/Spout or streaming pipeline with an explicit HDR capture/export path.

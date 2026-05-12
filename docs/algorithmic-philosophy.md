@@ -6,5 +6,4 @@ The system is intentionally self-iterative. Each frame converges a persistent de
 
 HDR is treated as a luminance language. The silver lining and sunlit upper rim are allowed to exceed ordinary SDR values before export, while the browser preview tonemaps them for ordinary displays. The final stream path should keep those highlights as high-value information, not merely brightened SDR.
 
-The first prototype favors a single portrait segment matching the reference video's vertical framing. Later iterations can add persistent field history, WebGPU acceleration, OBS/NDI output, or segmented live-loop rendering once the movement vocabulary is right.
-
+The current prototype favors a single portrait segment matching the reference video's vertical framing, with both a persistent 2D HDR field and a browser-backed 3D bubble preview. Later iterations can add WebGPU acceleration, OBS/NDI/Spout output, or segmented live-loop rendering once the movement vocabulary is right.

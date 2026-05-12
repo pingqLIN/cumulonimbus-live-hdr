@@ -1,10 +1,11 @@
 import { tonemapSdr, type CloudParams } from "../core/cloud-field.js";
-import { IterativeCloudField } from "../core/iterative-cloud-field.js";
-import type { PreviewRenderer } from "./preview-renderer.js";
+import { IterativeCloudField, type FieldMetrics } from "../core/iterative-cloud-field.js";
+import type { PreviewMetrics, PreviewRenderer } from "./preview-renderer.js";
 
 export class CpuPreviewRenderer implements PreviewRenderer {
   readonly mode = "cpu";
   private field: IterativeCloudField;
+  private lastMetrics: FieldMetrics | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -15,6 +16,7 @@ export class CpuPreviewRenderer implements PreviewRenderer {
 
   reset(): void {
     this.field.reset();
+    this.lastMetrics = null;
   }
 
   resize(width: number, height: number): void {
@@ -25,10 +27,11 @@ export class CpuPreviewRenderer implements PreviewRenderer {
     this.canvas.height = height;
     this.field = new IterativeCloudField(width, height);
     this.field.reset();
+    this.lastMetrics = null;
   }
 
   render(time: number, deltaSeconds: number, params: CloudParams): void {
-    this.field.step(time, deltaSeconds, params);
+    this.lastMetrics = this.field.step(time, deltaSeconds, params);
     const image = this.context.createImageData(this.canvas.width, this.canvas.height);
     const data = image.data;
 
@@ -44,5 +47,20 @@ export class CpuPreviewRenderer implements PreviewRenderer {
     }
 
     this.context.putImageData(image, 0, 0);
+  }
+
+  getMetrics(): PreviewMetrics | null {
+    if (!this.lastMetrics) {
+      return null;
+    }
+
+    return {
+      title: "Field metrics",
+      items: [
+        { label: "Density", value: this.lastMetrics.averageDensity.toFixed(3) },
+        { label: "Active edge", value: `${(this.lastMetrics.activeEdgeRatio * 100).toFixed(1)}%` },
+        { label: "Resolution", value: `${this.canvas.width} x ${this.canvas.height}` }
+      ]
+    };
   }
 }

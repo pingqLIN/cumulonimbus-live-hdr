@@ -1,8 +1,13 @@
 import * as THREE from "three";
-import { BubbleModel, type BubbleLayer, type BubbleNode } from "../core/bubble-model.js";
+import {
+  BubbleModel,
+  type BubbleLayer,
+  type BubbleModelMetrics,
+  type BubbleNode
+} from "../core/bubble-model.js";
 import { mapCloudParamsToBubbleParams } from "../core/bubble-params.js";
 import type { CloudParams } from "../core/cloud-field.js";
-import type { PreviewRenderer } from "./preview-renderer.js";
+import type { PreviewMetrics, PreviewRenderer } from "./preview-renderer.js";
 export {
   normalizeThreeBubbleLookPresetName,
   type ThreeBubbleLookPresetName
@@ -243,6 +248,7 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
   private readonly particleCloud: THREE.Points;
   private readonly glowSprite: THREE.Sprite;
   private cloudShaderUniforms: CloudShaderUniforms | null = null;
+  private lastMetrics: BubbleModelMetrics | null = null;
   private lastModelSignature = "";
   private lastWidth = 0;
   private lastHeight = 0;
@@ -320,6 +326,7 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
 
   reset(): void {
     this.lastModelSignature = "";
+    this.lastMetrics = null;
   }
 
   resize(width: number, height: number): void {
@@ -344,7 +351,7 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
       this.lastModelSignature = modelSignature;
     }
 
-    this.model.step(deltaSeconds);
+    this.lastMetrics = this.model.step(deltaSeconds);
     this.updateCloudMaterialShader(look, bubbleParams.lightWrap);
     this.material.emissiveIntensity = bubbleParams.lightWrap * look.emissiveScale;
     this.material.roughness = Math.min(
@@ -357,6 +364,23 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
     this.updateInstances(bubbleParams.surfaceDisplacement, look);
     this.updateParticles(bubbleParams.edgeParticleDensity, look);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  getMetrics(): PreviewMetrics | null {
+    if (!this.lastMetrics) {
+      return null;
+    }
+
+    return {
+      title: "3D bubble metrics",
+      items: [
+        { label: "Nodes", value: this.lastMetrics.totalNodes.toLocaleString("en-US") },
+        { label: "Active", value: this.lastMetrics.activeNodes.toLocaleString("en-US") },
+        { label: "Mature", value: `${(this.lastMetrics.matureRatio * 100).toFixed(1)}%` },
+        { label: "Generation", value: String(this.lastMetrics.maxGeneration) },
+        { label: "Avg radius", value: this.lastMetrics.averageRadius.toFixed(2) }
+      ]
+    };
   }
 
   private resolveLookPreset(): ThreeBubbleLookPreset {

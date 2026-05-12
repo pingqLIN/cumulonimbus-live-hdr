@@ -19,7 +19,8 @@
     "check": "tsc --noEmit",
     "test": "npm run test:smoke && npm run test:bubble",
     "test:smoke": "npm run build:core && node scripts/smoke-render.mjs",
-    "test:bubble": "npm run build:core && node scripts/smoke-bubble-model.mjs"
+    "test:bubble": "npm run build:core && node scripts/smoke-bubble-model.mjs",
+    "test:3d-capture": "npm run build && node scripts/smoke-3d-capture.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

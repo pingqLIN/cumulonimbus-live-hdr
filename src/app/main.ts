@@ -22,12 +22,15 @@ if (query.get("capture") === "1" || query.get("capture") === "canvas") {
 const cloudPresetName = normalizeCloudPresetName(query.get("cloudPreset") ?? query.get("preset"));
 const viewMode = resolveViewMode();
 const threeBubbleLookPreset = resolveThreeBubbleLookPresetName();
+document.documentElement.dataset.currentView = viewMode;
+document.documentElement.dataset.currentLook = threeBubbleLookPreset;
 const params: CloudParams = createCloudPresetParams(cloudPresetName);
 let paused = false;
 let start = performance.now();
 let lastFrameTime = start;
 let nextFrameTime = start;
 let animationFrame = 0;
+let lastMetricsPaintTime = 0;
 let renderer: PreviewRenderer;
 
 type PreviewResolution = {
@@ -133,6 +136,7 @@ function bindNumber(id: NumericParamId): void {
 }
 
 function setupControls(): void {
+  setupNavigationControls();
   bindNumber("seed");
   bindNumber("stormAge");
   bindNumber("humidity");
@@ -187,6 +191,7 @@ function draw(now: number): void {
   const deltaSeconds = Math.min(0.08, Math.max(1 / 120, (now - lastFrameTime) / 1000));
   lastFrameTime = now;
   renderer.render(time, deltaSeconds, params);
+  renderPreviewMetrics(now);
   if (fpsThrottleMs > 0) {
     nextFrameTime = now + fpsThrottleMs;
   }
@@ -206,6 +211,40 @@ const numericParamIds: readonly NumericParamId[] = [
   "sunEdgePeakNits",
   "haze"
 ];
+
+function setupNavigationControls(): void {
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-mode]")) {
+    const targetMode = button.dataset.viewMode === "3d" ? "3d" : "field";
+    button.setAttribute("aria-pressed", String(targetMode === viewMode));
+    button.addEventListener("click", () => {
+      if (targetMode === viewMode) {
+        return;
+      }
+      navigateWithSearch((searchParams) => {
+        if (targetMode === "3d") {
+          searchParams.set("view", "3d");
+          return;
+        }
+        searchParams.delete("view");
+        searchParams.delete("model");
+      });
+    });
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-look-preset]")) {
+    const targetPreset = normalizeThreeBubbleLookPresetName(button.dataset.lookPreset ?? null);
+    button.setAttribute(
+      "aria-pressed",
+      String(viewMode === "3d" && targetPreset === threeBubbleLookPreset)
+    );
+    button.addEventListener("click", () => {
+      navigateWithSearch((searchParams) => {
+        searchParams.set("view", "3d");
+        searchParams.set("look", targetPreset);
+      });
+    });
+  }
+}
 
 async function createRenderer(): Promise<PreviewRenderer> {
   const rendererStatus = document.querySelector<HTMLElement>("#renderer-status");
@@ -297,6 +336,59 @@ function resolveViewMode(): "field" | "3d" {
 
 function resolveThreeBubbleLookPresetName(): ThreeBubbleLookPresetName {
   return normalizeThreeBubbleLookPresetName(query.get("look") ?? query.get("lookPreset"));
+}
+
+function renderPreviewMetrics(now: number): void {
+  if (now - lastMetricsPaintTime < 250) {
+    return;
+  }
+  lastMetricsPaintTime = now;
+
+  const panel = document.querySelector<HTMLElement>("#metrics-panel");
+  const grid = document.querySelector<HTMLElement>("[data-metric-grid]");
+  if (!panel || !grid) {
+    return;
+  }
+
+  const metrics = renderer.getMetrics?.() ?? null;
+  if (!metrics) {
+    grid.replaceChildren(createMetricRow("Mode", renderer.mode));
+    return;
+  }
+
+  const rows = [
+    createMetricTitle(metrics.title),
+    createMetricRow("Mode", renderer.mode),
+    ...metrics.items.map((item) => createMetricRow(item.label, item.value))
+  ];
+  grid.replaceChildren(...rows);
+}
+
+function createMetricTitle(title: string): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "metric-title";
+  row.textContent = title;
+  return row;
+}
+
+function createMetricRow(label: string, value: string): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "metric-row";
+
+  const labelElement = document.createElement("span");
+  labelElement.textContent = label;
+
+  const valueElement = document.createElement("strong");
+  valueElement.textContent = value;
+
+  row.append(labelElement, valueElement);
+  return row;
+}
+
+function navigateWithSearch(update: (searchParams: URLSearchParams) => void): void {
+  const url = new URL(window.location.href);
+  update(url.searchParams);
+  window.location.assign(url.toString());
 }
 
 function resolvePreviewResolution(rendererHint: "cpu" | "webgpu"): PreviewResolution {

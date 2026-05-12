@@ -17,6 +17,34 @@
           <h1>Cumulonimbus Live HDR</h1>
           <p id="renderer-status" class="renderer-status">Renderer: starting</p>
         </div>
+        <div class="control-group">
+          <p class="control-label">View</p>
+          <div class="segmented-control" role="group" aria-label="Preview mode">
+            <button type="button" data-view-mode="field">Field</button>
+            <button type="button" data-view-mode="3d">3D</button>
+          </div>
+        </div>
+        <div class="control-group look-controls">
+          <p class="control-label">Look</p>
+          <div
+            class="segmented-control segmented-control--stacked"
+            role="group"
+            aria-label="3D look preset"
+          >
+            <button type="button" data-look-preset="structural">Structural</button>
+            <button type="button" data-look-preset="demo-like">Demo-like</button>
+            <button type="button" data-look-preset="soft-volumetric-ish">Soft volume</button>
+          </div>
+        </div>
+        <section
+          id="metrics-panel"
+          class="metrics-panel"
+          aria-label="Preview metrics"
+          aria-live="polite"
+        >
+          <p class="control-label">Metrics</p>
+          <div class="metric-grid" data-metric-grid></div>
+        </section>
         <label>
           Seed
           <input id="seed" type="number" value="20260510" />

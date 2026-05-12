@@ -31,6 +31,8 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `capture:3d-still` launches a local browser-backed 3D preview capture and writes `outputs/cumulonimbus-3d-still.png`.
 
+`test:3d-capture` runs a small browser-backed 3D capture smoke test and validates the PNG is non-flat.
+
 `spike:raymarch` writes an isolated CPU density-raymarch PPM still to `outputs/analysis/raymarch-density-spike.ppm`.
 
 ## Research
@@ -94,6 +96,7 @@ http://127.0.0.1:5173/?view=3d&look=soft-volumetric-ish&simPreset=mid&fps=30
 
 ```powershell
 npm run capture:3d-still -- --look demo-like --simPreset mid --width 540 --height 960
+npm run test:3d-capture
 ```
 
 若要執行隔離的 volumetric raymarch still spike：

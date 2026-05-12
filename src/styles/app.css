@@ -129,6 +129,95 @@ button:hover {
   background: rgba(255, 255, 255, 0.15);
 }
 
+.control-group {
+  display: grid;
+  gap: 8px;
+}
+
+.control-label {
+  margin: 0;
+  color: #9fb4c9;
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.segmented-control--stacked {
+  grid-template-columns: 1fr;
+}
+
+.segmented-control button {
+  min-height: 34px;
+  padding: 0 10px;
+  overflow-wrap: anywhere;
+  color: #cad8e6;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 0.82rem;
+}
+
+.segmented-control button[aria-pressed="true"] {
+  color: #fff7e5;
+  background: linear-gradient(180deg, rgba(255, 205, 125, 0.28), rgba(118, 163, 176, 0.18));
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 150, 0.28);
+}
+
+html[data-current-view="field"] .look-controls {
+  opacity: 0.62;
+}
+
+.metrics-panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(181, 242, 217, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(181, 242, 217, 0.08), transparent), rgba(255, 255, 255, 0.045);
+}
+
+.metric-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.metric-title {
+  color: #b5f2d9;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  color: #b7c6d6;
+  font-size: 0.82rem;
+}
+
+.metric-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.metric-row strong {
+  color: #f8fbff;
+  font-weight: 720;
+}
+
 html[data-capture="canvas"],
 html[data-capture="canvas"] body {
   overflow: hidden;

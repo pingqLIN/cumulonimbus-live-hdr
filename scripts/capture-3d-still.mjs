@@ -4,6 +4,7 @@ import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { analyzePng } from "./lib/png-analysis.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
@@ -15,6 +16,11 @@ const waitMs = readIntegerArg(args, "waitMs", 12000);
 const look = args.look ?? "demo-like";
 const simPreset = args.simPreset ?? "mid";
 const outputPath = resolve(projectRoot, args.out ?? "outputs/cumulonimbus-3d-still.png");
+const visualThresholds = {
+  minMaxLuma: 42,
+  minLumaStdDev: 4,
+  minBrightPixelRatio: 0.001
+};
 const url = new URL(`http://127.0.0.1:${port}/`);
 url.searchParams.set("view", "3d");
 url.searchParams.set("look", look);
@@ -66,6 +72,8 @@ try {
       `Capture output dimensions ${png.width}x${png.height} did not match requested ${width}x${height}`
     );
   }
+  const analysis = analyzePng(outputPath);
+  validateCaptureAnalysis(analysis);
 
   console.log(
     JSON.stringify(
@@ -75,7 +83,9 @@ try {
         url: url.toString(),
         browser,
         bytes: size,
-        png
+        png,
+        visualThresholds,
+        analysis
       },
       null,
       2
@@ -226,4 +236,22 @@ function readPngHeader(path) {
     width: buffer.readUInt32BE(16),
     height: buffer.readUInt32BE(20)
   };
+}
+
+function validateCaptureAnalysis(analysis) {
+  const failures = [];
+  if (analysis.maxLuma <= visualThresholds.minMaxLuma) {
+    failures.push(`max luma ${analysis.maxLuma} <= ${visualThresholds.minMaxLuma}`);
+  }
+  if (analysis.lumaStdDev <= visualThresholds.minLumaStdDev) {
+    failures.push(`luma stddev ${analysis.lumaStdDev} <= ${visualThresholds.minLumaStdDev}`);
+  }
+  if (analysis.brightPixelRatio <= visualThresholds.minBrightPixelRatio) {
+    failures.push(
+      `bright pixel ratio ${analysis.brightPixelRatio} <= ${visualThresholds.minBrightPixelRatio}`
+    );
+  }
+  if (failures.length > 0) {
+    throw new Error(`Capture output failed visual smoke thresholds: ${failures.join("; ")}`);
+  }
 }

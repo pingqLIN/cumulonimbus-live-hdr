@@ -12,6 +12,7 @@
     "render:quick": "npm run build:core && node scripts/render-test-video.mjs --quick",
     "render:test": "npm run build:core && node scripts/render-test-video.mjs",
     "render:demo-loop": "npm run build:core && node scripts/render-demo-loop.mjs",
+    "live:url": "node scripts/print-live-url.mjs",
     "capture:3d-still": "npm run build && node scripts/capture-3d-still.mjs",
     "spike:raymarch": "node scripts/raymarch-density-spike.mjs",
     "report:3d-looks": "npm run build && node scripts/report-3d-looks.mjs",
@@ -21,7 +22,8 @@
     "test": "npm run test:smoke && npm run test:bubble",
     "test:smoke": "npm run build:core && node scripts/smoke-render.mjs",
     "test:bubble": "npm run build:core && node scripts/smoke-bubble-model.mjs",
-    "test:3d-capture": "npm run build && node scripts/smoke-3d-capture.mjs"
+    "test:3d-capture": "npm run build && node scripts/smoke-3d-capture.mjs",
+    "test:live-entry": "npm run build && node scripts/smoke-live-entry.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

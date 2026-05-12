@@ -29,9 +29,13 @@ npm run render:test
 
 Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 10-bit HEVC with HDR10 metadata. This is a prototype HDR path, not final color mastering.
 
+`live:url` prints the canonical local `live=1` Browser Source URL plus suggested OBS Browser Source dimensions.
+
 `capture:3d-still` launches a local browser-backed 3D preview capture and writes `outputs/cumulonimbus-3d-still.png`.
 
 `test:3d-capture` runs a small browser-backed 3D capture smoke test and validates the PNG is non-flat.
+
+`test:live-entry` runs the same browser-backed visibility smoke through the `live=1` entrypoint.
 
 `report:3d-looks` captures all 3D look presets and writes comparison metrics to `outputs/analysis/3d-looks/report.json`.
 
@@ -98,6 +102,13 @@ http://127.0.0.1:5173/?view=3d&look=demo-like&simPreset=mid&fps=30
 
 ```text
 http://127.0.0.1:5173/?live=1&view=3d&look=demo-like&simPreset=mid&fps=30
+```
+
+也可以由工具輸出 canonical URL 與建議尺寸：
+
+```powershell
+npm run live:url -- --width 540 --height 960 --fps 30
+npm run test:live-entry
 ```
 
 3D look-dev presets 可用 `look` 切換，用目前 bubble model 骨架做不同視覺語言：

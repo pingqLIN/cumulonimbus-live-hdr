@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { analyzePng } from "./lib/png-analysis.mjs";
+import { buildPreviewUrl } from "./lib/preview-url.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
@@ -15,20 +16,23 @@ const height = readIntegerArg(args, "height", 960);
 const waitMs = readIntegerArg(args, "waitMs", 12000);
 const look = args.look ?? "demo-like";
 const simPreset = args.simPreset ?? "mid";
+const outputMode = args.source === "live" ? "live" : "capture";
 const outputPath = resolve(projectRoot, args.out ?? "outputs/cumulonimbus-3d-still.png");
 const visualThresholds = {
   minMaxLuma: 42,
   minLumaStdDev: 4,
   minBrightPixelRatio: 0.001
 };
-const url = new URL(`http://127.0.0.1:${port}/`);
-url.searchParams.set("view", "3d");
-url.searchParams.set("look", look);
-url.searchParams.set("simPreset", simPreset);
-url.searchParams.set("simWidth", String(width));
-url.searchParams.set("simHeight", String(height));
-url.searchParams.set("fps", "30");
-url.searchParams.set("capture", "1");
+const url = buildPreviewUrl({
+  origin: `http://127.0.0.1:${port}`,
+  view: "3d",
+  look,
+  simPreset,
+  width,
+  height,
+  fps: 30,
+  outputMode
+});
 
 mkdirSync(join(projectRoot, "outputs"), { recursive: true });
 mkdirSync(dirname(outputPath), { recursive: true });

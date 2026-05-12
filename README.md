@@ -42,6 +42,8 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `test:live-entry` runs the same browser-backed visibility smoke through the `live=1` entrypoint.
 
+`test:ui-capture` runs a browser-backed screenshot smoke against the full control-panel UI, without `live=1` or `capture=1`.
+
 `report:3d-looks` captures all 3D look presets and writes comparison metrics to `outputs/analysis/3d-looks/report.json`.
 
 `test:3d-looks` runs a small browser-backed smoke over every 3D look preset and validates report ranking behavior.
@@ -54,7 +56,7 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `test:field-capture` validates the CPU field renderer fallback through the browser-backed capture path.
 
-`test:browser` runs a dedicated browser smoke suite for field fallback, 3D capture, and the live entrypoint without nesting multiple `npm run` calls.
+`test:browser` runs a dedicated browser smoke suite for field fallback, 3D capture, full UI capture, and the live entrypoint without nesting multiple `npm run` calls.
 
 ## Research
 
@@ -140,6 +142,7 @@ http://127.0.0.1:5173/?view=3d&look=soft-volumetric-ish&simPreset=mid&fps=30
 npm run capture:field-still -- --width 540 --height 960 --captureFrames 12
 npm run capture:3d-still -- --look demo-like --simPreset mid --width 540 --height 960
 npm run test:3d-capture
+npm run test:ui-capture
 npm run test:3d-looks
 npm run report:3d-looks
 ```
@@ -159,6 +162,7 @@ npm run spike:raymarch -- --width 180 --height 320 --steps 56
 - `simPreset=low|mid|high|live4k`：控制預覽解析度。
 - `simWidth`/`simHeight`：自訂解析度（會套上安全上限）。
 - `captureFrames=<正整數>`：只給 browser-backed smoke/capture 使用；渲染到指定幀數後暫停，避免 headless screenshot 等待無止境動畫。
+- `--source ui`：給 `capture:3d-still`/smoke 腳本使用；不加 `live=1` 或 `capture=1`，保留完整控制面板以檢查 UI。
 - `preset=billow` 或 `cloudPreset=billow`：使用 demo-like 積雨雲起手樣態；目前會自動走 CPU preview，避免 WebGPU preview 與 CPU 模型不同步。
 - `view=3d` 或 `model=3d-billow`：使用 Three.js InstancedMesh 3D bubble model，保留相同參數控制語意。
 - `look=structural|demo-like|soft-volumetric-ish`：切換 3D look-dev preset。`structural` 保留幾何可讀性，`demo-like` 對齊 `outputs/analysis/demo_mid.png` 的暗背景與側逆光，`soft-volumetric-ish` 用更強 fog、halo、edge particles 模擬柔霧體積感。

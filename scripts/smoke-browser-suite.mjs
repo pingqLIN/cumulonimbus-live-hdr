@@ -14,6 +14,10 @@ const cases = [
     script: "smoke-3d-capture.mjs"
   },
   {
+    name: "ui-capture",
+    script: "smoke-ui-capture.mjs"
+  },
+  {
     name: "live-entry",
     script: "smoke-live-entry.mjs"
   }

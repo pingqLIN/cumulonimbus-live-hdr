@@ -29,6 +29,7 @@
     "test:browser": "npm run build && node scripts/smoke-browser-suite.mjs",
     "test:field-capture": "npm run build && node scripts/smoke-field-capture.mjs",
     "test:3d-capture": "npm run build && node scripts/smoke-3d-capture.mjs",
+    "test:ui-capture": "npm run build && node scripts/smoke-ui-capture.mjs",
     "test:3d-looks": "npm run build && node scripts/smoke-3d-looks.mjs",
     "test:live-entry": "npm run build && node scripts/smoke-live-entry.mjs"
   },

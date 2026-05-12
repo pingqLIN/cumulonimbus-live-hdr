@@ -20,7 +20,7 @@ export function buildPreviewUrl(options = {}) {
   const outputMode = options.outputMode ?? "live";
   if (outputMode === "capture") {
     url.searchParams.set("capture", "1");
-  } else {
+  } else if (outputMode === "live") {
     url.searchParams.set("live", "1");
   }
 

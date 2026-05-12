@@ -14,8 +14,11 @@ const port = await resolveCapturePort(requestedPort, Object.hasOwn(args, "port")
 const width = readIntegerArg(args, "width", 540);
 const height = readIntegerArg(args, "height", 960);
 const waitMs = readIntegerArg(args, "waitMs", 12000);
+const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(30000, waitMs + 20000));
+const view = args.view ?? "3d";
 const look = args.look ?? "demo-like";
 const simPreset = args.simPreset ?? "mid";
+const captureFrames = readIntegerArg(args, "captureFrames", 0);
 const outputMode = args.source === "live" ? "live" : "capture";
 const outputPath = resolve(projectRoot, args.out ?? "outputs/cumulonimbus-3d-still.png");
 const visualThresholds = {
@@ -25,12 +28,15 @@ const visualThresholds = {
 };
 const url = buildPreviewUrl({
   origin: `http://127.0.0.1:${port}`,
-  view: "3d",
+  view,
   look,
   simPreset,
   width,
   height,
   fps: 30,
+  renderer: args.renderer,
+  preset: args.preset,
+  captureFrames,
   outputMode
 });
 
@@ -45,7 +51,7 @@ server.once("exit", (code, signal) => {
 try {
   await waitForServer(url.origin, 20000, () => serverExit);
   const browser = resolveBrowser(args.browser);
-  const result = spawnSync(
+  const result = await runBrowserScreenshot(
     browser,
     [
       "--headless=new",
@@ -57,10 +63,7 @@ try {
       `--screenshot=${outputPath}`,
       url.toString()
     ],
-    {
-      cwd: projectRoot,
-      encoding: "utf8"
-    }
+    browserTimeoutMs
   );
 
   if (result.status !== 0) {
@@ -166,6 +169,53 @@ function stopServer(child) {
     return;
   }
   child.kill();
+}
+
+function runBrowserScreenshot(browser, browserArgs, timeoutMs) {
+  return new Promise((resolveRun) => {
+    const child = spawn(browser, browserArgs, {
+      cwd: projectRoot,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      stopServer(child);
+      resolveRun({
+        status: 124,
+        stdout,
+        stderr: `${stderr}\nBrowser screenshot timed out after ${timeoutMs}ms`.trim()
+      });
+    }, timeoutMs);
+
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.once("error", (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      resolveRun({ status: 1, stdout, stderr: `${stderr}\n${error.message}`.trim() });
+    });
+    child.once("exit", (code) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      resolveRun({ status: code ?? 1, stdout, stderr });
+    });
+  });
 }
 
 function waitForServer(origin, timeoutMs, readServerExit) {

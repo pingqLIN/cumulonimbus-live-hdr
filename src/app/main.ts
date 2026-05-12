@@ -36,6 +36,7 @@ let lastFrameTime = start;
 let nextFrameTime = start;
 let animationFrame = 0;
 let lastMetricsPaintTime = 0;
+let renderedFrameCount = 0;
 let renderer: PreviewRenderer;
 
 type PreviewResolution = {
@@ -57,6 +58,7 @@ const FORCE_CPU =
   cloudPresetName === "billow-v1";
 let previewResolution: PreviewResolution = { width: 360, height: 640, label: "auto fallback" };
 const simFps = resolveSimFps();
+const captureFrameLimit = resolveCaptureFrameLimit();
 
 type NumericParamId =
   | "seed"
@@ -197,6 +199,11 @@ function draw(now: number): void {
   lastFrameTime = now;
   renderer.render(time, deltaSeconds, params);
   renderPreviewMetrics(now);
+  renderedFrameCount += 1;
+  if (captureFrameLimit > 0 && renderedFrameCount >= captureFrameLimit) {
+    paused = true;
+    return;
+  }
   if (fpsThrottleMs > 0) {
     nextFrameTime = now + fpsThrottleMs;
   }
@@ -315,6 +322,14 @@ function resolveSimFps(): number {
     }
   }
   return 0;
+}
+
+function resolveCaptureFrameLimit(): number {
+  const value = Math.round(readNumberFromQuery("captureFrames", 0));
+  if (value <= 0) {
+    return 0;
+  }
+  return Math.min(600, value);
 }
 
 function resolveFpsLabel(): string {

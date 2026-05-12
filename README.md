@@ -49,6 +49,8 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `test:webgpu-uniforms` validates the CPU parameter to WebGPU preview uniform mapping.
 
+`test:field-capture` validates the CPU field renderer fallback through the browser-backed capture path.
+
 ## Research
 
 The first source-backed research pass is in [docs/research-notes.md](docs/research-notes.md). It covers atmospheric science, procedural volumetric cloud rendering, HDR standards, and science-art precedents.

@@ -7,6 +7,15 @@ export function buildPreviewUrl(options = {}) {
   url.searchParams.set("simWidth", String(options.width ?? 540));
   url.searchParams.set("simHeight", String(options.height ?? 960));
   url.searchParams.set("fps", String(options.fps ?? 30));
+  if (options.renderer) {
+    url.searchParams.set("renderer", options.renderer);
+  }
+  if (options.preset) {
+    url.searchParams.set("preset", options.preset);
+  }
+  if (options.captureFrames) {
+    url.searchParams.set("captureFrames", String(options.captureFrames));
+  }
 
   const outputMode = options.outputMode ?? "live";
   if (outputMode === "capture") {

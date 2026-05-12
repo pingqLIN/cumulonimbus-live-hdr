@@ -25,6 +25,7 @@
     "test:bubble": "npm run build:core && node scripts/smoke-bubble-model.mjs",
     "test:raymarch": "node scripts/raymarch-density-spike.mjs --width 90 --height 160 --steps 32 --out outputs/analysis/raymarch-density-smoke.ppm --metrics outputs/analysis/raymarch-density-smoke.json",
     "test:webgpu-uniforms": "npm run build:core && node scripts/smoke-webgpu-uniforms.mjs",
+    "test:field-capture": "npm run build && node scripts/smoke-field-capture.mjs",
     "test:3d-capture": "npm run build && node scripts/smoke-3d-capture.mjs",
     "test:3d-looks": "npm run build && node scripts/smoke-3d-looks.mjs",
     "test:live-entry": "npm run build && node scripts/smoke-live-entry.mjs"

@@ -6,14 +6,21 @@ import { dirname, join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { analyzePng } from "./lib/png-analysis.mjs";
-import { buildPreviewUrl, threeBubbleTuningKeys } from "./lib/preview-url.mjs";
+import {
+  buildPreviewUrl,
+  getOrientationDimensions,
+  normalizeOrientation,
+  threeBubbleTuningKeys
+} from "./lib/preview-url.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
 const requestedPort = readIntegerArg(args, "port", 5183);
 const port = await resolveCapturePort(requestedPort, Object.hasOwn(args, "port"));
-const width = readIntegerArg(args, "width", 540);
-const height = readIntegerArg(args, "height", 960);
+const orientation = normalizeOrientation(args.orientation);
+const defaultDimensions = getOrientationDimensions(orientation);
+const width = readIntegerArg(args, "width", defaultDimensions.width);
+const height = readIntegerArg(args, "height", defaultDimensions.height);
 const waitMs = readIntegerArg(args, "waitMs", 12000);
 const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(30000, waitMs + 20000));
 const view = args.view ?? "3d";
@@ -35,6 +42,7 @@ const url = buildPreviewUrl({
   view,
   look,
   simPreset,
+  orientation,
   width,
   height,
   fps: 30,

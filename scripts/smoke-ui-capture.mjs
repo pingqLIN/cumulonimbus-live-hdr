@@ -4,8 +4,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const width = readNumberArg("--width", 800);
-const height = readNumberArg("--height", 600);
+const orientation = readStringArg("--orientation", "portrait");
+const width = readNumberArg("--width", orientation === "landscape" ? 960 : 800);
+const height = readNumberArg("--height", orientation === "landscape" ? 540 : 600);
 const outputPath = resolve(
   projectRoot,
   readStringArg("--out", join("outputs", "analysis", "cumulonimbus-ui-capture-smoke.png"))
@@ -23,6 +24,8 @@ const capture = spawnSync(
     readStringArg("--look", "demo-like"),
     "--simPreset",
     readStringArg("--simPreset", "low"),
+    "--orientation",
+    orientation,
     "--width",
     String(width),
     "--height",
@@ -50,6 +53,7 @@ const result = JSON.parse(capture.stdout);
 assert.equal(result.ok, true);
 assert.match(result.url, /[?&]view=3d(?:&|$)/);
 assert.match(result.url, /[?&]look=demo-like(?:&|$)/);
+assert.match(result.url, new RegExp(`[?&]orientation=${orientation}(?:&|$)`));
 assert.doesNotMatch(result.url, /[?&]capture=1(?:&|$)/);
 assert.doesNotMatch(result.url, /[?&]live=1(?:&|$)/);
 assert.equal(result.png.width, width);

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
   BubbleModel,
   type BubbleLayer,
@@ -230,11 +231,15 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(42, 9 / 16, 0.1, 1200);
+  private readonly controls: OrbitControls;
   private readonly cloudGroup = new THREE.Group();
   private readonly dummy = new THREE.Object3D();
   private readonly cameraTarget = new THREE.Vector3();
+  private readonly defaultCameraTarget = new THREE.Vector3();
   private readonly cameraOffset = new THREE.Vector3();
+  private readonly baseCameraOffset = new THREE.Vector3();
   private readonly cameraSpherical = new THREE.Spherical();
+  private readonly baseCameraSpherical = new THREE.Spherical();
   private readonly lightOffset = new THREE.Vector3();
   private readonly lightSpherical = new THREE.Spherical();
   private readonly instanceColor = new THREE.Color();
@@ -262,6 +267,8 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
   private lastWidth = 0;
   private lastHeight = 0;
   private threeBubbleTuning: ThreeBubbleTuning;
+  private tuningChangeListener: ((tuning: ThreeBubbleTuning) => void) | null = null;
+  private leftMouseWasPan = false;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -277,6 +284,17 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
     this.renderer.setPixelRatio(1);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = false;
+    this.controls.enablePan = true;
+    this.controls.enableZoom = true;
+    this.controls.enableRotate = true;
+    this.controls.screenSpacePanning = true;
+    this.controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN
+    };
 
     const look = this.resolveLookPreset();
     this.applySceneLook(look);
@@ -334,11 +352,20 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
     this.cloudGroup.add(this.glowSprite);
 
     this.model = new BubbleModel(mapCloudParamsToBubbleParams({ ...defaultCloudParamsShim }));
+    this.applyCameraFromTuning(look, this.threeBubbleTuning);
+    this.setupControls();
   }
 
   setThreeBubbleTuning(tuning: Partial<ThreeBubbleTuning>): void {
     this.threeBubbleTuning = normalizeThreeBubbleTuning(tuning);
+    this.applyCameraFromTuning(this.resolveLookPreset(), this.threeBubbleTuning);
     this.applyDynamicSceneLook(this.resolveLookPreset());
+  }
+
+  setThreeBubbleTuningChangeListener(
+    listener: ((tuning: ThreeBubbleTuning) => void) | null
+  ): void {
+    this.tuningChangeListener = listener;
   }
 
   reset(): void {
@@ -399,11 +426,15 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
         { label: "Avg radius", value: this.lastMetrics.averageRadius.toFixed(2) },
         {
           label: "Camera",
-          value: `${this.threeBubbleTuning.cameraYawDegrees.toFixed(0)} deg / ${this.threeBubbleTuning.cameraPitchDegrees.toFixed(0)} deg`
+          value: `${this.threeBubbleTuning.cameraYawDegrees.toFixed(0)} deg / ${this.threeBubbleTuning.cameraPitchDegrees.toFixed(0)} deg / ${this.threeBubbleTuning.cameraDistanceScale.toFixed(2)}x`
         },
         {
           label: "Light",
           value: `${this.threeBubbleTuning.sunIntensityScale.toFixed(2)}x / ${this.threeBubbleTuning.lightContrast.toFixed(2)}`
+        },
+        {
+          label: "Pan",
+          value: `${this.threeBubbleTuning.cameraTargetOffsetX.toFixed(1)}, ${this.threeBubbleTuning.cameraTargetOffsetY.toFixed(1)}, ${this.threeBubbleTuning.cameraTargetOffsetZ.toFixed(1)}`
         }
       ]
     };
@@ -424,6 +455,9 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
     this.keyLight.color.setHex(look.keyColor);
     this.fillLight.color.setHex(look.fillColor);
     this.rimLight.color.setHex(look.rimColor);
+    this.defaultCameraTarget.set(...look.cameraLookAt);
+    this.baseCameraOffset.set(...look.cameraPosition).sub(this.defaultCameraTarget);
+    this.baseCameraSpherical.setFromVector3(this.baseCameraOffset);
     this.applyDynamicSceneLook(look);
   }
 
@@ -437,7 +471,6 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
     const fillIntensityBalance = Math.max(0.55, 1.08 - (tuning.sunIntensityScale - 1) * 0.28);
 
     this.renderer.toneMappingExposure = look.toneExposure * tuning.exposureScale;
-    this.updateCameraFromTuning(look, tuning);
     this.ambientLight.intensity =
       look.ambientIntensity * ambientContrast * Math.sqrt(tuning.sunIntensityScale);
     this.keyLight.intensity = look.keyIntensity * tuning.sunIntensityScale * keyContrast;
@@ -464,24 +497,77 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
     );
   }
 
-  private updateCameraFromTuning(
+  private applyCameraFromTuning(
     look: ThreeBubbleLookPreset,
     tuning: ThreeBubbleTuning
   ): void {
-    this.cameraTarget.set(...look.cameraLookAt);
-    this.cameraOffset.set(...look.cameraPosition).sub(this.cameraTarget);
-    this.cameraSpherical.setFromVector3(this.cameraOffset);
+    this.cameraTarget
+      .copy(this.defaultCameraTarget)
+      .add(
+        new THREE.Vector3(
+          tuning.cameraTargetOffsetX,
+          tuning.cameraTargetOffsetY,
+          tuning.cameraTargetOffsetZ
+        )
+      );
+    this.cameraSpherical.copy(this.baseCameraSpherical);
     this.cameraSpherical.theta += THREE.MathUtils.degToRad(tuning.cameraYawDegrees);
     this.cameraSpherical.phi = THREE.MathUtils.clamp(
-      this.cameraSpherical.phi - THREE.MathUtils.degToRad(tuning.cameraPitchDegrees),
+      this.baseCameraSpherical.phi - THREE.MathUtils.degToRad(tuning.cameraPitchDegrees),
       0.12,
       Math.PI - 0.12
     );
-    this.cameraSpherical.radius *= tuning.cameraDistanceScale;
+    this.cameraSpherical.radius = this.baseCameraSpherical.radius * tuning.cameraDistanceScale;
     this.cameraOffset.setFromSpherical(this.cameraSpherical);
     this.camera.position.copy(this.cameraTarget).add(this.cameraOffset);
     this.camera.lookAt(this.cameraTarget);
+    this.controls.target.copy(this.cameraTarget);
+    this.controls.update();
     this.camera.updateProjectionMatrix();
+  }
+
+  private setupControls(): void {
+    this.renderer.domElement.addEventListener(
+      "pointerdown",
+      (event) => {
+        const pointerEvent = event as PointerEvent;
+        if (pointerEvent.button === 0 && (pointerEvent.ctrlKey || pointerEvent.metaKey)) {
+          this.leftMouseWasPan = true;
+          this.controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+        }
+      },
+      true
+    );
+    window.addEventListener("pointerup", () => {
+      if (!this.leftMouseWasPan) {
+        return;
+      }
+      this.leftMouseWasPan = false;
+      this.controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    });
+    this.controls.addEventListener("change", () => {
+      this.syncTuningFromControls();
+    });
+  }
+
+  private syncTuningFromControls(): void {
+    this.cameraOffset.copy(this.camera.position).sub(this.controls.target);
+    this.cameraSpherical.setFromVector3(this.cameraOffset);
+    const nextTuning = normalizeThreeBubbleTuning({
+      ...this.threeBubbleTuning,
+      cameraYawDegrees: THREE.MathUtils.radToDeg(
+        this.cameraSpherical.theta - this.baseCameraSpherical.theta
+      ),
+      cameraPitchDegrees: THREE.MathUtils.radToDeg(
+        this.baseCameraSpherical.phi - this.cameraSpherical.phi
+      ),
+      cameraDistanceScale: this.cameraSpherical.radius / this.baseCameraSpherical.radius,
+      cameraTargetOffsetX: this.controls.target.x - this.defaultCameraTarget.x,
+      cameraTargetOffsetY: this.controls.target.y - this.defaultCameraTarget.y,
+      cameraTargetOffsetZ: this.controls.target.z - this.defaultCameraTarget.z
+    });
+    this.threeBubbleTuning = nextTuning;
+    this.tuningChangeListener?.(nextTuning);
   }
 
   private setAdjustedLightPosition(

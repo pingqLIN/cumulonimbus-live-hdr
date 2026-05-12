@@ -1,8 +1,10 @@
-import { buildPreviewUrl } from "./lib/preview-url.mjs";
+import { buildPreviewUrl, getOrientationDimensions, normalizeOrientation } from "./lib/preview-url.mjs";
 
 const args = parseArgs(process.argv.slice(2));
-const width = readIntegerArg(args, "width", 540);
-const height = readIntegerArg(args, "height", 960);
+const orientation = normalizeOrientation(args.orientation);
+const defaultDimensions = getOrientationDimensions(orientation);
+const width = readIntegerArg(args, "width", defaultDimensions.width);
+const height = readIntegerArg(args, "height", defaultDimensions.height);
 const fps = readIntegerArg(args, "fps", 30);
 const port = readIntegerArg(args, "port", 5173);
 const host = args.host ?? "127.0.0.1";
@@ -13,6 +15,7 @@ const url = buildPreviewUrl({
   view: args.view ?? "3d",
   look: args.look ?? "demo-like",
   simPreset: args.simPreset ?? "mid",
+  orientation,
   width,
   height,
   fps,
@@ -25,6 +28,7 @@ console.log(
       ok: true,
       url: url.toString(),
       obsBrowserSource: {
+        orientation,
         width,
         height,
         fps,

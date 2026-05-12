@@ -18,6 +18,11 @@ const cases = [
     script: "smoke-ui-capture.mjs"
   },
   {
+    name: "ui-capture-landscape",
+    script: "smoke-ui-capture.mjs",
+    args: ["--orientation", "landscape"]
+  },
+  {
     name: "live-entry",
     script: "smoke-live-entry.mjs"
   }
@@ -51,7 +56,7 @@ function runCase(testCase) {
   const started = performance.now();
   const scriptPath = join(projectRoot, "scripts", testCase.script);
   return new Promise((resolveRun) => {
-    const child = spawn(process.execPath, [scriptPath], {
+    const child = spawn(process.execPath, [scriptPath, ...(testCase.args ?? [])], {
       cwd: projectRoot,
       stdio: ["ignore", "pipe", "pipe"]
     });

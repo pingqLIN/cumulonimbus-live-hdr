@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 import { analyzePng } from "./lib/png-analysis.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const width = readNumberArg("--width", 180);
-const height = readNumberArg("--height", 320);
+const orientation = readStringArg("--orientation", "portrait");
+const width = readNumberArg("--width", orientation === "landscape" ? 480 : 270);
+const height = readNumberArg("--height", orientation === "landscape" ? 270 : 480);
 const outputPath = resolve(
   projectRoot,
   readStringArg("--out", join("outputs", "analysis", "cumulonimbus-3d-capture-smoke.png"))
@@ -23,6 +24,8 @@ const capture = spawnSync(
     readStringArg("--look", "demo-like"),
     "--simPreset",
     readStringArg("--simPreset", "mid"),
+    "--orientation",
+    orientation,
     "--width",
     String(width),
     "--height",
@@ -55,6 +58,7 @@ const captureUrl = new URL(captureResult.url);
 assert.equal(captureUrl.searchParams.get("cameraYawDegrees"), cameraYawDegrees);
 assert.equal(captureUrl.searchParams.get("sunIntensityScale"), sunIntensityScale);
 assert.equal(captureUrl.searchParams.get("lightContrast"), lightContrast);
+assert.equal(captureUrl.searchParams.get("orientation"), orientation);
 assert.equal(captureResult.processCleanup.browser.stopped, true);
 assert.equal(captureResult.processCleanup.server.stopped, true);
 

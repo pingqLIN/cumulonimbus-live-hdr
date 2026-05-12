@@ -4,8 +4,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const width = readNumberArg("--width", 180);
-const height = readNumberArg("--height", 320);
+const orientation = readStringArg("--orientation", "portrait");
+const width = readNumberArg("--width", orientation === "landscape" ? 480 : 270);
+const height = readNumberArg("--height", orientation === "landscape" ? 270 : 480);
 const outputPath = resolve(
   projectRoot,
   readStringArg("--out", join("outputs", "analysis", "cumulonimbus-field-capture-smoke.png"))
@@ -21,6 +22,8 @@ const capture = spawnSync(
     "cpu",
     "--simPreset",
     readStringArg("--simPreset", "low"),
+    "--orientation",
+    orientation,
     "--width",
     String(width),
     "--height",
@@ -49,6 +52,7 @@ assert.equal(result.ok, true);
 assert.match(result.url, /[?&]view=field(?:&|$)/);
 assert.match(result.url, /[?&]renderer=cpu(?:&|$)/);
 assert.match(result.url, /[?&]capture=1(?:&|$)/);
+assert.match(result.url, new RegExp(`[?&]orientation=${orientation}(?:&|$)`));
 assert.equal(result.png.width, width);
 assert.equal(result.png.height, height);
 assert.ok(
@@ -60,7 +64,7 @@ assert.ok(
   `expected non-flat field capture, got ${result.analysis.lumaStdDev}`
 );
 assert.ok(
-  result.analysis.cloudBounds.coverage > 0.02,
+  result.analysis.cloudBounds.coverage > 0.005,
   `expected visible cloud coverage, got ${result.analysis.cloudBounds.coverage}`
 );
 

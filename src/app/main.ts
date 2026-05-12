@@ -2,7 +2,7 @@ import "../styles/app.css";
 import type { CloudParams } from "../core/cloud-field.js";
 import { createCloudPresetParams, normalizeCloudPresetName } from "../core/presets.js";
 import { CpuPreviewRenderer } from "./cpu-preview-renderer.js";
-import type { PreviewRenderer } from "./preview-renderer.js";
+import type { PreviewMetrics, PreviewRenderer } from "./preview-renderer.js";
 import {
   normalizeThreeBubbleLookPresetName,
   type ThreeBubbleLookPresetName
@@ -29,13 +29,23 @@ if (
 ) {
   document.documentElement.dataset.capture = "canvas";
 }
+
+type PreviewViewMode = "field" | "3d";
+export type PreviewOrientation = "portrait" | "landscape";
+
+type PreviewResolution = {
+  width: number;
+  height: number;
+  label: string;
+};
+
 const cloudPresetName = normalizeCloudPresetName(query.get("cloudPreset") ?? query.get("preset"));
 const viewMode = resolveViewMode();
+const orientation = resolvePreviewOrientation();
 const threeBubbleLookPreset = resolveThreeBubbleLookPresetName();
 const initialThreeBubbleTuning = resolveThreeBubbleTuningFromQuery();
-document.documentElement.dataset.currentView = viewMode;
-document.documentElement.dataset.currentLook = threeBubbleLookPreset;
 const params: CloudParams = createCloudPresetParams(cloudPresetName);
+
 let threeBubbleTuning: ThreeBubbleTuning = { ...initialThreeBubbleTuning };
 let paused = false;
 let start = performance.now();
@@ -45,28 +55,25 @@ let animationFrame = 0;
 let lastMetricsPaintTime = 0;
 let renderedFrameCount = 0;
 let renderer: PreviewRenderer;
-
-type PreviewResolution = {
-  width: number;
-  height: number;
-  label: string;
-};
+let previewResolution: PreviewResolution = { width: 360, height: 640, label: "auto fallback" };
+let controlsMinimized = false;
 
 const PRESET_PREVIEW_RESOLUTIONS = {
-  low: { width: 360, height: 640, label: "low (360x640)" },
-  mid: { width: 540, height: 960, label: "mid (540x960)" },
-  live4k: { width: 1080, height: 1920, label: "live4k preview" },
-  high: { width: 720, height: 1280, label: "high (720x1280)" }
+  portrait: {
+    low: { width: 360, height: 640, label: "low portrait (360x640)" },
+    mid: { width: 540, height: 960, label: "mid portrait (540x960)" },
+    high: { width: 720, height: 1280, label: "high portrait (720x1280)" },
+    live4k: { width: 1080, height: 1920, label: "live4k portrait (1080x1920)" }
+  },
+  landscape: {
+    low: { width: 640, height: 360, label: "low landscape (640x360)" },
+    mid: { width: 960, height: 540, label: "mid landscape (960x540)" },
+    high: { width: 1280, height: 720, label: "high landscape (1280x720)" },
+    live4k: { width: 1920, height: 1080, label: "live4k landscape (1920x1080)" }
+  }
 } as const;
-type PresetResolutionName = keyof typeof PRESET_PREVIEW_RESOLUTIONS;
-const FORCE_CPU =
-  query.get("renderer") === "cpu" ||
-  cloudPresetName === "billow" ||
-  cloudPresetName === "billow-v1";
-let previewResolution: PreviewResolution = { width: 360, height: 640, label: "auto fallback" };
-const simFps = resolveSimFps();
-const captureFrameLimit = resolveCaptureFrameLimit();
 
+type PresetResolutionName = keyof (typeof PRESET_PREVIEW_RESOLUTIONS)["portrait"];
 type NumericParamId =
   | "seed"
   | "stormAge"
@@ -77,8 +84,264 @@ type NumericParamId =
   | "anvilPersistence"
   | "sunEdgePeakNits"
   | "haze";
+type VisibleThreeBubbleTuningParamId =
+  | "cameraYawDegrees"
+  | "cameraPitchDegrees"
+  | "cameraDistanceScale"
+  | "sunAzimuthDegrees"
+  | "sunElevationDegrees"
+  | "sunIntensityScale"
+  | "lightContrast"
+  | "exposureScale";
 
-type ThreeBubbleTuningParamId = keyof ThreeBubbleTuning;
+const FORCE_CPU =
+  query.get("renderer") === "cpu" ||
+  cloudPresetName === "billow" ||
+  cloudPresetName === "billow-v1";
+const simFps = resolveSimFps();
+const captureFrameLimit = resolveCaptureFrameLimit();
+
+const numericParamIds: readonly NumericParamId[] = [
+  "seed",
+  "stormAge",
+  "humidity",
+  "upliftStrength",
+  "windShear",
+  "anvilOutflow",
+  "anvilPersistence",
+  "sunEdgePeakNits",
+  "haze"
+];
+const visibleThreeBubbleTuningParamIds: readonly VisibleThreeBubbleTuningParamId[] = [
+  "cameraYawDegrees",
+  "cameraPitchDegrees",
+  "cameraDistanceScale",
+  "sunAzimuthDegrees",
+  "sunElevationDegrees",
+  "sunIntensityScale",
+  "lightContrast",
+  "exposureScale"
+];
+
+document.documentElement.dataset.currentView = viewMode;
+document.documentElement.dataset.currentLook = threeBubbleLookPreset;
+document.documentElement.dataset.currentOrientation = orientation;
+
+void bootstrap();
+
+window.addEventListener("beforeunload", () => {
+  cancelAnimationFrame(animationFrame);
+});
+
+async function bootstrap(): Promise<void> {
+  renderer = await createRenderer();
+  renderer.setThreeBubbleTuningChangeListener?.((nextTuning) => {
+    threeBubbleTuning = normalizeThreeBubbleTuning(nextTuning);
+    syncThreeBubbleTuningInputs();
+    renderStageReadouts();
+  });
+  setupControls();
+  renderStageReadouts();
+  animationFrame = requestAnimationFrame(draw);
+}
+
+function setupControls(): void {
+  setupNavigationControls();
+  for (const id of numericParamIds) {
+    bindNumber(id);
+  }
+  for (const id of visibleThreeBubbleTuningParamIds) {
+    bindThreeBubbleTuningNumber(id);
+  }
+
+  document.querySelector<HTMLButtonElement>("#pause")?.addEventListener("click", (event) => {
+    paused = !paused;
+    const button = event.currentTarget as HTMLButtonElement;
+    button.textContent = paused ? "Resume motion" : "Pause motion";
+    if (!paused) {
+      const now = performance.now();
+      lastFrameTime = now;
+      nextFrameTime = now;
+      animationFrame = requestAnimationFrame(draw);
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("#toggle-controls")?.addEventListener("click", () => {
+    controlsMinimized = !controlsMinimized;
+    syncControlDensity();
+  });
+
+  document.querySelector<HTMLButtonElement>("#reset-scene")?.addEventListener("click", () => {
+    Object.assign(params, createCloudPresetParams(cloudPresetName));
+    threeBubbleTuning = { ...initialThreeBubbleTuning };
+    syncNumericInputs();
+    syncThreeBubbleTuningInputs();
+    start = performance.now();
+    lastFrameTime = start;
+    nextFrameTime = start;
+    renderedFrameCount = 0;
+    renderer.setThreeBubbleTuning?.(threeBubbleTuning);
+    renderer.reset();
+    renderStageReadouts();
+  });
+
+  document.querySelector<HTMLButtonElement>("#reset-camera")?.addEventListener("click", () => {
+    threeBubbleTuning = normalizeThreeBubbleTuning({
+      ...threeBubbleTuning,
+      cameraYawDegrees: initialThreeBubbleTuning.cameraYawDegrees,
+      cameraPitchDegrees: initialThreeBubbleTuning.cameraPitchDegrees,
+      cameraDistanceScale: initialThreeBubbleTuning.cameraDistanceScale,
+      cameraTargetOffsetX: initialThreeBubbleTuning.cameraTargetOffsetX,
+      cameraTargetOffsetY: initialThreeBubbleTuning.cameraTargetOffsetY,
+      cameraTargetOffsetZ: initialThreeBubbleTuning.cameraTargetOffsetZ
+    });
+    syncThreeBubbleTuningInputs();
+    renderer.setThreeBubbleTuning?.(threeBubbleTuning);
+    renderStageReadouts();
+  });
+
+  syncNumericInputs();
+  syncThreeBubbleTuningInputs();
+  syncControlDensity();
+}
+
+function draw(now: number): void {
+  const fpsThrottleMs = simFps > 0 ? 1000 / simFps : 0;
+  if (fpsThrottleMs > 0 && now < nextFrameTime) {
+    if (!paused) {
+      animationFrame = requestAnimationFrame(draw);
+    }
+    return;
+  }
+
+  renderer.resize(previewResolution.width, previewResolution.height);
+  const time = (now - start) / 1000;
+  const deltaSeconds = Math.min(0.08, Math.max(1 / 120, (now - lastFrameTime) / 1000));
+  lastFrameTime = now;
+  renderer.render(time, deltaSeconds, params);
+  renderPreviewMetrics(now);
+  renderedFrameCount += 1;
+  if (captureFrameLimit > 0 && renderedFrameCount >= captureFrameLimit) {
+    paused = true;
+    return;
+  }
+  if (fpsThrottleMs > 0) {
+    nextFrameTime = now + fpsThrottleMs;
+  }
+  if (!paused) {
+    animationFrame = requestAnimationFrame(draw);
+  }
+}
+
+async function createRenderer(): Promise<PreviewRenderer> {
+  const rendererStatus = document.querySelector<HTMLElement>("#renderer-status");
+  if (viewMode === "3d") {
+    const { ThreeBubblePreviewRenderer } = await import("./three-bubble-preview-renderer.js");
+    previewResolution = resolvePreviewResolution("webgpu");
+    if (rendererStatus) {
+      rendererStatus.textContent =
+        `Renderer: Three.js bubble model (${previewResolution.label})` +
+        ` · look=${threeBubbleLookPreset}` +
+        `${resolvePresetLabel()}` +
+        `${resolveFpsLabel()}`;
+    }
+    return new ThreeBubblePreviewRenderer(canvas, threeBubbleLookPreset, threeBubbleTuning);
+  }
+
+  const webGpuRenderer = FORCE_CPU ? null : await WebGpuPreviewRenderer.create(canvas);
+  if (webGpuRenderer) {
+    previewResolution = resolvePreviewResolution("webgpu");
+    if (rendererStatus) {
+      rendererStatus.textContent =
+        `Renderer: WebGPU field (${previewResolution.label})` +
+        `${resolvePresetLabel()}` +
+        `${resolveFpsLabel()}`;
+    }
+    return webGpuRenderer;
+  }
+
+  const contextCandidate = canvas.getContext("2d", { alpha: false });
+  if (!contextCandidate) {
+    throw new Error("Canvas 2D context is unavailable");
+  }
+  previewResolution = resolvePreviewResolution("cpu");
+  if (rendererStatus) {
+    rendererStatus.textContent =
+      `Renderer: CPU field (${previewResolution.label})` +
+      `${resolvePresetLabel()}` +
+      `${resolveFpsLabel()}`;
+  }
+  return new CpuPreviewRenderer(canvas, contextCandidate);
+}
+
+function setupNavigationControls(): void {
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-mode]")) {
+    const targetMode: PreviewViewMode = button.dataset.viewMode === "3d" ? "3d" : "field";
+    button.setAttribute("aria-pressed", String(targetMode === viewMode));
+    button.addEventListener("click", () => {
+      if (targetMode === viewMode) {
+        return;
+      }
+      navigateWithSearch((searchParams) => {
+        if (targetMode === "3d") {
+          searchParams.set("view", "3d");
+          return;
+        }
+        searchParams.set("view", "field");
+        searchParams.delete("model");
+      });
+    });
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-look-preset]")) {
+    const targetPreset = normalizeThreeBubbleLookPresetName(button.dataset.lookPreset ?? null);
+    button.setAttribute(
+      "aria-pressed",
+      String(viewMode === "3d" && targetPreset === threeBubbleLookPreset)
+    );
+    button.addEventListener("click", () => {
+      navigateWithSearch((searchParams) => {
+        searchParams.set("view", "3d");
+        searchParams.set("look", targetPreset);
+      });
+    });
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-orientation-mode]")) {
+    const targetOrientation: PreviewOrientation =
+      button.dataset.orientationMode === "landscape" ? "landscape" : "portrait";
+    button.setAttribute("aria-pressed", String(targetOrientation === orientation));
+    button.addEventListener("click", () => {
+      if (targetOrientation === orientation) {
+        return;
+      }
+      navigateWithSearch((searchParams) => {
+        searchParams.set("orientation", targetOrientation);
+      });
+    });
+  }
+}
+
+function bindNumber(id: NumericParamId): void {
+  const input = document.querySelector<HTMLInputElement>(`#${id}`);
+  if (!input) {
+    return;
+  }
+  input.addEventListener("input", () => {
+    setNumericParam(id, Number(input.value));
+    renderStageReadouts();
+  });
+}
+
+function bindThreeBubbleTuningNumber(id: VisibleThreeBubbleTuningParamId): void {
+  const input = document.querySelector<HTMLInputElement>(`#${id}`);
+  if (!input) {
+    return;
+  }
+  input.addEventListener("input", () => {
+    setThreeBubbleTuningParam(id, Number(input.value));
+  });
+}
 
 function setNumericParam(id: NumericParamId, value: number): void {
   switch (id) {
@@ -140,216 +403,122 @@ function getNumericParam(id: NumericParamId): number {
   }
 }
 
-function bindNumber(id: NumericParamId): void {
-  const input = document.querySelector<HTMLInputElement>(`#${id}`);
-  if (!input) {
-    return;
-  }
-  input.value = String(getNumericParam(id));
-  input.addEventListener("input", () => {
-    setNumericParam(id, Number(input.value));
-  });
-}
-
-function setThreeBubbleTuningParam(id: ThreeBubbleTuningParamId, value: number): void {
+function setThreeBubbleTuningParam(id: VisibleThreeBubbleTuningParamId, value: number): void {
   threeBubbleTuning = normalizeThreeBubbleTuning({
     ...threeBubbleTuning,
     [id]: value
   });
-  renderer?.setThreeBubbleTuning?.(threeBubbleTuning);
+  renderer.setThreeBubbleTuning?.(threeBubbleTuning);
+  syncThreeBubbleTuningInputs();
+  renderStageReadouts();
 }
 
-function bindThreeBubbleTuningNumber(id: ThreeBubbleTuningParamId): void {
-  const input = document.querySelector<HTMLInputElement>(`#${id}`);
-  if (!input) {
+function syncNumericInputs(): void {
+  for (const id of numericParamIds) {
+    const input = document.querySelector<HTMLInputElement>(`#${id}`);
+    if (input) {
+      input.value = String(getNumericParam(id));
+    }
+  }
+}
+
+function syncThreeBubbleTuningInputs(): void {
+  for (const id of visibleThreeBubbleTuningParamIds) {
+    const input = document.querySelector<HTMLInputElement>(`#${id}`);
+    if (input) {
+      input.value = String(threeBubbleTuning[id]);
+    }
+  }
+}
+
+function syncControlDensity(): void {
+  document.documentElement.dataset.controlsMinimized = String(controlsMinimized);
+  const button = document.querySelector<HTMLButtonElement>("#toggle-controls");
+  if (!button) {
     return;
   }
-  input.value = String(threeBubbleTuning[id]);
-  input.addEventListener("input", () => {
-    setThreeBubbleTuningParam(id, Number(input.value));
-  });
+  button.setAttribute("aria-pressed", String(controlsMinimized));
+  button.textContent = controlsMinimized ? "Show controls" : "Hide controls";
 }
 
-function setupControls(): void {
-  setupNavigationControls();
-  bindNumber("seed");
-  bindNumber("stormAge");
-  bindNumber("humidity");
-  bindNumber("upliftStrength");
-  bindNumber("windShear");
-  bindNumber("anvilOutflow");
-  bindNumber("anvilPersistence");
-  bindNumber("sunEdgePeakNits");
-  bindNumber("haze");
-  for (const id of threeBubbleTuningParamIds) {
-    bindThreeBubbleTuningNumber(id);
-  }
-
-  document.querySelector<HTMLButtonElement>("#pause")?.addEventListener("click", (event) => {
-    paused = !paused;
-    const button = event.currentTarget as HTMLButtonElement;
-    button.textContent = paused ? "Resume" : "Pause";
-    if (!paused) {
-      const now = performance.now();
-      lastFrameTime = now;
-      nextFrameTime = now;
-      animationFrame = requestAnimationFrame(draw);
-    }
-  });
-
-  document.querySelector<HTMLButtonElement>("#reset")?.addEventListener("click", () => {
-    Object.assign(params, createCloudPresetParams(cloudPresetName));
-    threeBubbleTuning = { ...initialThreeBubbleTuning };
-    for (const id of numericParamIds) {
-      const input = document.querySelector<HTMLInputElement>(`#${id}`);
-      if (input) {
-        input.value = String(getNumericParam(id));
-      }
-    }
-    for (const id of threeBubbleTuningParamIds) {
-      const input = document.querySelector<HTMLInputElement>(`#${id}`);
-      if (input) {
-        input.value = String(threeBubbleTuning[id]);
-      }
-    }
-    start = performance.now();
-    lastFrameTime = start;
-    nextFrameTime = start;
-    renderer.setThreeBubbleTuning?.(threeBubbleTuning);
-    renderer.reset();
-  });
-}
-
-function resizeCanvas(): void {
-  renderer.resize(previewResolution.width, previewResolution.height);
-}
-
-function draw(now: number): void {
-  const fpsThrottleMs = simFps > 0 ? 1000 / simFps : 0;
-  if (fpsThrottleMs > 0 && now < nextFrameTime) {
-    if (!paused) {
-      animationFrame = requestAnimationFrame(draw);
-    }
+function renderPreviewMetrics(now: number): void {
+  if (now - lastMetricsPaintTime < 250) {
     return;
   }
-  resizeCanvas();
-  const time = (now - start) / 1000;
-  const deltaSeconds = Math.min(0.08, Math.max(1 / 120, (now - lastFrameTime) / 1000));
-  lastFrameTime = now;
-  renderer.render(time, deltaSeconds, params);
-  renderPreviewMetrics(now);
-  renderedFrameCount += 1;
-  if (captureFrameLimit > 0 && renderedFrameCount >= captureFrameLimit) {
-    paused = true;
+  lastMetricsPaintTime = now;
+
+  const grid = document.querySelector<HTMLElement>("[data-metric-grid]");
+  if (!grid) {
     return;
   }
-  if (fpsThrottleMs > 0) {
-    nextFrameTime = now + fpsThrottleMs;
-  }
-  if (!paused) {
-    animationFrame = requestAnimationFrame(draw);
-  }
+
+  const metrics = renderer.getMetrics?.() ?? null;
+  const rows =
+    metrics === null
+      ? [createMetricRow("Mode", renderer.mode)]
+      : [
+          createMetricTitle(metrics.title),
+          createMetricRow("Mode", renderer.mode),
+          ...metrics.items.map((item) => createMetricRow(item.label, item.value))
+        ];
+  grid.replaceChildren(...rows);
+  renderStageReadouts(metrics);
 }
 
-const numericParamIds: readonly NumericParamId[] = [
-  "seed",
-  "stormAge",
-  "humidity",
-  "upliftStrength",
-  "windShear",
-  "anvilOutflow",
-  "anvilPersistence",
-  "sunEdgePeakNits",
-  "haze"
-];
-
-const threeBubbleTuningParamIds: readonly ThreeBubbleTuningParamId[] = [
-  "cameraYawDegrees",
-  "cameraPitchDegrees",
-  "cameraDistanceScale",
-  "sunAzimuthDegrees",
-  "sunElevationDegrees",
-  "sunIntensityScale",
-  "lightContrast",
-  "exposureScale"
-];
-
-function setupNavigationControls(): void {
-  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-mode]")) {
-    const targetMode = button.dataset.viewMode === "3d" ? "3d" : "field";
-    button.setAttribute("aria-pressed", String(targetMode === viewMode));
-    button.addEventListener("click", () => {
-      if (targetMode === viewMode) {
-        return;
-      }
-      navigateWithSearch((searchParams) => {
-        if (targetMode === "3d") {
-          searchParams.set("view", "3d");
-          return;
-        }
-        searchParams.delete("view");
-        searchParams.delete("model");
-      });
-    });
-  }
-
-  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-look-preset]")) {
-    const targetPreset = normalizeThreeBubbleLookPresetName(button.dataset.lookPreset ?? null);
-    button.setAttribute(
-      "aria-pressed",
-      String(viewMode === "3d" && targetPreset === threeBubbleLookPreset)
-    );
-    button.addEventListener("click", () => {
-      navigateWithSearch((searchParams) => {
-        searchParams.set("view", "3d");
-        searchParams.set("look", targetPreset);
-      });
-    });
-  }
+function renderStageReadouts(metrics: PreviewMetrics | null = renderer?.getMetrics?.() ?? null): void {
+  document.querySelector<HTMLElement>("#hud-view-mode")!.textContent =
+    viewMode === "3d" ? "3D bubble preview" : "Field density preview";
+  document.querySelector<HTMLElement>("#hud-resolution")!.textContent =
+    `${orientation} · ${previewResolution.label}`;
+  document.querySelector<HTMLElement>("#stage-orientation")!.textContent =
+    orientation === "portrait" ? "Portrait stage" : "Landscape stage";
+  document.querySelector<HTMLElement>("#stage-camera-summary")!.textContent =
+    viewMode === "3d"
+      ? `Yaw ${threeBubbleTuning.cameraYawDegrees.toFixed(0)} deg · Pitch ${threeBubbleTuning.cameraPitchDegrees.toFixed(0)} deg · Zoom ${threeBubbleTuning.cameraDistanceScale.toFixed(2)}x`
+      : "Field framing stays portrait-biased while the display window can rotate.";
+  document.querySelector<HTMLElement>("#stage-gesture-summary")!.textContent =
+    viewMode === "3d"
+      ? "Left drag orbit, right drag pan, wheel zoom, Ctrl/Cmd plus left drag pans."
+      : "Field mode keeps the atmospheric study view steady for visual comparison.";
+  document.querySelector<HTMLElement>("#hud-quick-metric")!.textContent = summarizeMetrics(metrics);
 }
 
-async function createRenderer(): Promise<PreviewRenderer> {
-  const rendererStatus = document.querySelector<HTMLElement>("#renderer-status");
-  if (viewMode === "3d") {
-    const { ThreeBubblePreviewRenderer } = await import("./three-bubble-preview-renderer.js");
-    previewResolution = resolvePreviewResolution("webgpu");
-    if (rendererStatus) {
-      rendererStatus.textContent = `Renderer: Three.js bubble model (${previewResolution.label}) · look=${threeBubbleLookPreset}${resolvePresetLabel()}${resolveFpsLabel()}`;
-    }
-    return new ThreeBubblePreviewRenderer(canvas, threeBubbleLookPreset, threeBubbleTuning);
+function summarizeMetrics(metrics: PreviewMetrics | null): string {
+  if (!metrics || metrics.items.length === 0) {
+    return `Renderer ${renderer.mode}`;
   }
-
-  const webGpuRenderer = FORCE_CPU ? null : await WebGpuPreviewRenderer.create(canvas);
-  if (webGpuRenderer) {
-    previewResolution = resolvePreviewResolution("webgpu");
-    if (rendererStatus) {
-      rendererStatus.textContent = `Renderer: WebGPU field (${previewResolution.label})${resolvePresetLabel()}${resolveFpsLabel()}`;
-    }
-    return webGpuRenderer;
-  }
-
-  const contextCandidate = canvas.getContext("2d", { alpha: false });
-  if (!contextCandidate) {
-    throw new Error("Canvas 2D context is unavailable");
-  }
-  previewResolution = resolvePreviewResolution("cpu");
-  if (rendererStatus) {
-    rendererStatus.textContent = `Renderer: CPU field (${previewResolution.label})${resolvePresetLabel()}${resolveFpsLabel()}`;
-  }
-  return new CpuPreviewRenderer(canvas, contextCandidate);
+  return metrics.items
+    .slice(0, 2)
+    .map((item) => `${item.label}: ${item.value}`)
+    .join(" · ");
 }
 
-async function bootstrap(): Promise<void> {
-  renderer = await createRenderer();
-  setupControls();
-  animationFrame = requestAnimationFrame(draw);
+function createMetricTitle(title: string): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "metric-title";
+  row.textContent = title;
+  return row;
 }
 
-void bootstrap();
+function createMetricRow(label: string, value: string): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "metric-row";
 
-window.addEventListener("beforeunload", () => {
-  cancelAnimationFrame(animationFrame);
-});
+  const labelElement = document.createElement("span");
+  labelElement.textContent = label;
+
+  const valueElement = document.createElement("strong");
+  valueElement.textContent = value;
+
+  row.append(labelElement, valueElement);
+  return row;
+}
+
+function navigateWithSearch(update: (searchParams: URLSearchParams) => void): void {
+  const url = new URL(window.location.href);
+  update(url.searchParams);
+  window.location.assign(url.toString());
+}
 
 function readNumberFromQuery(name: string, fallback: number): number {
   const raw = query.get(name);
@@ -382,26 +551,16 @@ function resolveCaptureFrameLimit(): number {
   return Math.min(600, value);
 }
 
-function resolveFpsLabel(): string {
-  if (simFps <= 0) {
-    return "";
-  }
-  return ` · simFps=${simFps}`;
-}
-
-function resolvePresetLabel(): string {
-  if (cloudPresetName === "default") {
-    return "";
-  }
-  return ` · preset=${cloudPresetName}`;
-}
-
-function resolveViewMode(): "field" | "3d" {
+function resolveViewMode(): PreviewViewMode {
   const raw = (query.get("view") ?? query.get("model") ?? "field").toLowerCase();
   if (raw === "3d" || raw === "bubble" || raw === "3d-billow") {
     return "3d";
   }
   return "field";
+}
+
+function resolvePreviewOrientation(): PreviewOrientation {
+  return query.get("orientation")?.toLowerCase() === "landscape" ? "landscape" : "portrait";
 }
 
 function resolveThreeBubbleLookPresetName(): ThreeBubbleLookPresetName {
@@ -423,6 +582,18 @@ function resolveThreeBubbleTuningFromQuery(): ThreeBubbleTuning {
       "cameraDistanceScale",
       DEFAULT_THREE_BUBBLE_TUNING.cameraDistanceScale
     ),
+    cameraTargetOffsetX: readNumberFromQuery(
+      "cameraTargetOffsetX",
+      DEFAULT_THREE_BUBBLE_TUNING.cameraTargetOffsetX
+    ),
+    cameraTargetOffsetY: readNumberFromQuery(
+      "cameraTargetOffsetY",
+      DEFAULT_THREE_BUBBLE_TUNING.cameraTargetOffsetY
+    ),
+    cameraTargetOffsetZ: readNumberFromQuery(
+      "cameraTargetOffsetZ",
+      DEFAULT_THREE_BUBBLE_TUNING.cameraTargetOffsetZ
+    ),
     sunAzimuthDegrees: readNumberFromQuery(
       "sunAzimuthDegrees",
       DEFAULT_THREE_BUBBLE_TUNING.sunAzimuthDegrees
@@ -440,87 +611,34 @@ function resolveThreeBubbleTuningFromQuery(): ThreeBubbleTuning {
   });
 }
 
-function renderPreviewMetrics(now: number): void {
-  if (now - lastMetricsPaintTime < 250) {
-    return;
-  }
-  lastMetricsPaintTime = now;
-
-  const panel = document.querySelector<HTMLElement>("#metrics-panel");
-  const grid = document.querySelector<HTMLElement>("[data-metric-grid]");
-  if (!panel || !grid) {
-    return;
-  }
-
-  const metrics = renderer.getMetrics?.() ?? null;
-  if (!metrics) {
-    grid.replaceChildren(createMetricRow("Mode", renderer.mode));
-    return;
-  }
-
-  const rows = [
-    createMetricTitle(metrics.title),
-    createMetricRow("Mode", renderer.mode),
-    ...metrics.items.map((item) => createMetricRow(item.label, item.value))
-  ];
-  grid.replaceChildren(...rows);
-}
-
-function createMetricTitle(title: string): HTMLDivElement {
-  const row = document.createElement("div");
-  row.className = "metric-title";
-  row.textContent = title;
-  return row;
-}
-
-function createMetricRow(label: string, value: string): HTMLDivElement {
-  const row = document.createElement("div");
-  row.className = "metric-row";
-
-  const labelElement = document.createElement("span");
-  labelElement.textContent = label;
-
-  const valueElement = document.createElement("strong");
-  valueElement.textContent = value;
-
-  row.append(labelElement, valueElement);
-  return row;
-}
-
-function navigateWithSearch(update: (searchParams: URLSearchParams) => void): void {
-  const url = new URL(window.location.href);
-  update(url.searchParams);
-  window.location.assign(url.toString());
-}
-
 function resolvePreviewResolution(rendererHint: "cpu" | "webgpu"): PreviewResolution {
   const width = readNumberFromQuery("simWidth", 0);
   const height = readNumberFromQuery("simHeight", 0);
   if (width > 0 && height > 0) {
     const targetWidth = previewDimension(width);
     const targetHeight = previewDimension(height);
-    const target = {
-      width: targetWidth,
-      height: targetHeight,
-      label: `custom (${targetWidth}x${targetHeight})`
-    };
-    return enforceRendererBudget(target, rendererHint);
+    return enforceRendererBudget(
+      {
+        width: targetWidth,
+        height: targetHeight,
+        label: `custom (${targetWidth}x${targetHeight})`
+      },
+      rendererHint
+    );
   }
 
   const preset = query.get("simPreset")?.toLowerCase();
+  const orientationResolutions = PRESET_PREVIEW_RESOLUTIONS[orientation];
   if (preset && isPresetResolution(preset)) {
-    const selected = PRESET_PREVIEW_RESOLUTIONS[preset];
-    const capped = enforceRendererBudget(selected, rendererHint);
-    return { ...capped };
+    return enforceRendererBudget(orientationResolutions[preset], rendererHint);
   }
 
-  const fallback =
-    rendererHint === "webgpu" ? PRESET_PREVIEW_RESOLUTIONS.mid : PRESET_PREVIEW_RESOLUTIONS.low;
+  const fallback = rendererHint === "webgpu" ? orientationResolutions.mid : orientationResolutions.low;
   return enforceRendererBudget(fallback, rendererHint);
 }
 
 function isPresetResolution(name: string): name is PresetResolutionName {
-  return Object.prototype.hasOwnProperty.call(PRESET_PREVIEW_RESOLUTIONS, name);
+  return Object.prototype.hasOwnProperty.call(PRESET_PREVIEW_RESOLUTIONS.portrait, name);
 }
 
 function enforceRendererBudget(
@@ -540,6 +658,14 @@ function enforceRendererBudget(
     height: scaledHeight,
     label: `scaled ${target.label} (${scaledWidth}x${scaledHeight})`
   };
+}
+
+function resolveFpsLabel(): string {
+  return simFps <= 0 ? "" : ` · simFps=${simFps}`;
+}
+
+function resolvePresetLabel(): string {
+  return cloudPresetName === "default" ? "" : ` · preset=${cloudPresetName}`;
 }
 
 function even(value: number): number {

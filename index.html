@@ -8,175 +8,278 @@
   </head>
   <body>
     <main class="shell">
-      <section class="viewport" aria-label="Cumulonimbus cloud preview">
-        <canvas id="cloud-canvas"></canvas>
-      </section>
-      <aside class="controls" aria-label="Render controls">
-        <div>
-          <p class="eyebrow">Algorithmic cloud field</p>
-          <h1>Cumulonimbus Live HDR</h1>
+      <header class="toolbar" aria-label="Atmospheric studio controls">
+        <div class="toolbar__identity">
+          <p class="eyebrow">Atmospheric studio</p>
+          <div class="toolbar__heading">
+            <h1>Cumulonimbus Live HDR</h1>
+            <p class="toolbar__lede">
+              Observatory workbench for shaping portrait-biased cloud studies, 3D framing, and
+              live browser-source output.
+            </p>
+          </div>
           <p id="renderer-status" class="renderer-status">Renderer: starting</p>
         </div>
-        <div class="control-group">
-          <p class="control-label">View</p>
-          <div class="segmented-control" role="group" aria-label="Preview mode">
-            <button type="button" data-view-mode="field">Field</button>
-            <button type="button" data-view-mode="3d">3D</button>
-          </div>
+
+        <div class="toolbar__rail">
+          <section class="toolbar-card" aria-label="Preview mode">
+            <p class="control-label">View</p>
+            <div class="segmented-control" role="group" aria-label="Preview mode">
+              <button type="button" data-view-mode="field">Field</button>
+              <button type="button" data-view-mode="3d">3D</button>
+            </div>
+          </section>
+
+          <section class="toolbar-card look-controls" aria-label="3D look preset">
+            <p class="control-label">Look</p>
+            <div
+              class="segmented-control segmented-control--stacked"
+              role="group"
+              aria-label="3D look preset"
+            >
+              <button type="button" data-look-preset="structural">Structural</button>
+              <button type="button" data-look-preset="demo-like">Demo-like</button>
+              <button type="button" data-look-preset="soft-volumetric-ish">Soft volume</button>
+            </div>
+          </section>
+
+          <section class="toolbar-card" aria-label="Display orientation">
+            <p class="control-label">Orientation</p>
+            <div class="segmented-control" role="group" aria-label="Display orientation">
+              <button type="button" data-orientation-mode="portrait">Portrait</button>
+              <button type="button" data-orientation-mode="landscape">Landscape</button>
+            </div>
+          </section>
+
+          <section class="toolbar-card three-d-controls" aria-label="3D interaction">
+            <p class="control-label">3D interaction</p>
+            <p class="toolbar-card__copy">
+              Left drag orbits, right drag pans, wheel zooms, Ctrl/Cmd plus left drag pans for
+              trackpad fallback.
+            </p>
+            <button id="reset-camera" class="ghost-button" type="button">Reset camera</button>
+          </section>
         </div>
-        <div class="control-group look-controls">
-          <p class="control-label">Look</p>
-          <div
-            class="segmented-control segmented-control--stacked"
-            role="group"
-            aria-label="3D look preset"
-          >
-            <button type="button" data-look-preset="structural">Structural</button>
-            <button type="button" data-look-preset="demo-like">Demo-like</button>
-            <button type="button" data-look-preset="soft-volumetric-ish">Soft volume</button>
-          </div>
+
+        <div class="toolbar__actions">
+          <button id="toggle-controls" type="button" aria-pressed="false">Hide controls</button>
+          <button id="pause" type="button">Pause motion</button>
+          <button id="reset-scene" type="button">Reset scene</button>
         </div>
-        <section
-          id="metrics-panel"
-          class="metrics-panel"
-          aria-label="Preview metrics"
-          aria-live="polite"
-        >
-          <p class="control-label">Metrics</p>
-          <div class="metric-grid" data-metric-grid></div>
+      </header>
+
+      <div class="workbench">
+        <section class="viewport-stage" aria-label="Cumulonimbus cloud preview">
+          <div class="stage-meta">
+            <span id="hud-view-mode" class="stage-chip">Preview</span>
+            <span id="hud-resolution" class="stage-chip stage-chip--soft">Resolution</span>
+            <span id="hud-quick-metric" class="stage-chip stage-chip--soft">Metrics pending</span>
+          </div>
+
+          <div class="stage-frame">
+            <div class="stage-hud">
+              <div>
+                <p class="stage-hud__label">Stage</p>
+                <strong id="stage-orientation">Portrait stage</strong>
+              </div>
+              <div>
+                <p class="stage-hud__label">Camera</p>
+                <strong id="stage-camera-summary">Waiting for renderer</strong>
+              </div>
+              <div>
+                <p class="stage-hud__label">Interaction</p>
+                <strong id="stage-gesture-summary">Loading controls</strong>
+              </div>
+            </div>
+            <canvas id="cloud-canvas"></canvas>
+          </div>
         </section>
-        <label>
-          Seed
-          <input id="seed" type="number" value="20260510" />
-        </label>
-        <label>
-          Storm age
-          <input id="stormAge" type="range" min="0" max="1" step="0.01" value="0.48" />
-        </label>
-        <label>
-          Humidity
-          <input id="humidity" type="range" min="0" max="1" step="0.01" value="0.66" />
-        </label>
-        <label>
-          Uplift strength
-          <input id="upliftStrength" type="range" min="0" max="1" step="0.01" value="0.72" />
-        </label>
-        <label>
-          Wind shear
-          <input id="windShear" type="range" min="0" max="1" step="0.01" value="0.18" />
-        </label>
-        <label>
-          Anvil outflow
-          <input id="anvilOutflow" type="range" min="0" max="1" step="0.01" value="0.64" />
-        </label>
-        <label>
-          Anvil persistence
-          <input id="anvilPersistence" type="range" min="0" max="1" step="0.01" value="0.68" />
-        </label>
-        <label>
-          Sun edge peak nits
-          <input id="sunEdgePeakNits" type="range" min="250" max="2000" step="10" value="1000" />
-        </label>
-        <label>
-          Atmospheric haze
-          <input id="haze" type="range" min="0" max="1" step="0.01" value="0.42" />
-        </label>
-        <div class="control-group three-d-controls">
-          <p class="control-label">Camera</p>
-          <div class="control-grid">
-            <label>
-              Yaw
-              <input
-                id="cameraYawDegrees"
-                type="range"
-                min="-45"
-                max="45"
-                step="1"
-                value="0"
-              />
-            </label>
-            <label>
-              Pitch
-              <input
-                id="cameraPitchDegrees"
-                type="range"
-                min="-24"
-                max="24"
-                step="1"
-                value="0"
-              />
-            </label>
-            <label>
-              Distance
-              <input
-                id="cameraDistanceScale"
-                type="range"
-                min="0.62"
-                max="1.5"
-                step="0.01"
-                value="1"
-              />
-            </label>
-          </div>
-        </div>
-        <div class="control-group three-d-controls">
-          <p class="control-label">Lighting</p>
-          <div class="control-grid">
-            <label>
-              Sun azimuth
-              <input
-                id="sunAzimuthDegrees"
-                type="range"
-                min="-90"
-                max="90"
-                step="1"
-                value="0"
-              />
-            </label>
-            <label>
-              Sun elevation
-              <input
-                id="sunElevationDegrees"
-                type="range"
-                min="-45"
-                max="45"
-                step="1"
-                value="0"
-              />
-            </label>
-            <label>
-              Sun intensity
-              <input
-                id="sunIntensityScale"
-                type="range"
-                min="0.25"
-                max="2.25"
-                step="0.01"
-                value="1"
-              />
-            </label>
-            <label>
-              Light contrast
-              <input id="lightContrast" type="range" min="0" max="1" step="0.01" value="0.58" />
-            </label>
-            <label>
-              Exposure
-              <input
-                id="exposureScale"
-                type="range"
-                min="0.45"
-                max="1.8"
-                step="0.01"
-                value="1"
-              />
-            </label>
-          </div>
-        </div>
-        <div class="actions">
-          <button id="pause" type="button">Pause</button>
-          <button id="reset" type="button">Reset</button>
-        </div>
-      </aside>
+
+        <aside class="inspector" aria-label="Render controls">
+          <section
+            id="metrics-panel"
+            class="metrics-panel"
+            aria-label="Preview metrics"
+            aria-live="polite"
+          >
+            <div class="inspector__section-header">
+              <div>
+                <p class="control-label">Metrics</p>
+                <h2>Live readout</h2>
+              </div>
+              <p class="inspector__hint">Stage HUD carries the fast summary, inspector holds detail.</p>
+            </div>
+            <div class="metric-grid" data-metric-grid></div>
+          </section>
+
+          <section class="inspector__section">
+            <div class="inspector__section-header">
+              <div>
+                <p class="control-label">Storm field</p>
+                <h2>Atmospheric shaping</h2>
+              </div>
+              <p class="inspector__hint">These stay shared between field and 3D studies.</p>
+            </div>
+            <div class="control-stack">
+              <label>
+                Seed
+                <input id="seed" type="number" value="20260510" />
+              </label>
+              <label>
+                Storm age
+                <input id="stormAge" type="range" min="0" max="1" step="0.01" value="0.48" />
+              </label>
+              <label>
+                Humidity
+                <input id="humidity" type="range" min="0" max="1" step="0.01" value="0.66" />
+              </label>
+              <label>
+                Uplift strength
+                <input id="upliftStrength" type="range" min="0" max="1" step="0.01" value="0.72" />
+              </label>
+              <label>
+                Wind shear
+                <input id="windShear" type="range" min="0" max="1" step="0.01" value="0.18" />
+              </label>
+              <label>
+                Anvil outflow
+                <input id="anvilOutflow" type="range" min="0" max="1" step="0.01" value="0.64" />
+              </label>
+              <label>
+                Anvil persistence
+                <input
+                  id="anvilPersistence"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.68"
+                />
+              </label>
+              <label>
+                Sun edge peak nits
+                <input
+                  id="sunEdgePeakNits"
+                  type="range"
+                  min="250"
+                  max="2000"
+                  step="10"
+                  value="1000"
+                />
+              </label>
+              <label>
+                Atmospheric haze
+                <input id="haze" type="range" min="0" max="1" step="0.01" value="0.42" />
+              </label>
+            </div>
+          </section>
+
+          <section class="inspector__section three-d-controls">
+            <div class="inspector__section-header">
+              <div>
+                <p class="control-label">Camera</p>
+                <h2>Framing and orbit</h2>
+              </div>
+              <p class="inspector__hint">Mouse orbit/pan/zoom updates these sliders live.</p>
+            </div>
+            <div class="control-stack">
+              <label>
+                Yaw
+                <input
+                  id="cameraYawDegrees"
+                  type="range"
+                  min="-45"
+                  max="45"
+                  step="1"
+                  value="0"
+                />
+              </label>
+              <label>
+                Pitch
+                <input
+                  id="cameraPitchDegrees"
+                  type="range"
+                  min="-24"
+                  max="24"
+                  step="1"
+                  value="0"
+                />
+              </label>
+              <label>
+                Distance
+                <input
+                  id="cameraDistanceScale"
+                  type="range"
+                  min="0.62"
+                  max="1.5"
+                  step="0.01"
+                  value="1"
+                />
+              </label>
+            </div>
+          </section>
+
+          <section class="inspector__section three-d-controls">
+            <div class="inspector__section-header">
+              <div>
+                <p class="control-label">Lighting</p>
+                <h2>Atmospheric direction</h2>
+              </div>
+              <p class="inspector__hint">Lighting stays manual while orbit updates only camera posture.</p>
+            </div>
+            <div class="control-stack">
+              <label>
+                Sun azimuth
+                <input
+                  id="sunAzimuthDegrees"
+                  type="range"
+                  min="-90"
+                  max="90"
+                  step="1"
+                  value="0"
+                />
+              </label>
+              <label>
+                Sun elevation
+                <input
+                  id="sunElevationDegrees"
+                  type="range"
+                  min="-45"
+                  max="45"
+                  step="1"
+                  value="0"
+                />
+              </label>
+              <label>
+                Sun intensity
+                <input
+                  id="sunIntensityScale"
+                  type="range"
+                  min="0.25"
+                  max="2.25"
+                  step="0.01"
+                  value="1"
+                />
+              </label>
+              <label>
+                Light contrast
+                <input id="lightContrast" type="range" min="0" max="1" step="0.01" value="0.58" />
+              </label>
+              <label>
+                Exposure
+                <input
+                  id="exposureScale"
+                  type="range"
+                  min="0.45"
+                  max="1.8"
+                  step="0.01"
+                  value="1"
+                />
+              </label>
+            </div>
+          </section>
+        </aside>
+      </div>
     </main>
     <script type="module" src="/src/app/main.ts"></script>
   </body>

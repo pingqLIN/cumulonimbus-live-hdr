@@ -18,4 +18,7 @@ export interface PreviewRenderer {
   render(time: number, deltaSeconds: number, params: CloudParams): void;
   getMetrics?(): PreviewMetrics | null;
   setThreeBubbleTuning?(tuning: Partial<ThreeBubbleTuning>): void;
+  setThreeBubbleTuningChangeListener?(
+    listener: ((tuning: ThreeBubbleTuning) => void) | null
+  ): void;
 }

@@ -2,6 +2,9 @@ export interface ThreeBubbleTuning {
   cameraYawDegrees: number;
   cameraPitchDegrees: number;
   cameraDistanceScale: number;
+  cameraTargetOffsetX: number;
+  cameraTargetOffsetY: number;
+  cameraTargetOffsetZ: number;
   sunAzimuthDegrees: number;
   sunElevationDegrees: number;
   sunIntensityScale: number;
@@ -13,6 +16,9 @@ export const DEFAULT_THREE_BUBBLE_TUNING: ThreeBubbleTuning = {
   cameraYawDegrees: 0,
   cameraPitchDegrees: 0,
   cameraDistanceScale: 1,
+  cameraTargetOffsetX: 0,
+  cameraTargetOffsetY: 0,
+  cameraTargetOffsetZ: 0,
   sunAzimuthDegrees: 0,
   sunElevationDegrees: 0,
   sunIntensityScale: 1,
@@ -41,6 +47,24 @@ export function normalizeThreeBubbleTuning(
       DEFAULT_THREE_BUBBLE_TUNING.cameraDistanceScale,
       0.62,
       1.5
+    ),
+    cameraTargetOffsetX: clampFinite(
+      tuning.cameraTargetOffsetX,
+      DEFAULT_THREE_BUBBLE_TUNING.cameraTargetOffsetX,
+      -40,
+      40
+    ),
+    cameraTargetOffsetY: clampFinite(
+      tuning.cameraTargetOffsetY,
+      DEFAULT_THREE_BUBBLE_TUNING.cameraTargetOffsetY,
+      -40,
+      40
+    ),
+    cameraTargetOffsetZ: clampFinite(
+      tuning.cameraTargetOffsetZ,
+      DEFAULT_THREE_BUBBLE_TUNING.cameraTargetOffsetZ,
+      -40,
+      40
     ),
     sunAzimuthDegrees: clampFinite(
       tuning.sunAzimuthDegrees,

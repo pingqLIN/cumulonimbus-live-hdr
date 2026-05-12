@@ -84,6 +84,12 @@ export class IterativeCloudField {
     return shadeCloudPixel(u, v, this.density[index] ?? 0, this.edge[index] ?? 0, params);
   }
 
+  sampleDensityAt(x: number, y: number): number {
+    const safeX = Math.min(this.width - 1, Math.max(0, Math.floor(x)));
+    const safeY = Math.min(this.height - 1, Math.max(0, Math.floor(y)));
+    return this.density[safeY * this.width + safeX] ?? 0;
+  }
+
   private windOffset(x: number, y: number, time: number, params: CloudParams): { x: number; y: number } {
     const anvilWind = params.anvilWind;
     const humidityUplift = params.humidityUplift;

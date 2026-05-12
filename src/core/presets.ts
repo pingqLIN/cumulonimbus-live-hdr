@@ -292,11 +292,10 @@ export function normalizeCloudPresetName(name: string | null | undefined): Cloud
       return "billow";
     case "billow-v1":
     case "billowv1":
+    case "demo":
       return "billow-v1";
     case "raw":
       return "raw";
-    case "demo":
-      return "demo";
     default:
       return "default";
   }

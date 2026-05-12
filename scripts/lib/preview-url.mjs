@@ -16,6 +16,11 @@ export function buildPreviewUrl(options = {}) {
   if (options.captureFrames) {
     url.searchParams.set("captureFrames", String(options.captureFrames));
   }
+  for (const key of threeBubbleTuningKeys) {
+    if (options[key] !== undefined && options[key] !== null && options[key] !== "") {
+      url.searchParams.set(key, String(options[key]));
+    }
+  }
 
   const outputMode = options.outputMode ?? "live";
   if (outputMode === "capture") {
@@ -26,3 +31,14 @@ export function buildPreviewUrl(options = {}) {
 
   return url;
 }
+
+export const threeBubbleTuningKeys = [
+  "cameraYawDegrees",
+  "cameraPitchDegrees",
+  "cameraDistanceScale",
+  "sunAzimuthDegrees",
+  "sunElevationDegrees",
+  "sunIntensityScale",
+  "lightContrast",
+  "exposureScale"
+];

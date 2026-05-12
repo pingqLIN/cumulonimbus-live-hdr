@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzePng } from "./lib/png-analysis.mjs";
+import { threeBubbleTuningKeys } from "./lib/preview-url.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const looks = readStringArg("--looks", "structural,demo-like,soft-volumetric-ish")
@@ -14,6 +15,7 @@ const height = readNumberArg("--height", 480);
 const waitMs = readNumberArg("--waitMs", 4000);
 const simPreset = readStringArg("--simPreset", "mid");
 const defaultLook = readStringArg("--default-look", "demo-like");
+const tuningArgs = readTuningArgs();
 const referencePath = resolve(
   projectRoot,
   readStringArg("--reference", join("outputs", "analysis", "demo_mid.png"))
@@ -93,7 +95,8 @@ function runCapture(look, outputPath) {
       "--waitMs",
       String(waitMs),
       "--out",
-      outputPath
+      outputPath,
+      ...tuningArgs
     ],
     {
       cwd: projectRoot,
@@ -164,4 +167,16 @@ function readStringArg(name, fallback) {
     return fallback;
   }
   return process.argv[index + 1] ?? fallback;
+}
+
+function readTuningArgs() {
+  const tuningArgs = [];
+  for (const key of threeBubbleTuningKeys) {
+    const cliName = `--${key}`;
+    const index = process.argv.indexOf(cliName);
+    if (index >= 0 && process.argv[index + 1] !== undefined) {
+      tuningArgs.push(cliName, process.argv[index + 1]);
+    }
+  }
+  return tuningArgs;
 }

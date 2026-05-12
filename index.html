@@ -81,6 +81,97 @@
           Atmospheric haze
           <input id="haze" type="range" min="0" max="1" step="0.01" value="0.42" />
         </label>
+        <div class="control-group three-d-controls">
+          <p class="control-label">Camera</p>
+          <div class="control-grid">
+            <label>
+              Yaw
+              <input
+                id="cameraYawDegrees"
+                type="range"
+                min="-45"
+                max="45"
+                step="1"
+                value="0"
+              />
+            </label>
+            <label>
+              Pitch
+              <input
+                id="cameraPitchDegrees"
+                type="range"
+                min="-24"
+                max="24"
+                step="1"
+                value="0"
+              />
+            </label>
+            <label>
+              Distance
+              <input
+                id="cameraDistanceScale"
+                type="range"
+                min="0.62"
+                max="1.5"
+                step="0.01"
+                value="1"
+              />
+            </label>
+          </div>
+        </div>
+        <div class="control-group three-d-controls">
+          <p class="control-label">Lighting</p>
+          <div class="control-grid">
+            <label>
+              Sun azimuth
+              <input
+                id="sunAzimuthDegrees"
+                type="range"
+                min="-90"
+                max="90"
+                step="1"
+                value="0"
+              />
+            </label>
+            <label>
+              Sun elevation
+              <input
+                id="sunElevationDegrees"
+                type="range"
+                min="-45"
+                max="45"
+                step="1"
+                value="0"
+              />
+            </label>
+            <label>
+              Sun intensity
+              <input
+                id="sunIntensityScale"
+                type="range"
+                min="0.25"
+                max="2.25"
+                step="0.01"
+                value="1"
+              />
+            </label>
+            <label>
+              Light contrast
+              <input id="lightContrast" type="range" min="0" max="1" step="0.01" value="0.58" />
+            </label>
+            <label>
+              Exposure
+              <input
+                id="exposureScale"
+                type="range"
+                min="0.45"
+                max="1.8"
+                step="0.01"
+                value="1"
+              />
+            </label>
+          </div>
+        </div>
         <div class="actions">
           <button id="pause" type="button">Pause</button>
           <button id="reset" type="button">Reset</button>

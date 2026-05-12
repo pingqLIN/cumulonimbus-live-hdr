@@ -1,4 +1,5 @@
 import type { CloudParams } from "../core/cloud-field.js";
+import type { ThreeBubbleTuning } from "./three-bubble-tuning.js";
 
 export interface PreviewMetricItem {
   label: string;
@@ -16,4 +17,5 @@ export interface PreviewRenderer {
   resize(width: number, height: number): void;
   render(time: number, deltaSeconds: number, params: CloudParams): void;
   getMetrics?(): PreviewMetrics | null;
+  setThreeBubbleTuning?(tuning: Partial<ThreeBubbleTuning>): void;
 }

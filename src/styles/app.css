@@ -134,6 +134,11 @@ button:hover {
   gap: 8px;
 }
 
+.control-grid {
+  display: grid;
+  gap: 10px;
+}
+
 .control-label {
   margin: 0;
   color: #9fb4c9;
@@ -175,6 +180,10 @@ button:hover {
 
 html[data-current-view="field"] .look-controls {
   opacity: 0.62;
+}
+
+html[data-current-view="field"] .three-d-controls {
+  opacity: 0.52;
 }
 
 .metrics-panel {

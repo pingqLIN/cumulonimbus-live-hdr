@@ -11,6 +11,9 @@ const outputPath = resolve(
   projectRoot,
   readStringArg("--out", join("outputs", "analysis", "cumulonimbus-3d-capture-smoke.png"))
 );
+const cameraYawDegrees = readStringArg("--cameraYawDegrees", "14");
+const sunIntensityScale = readStringArg("--sunIntensityScale", "1.18");
+const lightContrast = readStringArg("--lightContrast", "0.74");
 
 const capture = spawnSync(
   process.execPath,
@@ -26,6 +29,12 @@ const capture = spawnSync(
     String(height),
     "--waitMs",
     String(readNumberArg("--waitMs", 4000)),
+    "--cameraYawDegrees",
+    cameraYawDegrees,
+    "--sunIntensityScale",
+    sunIntensityScale,
+    "--lightContrast",
+    lightContrast,
     "--out",
     outputPath
   ],
@@ -40,6 +49,14 @@ if (capture.status !== 0) {
     `3D capture smoke failed with exit code ${capture.status}.\n${capture.stderr || capture.stdout}`
   );
 }
+
+const captureResult = JSON.parse(capture.stdout);
+const captureUrl = new URL(captureResult.url);
+assert.equal(captureUrl.searchParams.get("cameraYawDegrees"), cameraYawDegrees);
+assert.equal(captureUrl.searchParams.get("sunIntensityScale"), sunIntensityScale);
+assert.equal(captureUrl.searchParams.get("lightContrast"), lightContrast);
+assert.equal(captureResult.processCleanup.browser.stopped, true);
+assert.equal(captureResult.processCleanup.server.stopped, true);
 
 const analysis = analyzePng(outputPath);
 assert.equal(analysis.width, width);

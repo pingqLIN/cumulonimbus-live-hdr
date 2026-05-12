@@ -1,11 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { get } from "node:http";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { analyzePng } from "./lib/png-analysis.mjs";
-import { buildPreviewUrl } from "./lib/preview-url.mjs";
+import { buildPreviewUrl, threeBubbleTuningKeys } from "./lib/preview-url.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
@@ -23,6 +24,7 @@ const outputMode = args.source === "live" ? "live" : args.source === "ui" ? "ui"
 const defaultOutputPath =
   view === "field" ? "outputs/cumulonimbus-field-still.png" : "outputs/cumulonimbus-3d-still.png";
 const outputPath = resolve(projectRoot, args.out ?? defaultOutputPath);
+const browserProfileDir = mkdtempSync(join(tmpdir(), "cumulonimbus-headless-"));
 const visualThresholds = {
   minMaxLuma: 42,
   minLumaStdDev: 4,
@@ -39,7 +41,8 @@ const url = buildPreviewUrl({
   renderer: args.renderer,
   preset: args.preset,
   captureFrames,
-  outputMode
+  outputMode,
+  ...readThreeBubbleTuningArgs(args)
 });
 
 mkdirSync(join(projectRoot, "outputs"), { recursive: true });
@@ -47,6 +50,8 @@ mkdirSync(dirname(outputPath), { recursive: true });
 
 const server = startVite(port);
 let serverExit = null;
+let successPayload = null;
+let serverCleanup = null;
 server.once("exit", (code, signal) => {
   serverExit = { code, signal };
 });
@@ -59,7 +64,13 @@ try {
       "--headless=new",
       "--disable-gpu",
       "--no-sandbox",
+      "--no-first-run",
+      "--noerrdialogs",
+      "--disable-background-networking",
+      "--disable-component-update",
+      "--disable-default-apps",
       "--run-all-compositor-stages-before-draw",
+      `--user-data-dir=${browserProfileDir}`,
       `--window-size=${width},${height}`,
       `--virtual-time-budget=${waitMs}`,
       `--screenshot=${outputPath}`,
@@ -84,24 +95,27 @@ try {
   const analysis = analyzePng(outputPath);
   validateCaptureAnalysis(analysis);
 
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        outputPath,
-        url: url.toString(),
-        browser,
-        bytes: size,
-        png,
-        visualThresholds,
-        analysis
-      },
-      null,
-      2
-    )
-  );
+  successPayload = {
+    ok: true,
+    outputPath,
+    url: url.toString(),
+    browser,
+    bytes: size,
+    png,
+    visualThresholds,
+    processCleanup: {
+      browser: result.processCleanup
+    },
+    analysis
+  };
 } finally {
-  stopServer(server);
+  serverCleanup = stopServer(server);
+  rmSync(browserProfileDir, { recursive: true, force: true });
+}
+
+if (successPayload) {
+  successPayload.processCleanup.server = serverCleanup;
+  console.log(JSON.stringify(successPayload, null, 2));
 }
 
 function parseArgs(rawArgs) {
@@ -127,6 +141,17 @@ function readIntegerArg(parsed, name, fallback) {
     return fallback;
   }
   return Math.round(value);
+}
+
+function readThreeBubbleTuningArgs(parsed) {
+  const tuning = {};
+  for (const key of threeBubbleTuningKeys) {
+    const value = parsed[key];
+    if (value !== undefined && value !== "") {
+      tuning[key] = value;
+    }
+  }
+  return tuning;
 }
 
 async function resolveCapturePort(startPort, strictPort) {
@@ -163,14 +188,29 @@ function startVite(targetPort) {
 }
 
 function stopServer(child) {
-  if (!child.pid) {
-    return;
+  return stopProcessTree(child);
+}
+
+function stopProcessTree(child) {
+  const pid = child.pid ?? null;
+  if (!pid) {
+    return { pid, stopped: true };
   }
   if (process.platform === "win32") {
-    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-    return;
+    spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
+    return { pid, stopped: !isPidRunning(pid) };
   }
   child.kill();
+  return { pid, stopped: !isPidRunning(pid) };
+}
+
+function isPidRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function runBrowserScreenshot(browser, browserArgs, timeoutMs) {
@@ -187,11 +227,12 @@ function runBrowserScreenshot(browser, browserArgs, timeoutMs) {
         return;
       }
       settled = true;
-      stopServer(child);
+      const processCleanup = stopProcessTree(child);
       resolveRun({
         status: 124,
         stdout,
-        stderr: `${stderr}\nBrowser screenshot timed out after ${timeoutMs}ms`.trim()
+        stderr: `${stderr}\nBrowser screenshot timed out after ${timeoutMs}ms`.trim(),
+        processCleanup
       });
     }, timeoutMs);
 
@@ -207,7 +248,8 @@ function runBrowserScreenshot(browser, browserArgs, timeoutMs) {
       }
       settled = true;
       clearTimeout(timer);
-      resolveRun({ status: 1, stdout, stderr: `${stderr}\n${error.message}`.trim() });
+      const processCleanup = stopProcessTree(child);
+      resolveRun({ status: 1, stdout, stderr: `${stderr}\n${error.message}`.trim(), processCleanup });
     });
     child.once("exit", (code) => {
       if (settled) {
@@ -215,7 +257,8 @@ function runBrowserScreenshot(browser, browserArgs, timeoutMs) {
       }
       settled = true;
       clearTimeout(timer);
-      resolveRun({ status: code ?? 1, stdout, stderr });
+      const processCleanup = stopProcessTree(child);
+      resolveRun({ status: code ?? 1, stdout, stderr, processCleanup });
     });
   });
 }

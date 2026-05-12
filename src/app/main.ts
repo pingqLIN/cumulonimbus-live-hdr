@@ -7,6 +7,11 @@ import {
   normalizeThreeBubbleLookPresetName,
   type ThreeBubbleLookPresetName
 } from "./three-bubble-look.js";
+import {
+  DEFAULT_THREE_BUBBLE_TUNING,
+  normalizeThreeBubbleTuning,
+  type ThreeBubbleTuning
+} from "./three-bubble-tuning.js";
 import { WebGpuPreviewRenderer } from "./webgpu-preview-renderer.js";
 
 const canvasElement = document.querySelector<HTMLCanvasElement>("#cloud-canvas");
@@ -27,9 +32,11 @@ if (
 const cloudPresetName = normalizeCloudPresetName(query.get("cloudPreset") ?? query.get("preset"));
 const viewMode = resolveViewMode();
 const threeBubbleLookPreset = resolveThreeBubbleLookPresetName();
+const initialThreeBubbleTuning = resolveThreeBubbleTuningFromQuery();
 document.documentElement.dataset.currentView = viewMode;
 document.documentElement.dataset.currentLook = threeBubbleLookPreset;
 const params: CloudParams = createCloudPresetParams(cloudPresetName);
+let threeBubbleTuning: ThreeBubbleTuning = { ...initialThreeBubbleTuning };
 let paused = false;
 let start = performance.now();
 let lastFrameTime = start;
@@ -70,6 +77,8 @@ type NumericParamId =
   | "anvilPersistence"
   | "sunEdgePeakNits"
   | "haze";
+
+type ThreeBubbleTuningParamId = keyof ThreeBubbleTuning;
 
 function setNumericParam(id: NumericParamId, value: number): void {
   switch (id) {
@@ -142,6 +151,25 @@ function bindNumber(id: NumericParamId): void {
   });
 }
 
+function setThreeBubbleTuningParam(id: ThreeBubbleTuningParamId, value: number): void {
+  threeBubbleTuning = normalizeThreeBubbleTuning({
+    ...threeBubbleTuning,
+    [id]: value
+  });
+  renderer?.setThreeBubbleTuning?.(threeBubbleTuning);
+}
+
+function bindThreeBubbleTuningNumber(id: ThreeBubbleTuningParamId): void {
+  const input = document.querySelector<HTMLInputElement>(`#${id}`);
+  if (!input) {
+    return;
+  }
+  input.value = String(threeBubbleTuning[id]);
+  input.addEventListener("input", () => {
+    setThreeBubbleTuningParam(id, Number(input.value));
+  });
+}
+
 function setupControls(): void {
   setupNavigationControls();
   bindNumber("seed");
@@ -153,6 +181,9 @@ function setupControls(): void {
   bindNumber("anvilPersistence");
   bindNumber("sunEdgePeakNits");
   bindNumber("haze");
+  for (const id of threeBubbleTuningParamIds) {
+    bindThreeBubbleTuningNumber(id);
+  }
 
   document.querySelector<HTMLButtonElement>("#pause")?.addEventListener("click", (event) => {
     paused = !paused;
@@ -168,15 +199,23 @@ function setupControls(): void {
 
   document.querySelector<HTMLButtonElement>("#reset")?.addEventListener("click", () => {
     Object.assign(params, createCloudPresetParams(cloudPresetName));
+    threeBubbleTuning = { ...initialThreeBubbleTuning };
     for (const id of numericParamIds) {
       const input = document.querySelector<HTMLInputElement>(`#${id}`);
       if (input) {
         input.value = String(getNumericParam(id));
       }
     }
+    for (const id of threeBubbleTuningParamIds) {
+      const input = document.querySelector<HTMLInputElement>(`#${id}`);
+      if (input) {
+        input.value = String(threeBubbleTuning[id]);
+      }
+    }
     start = performance.now();
     lastFrameTime = start;
     nextFrameTime = start;
+    renderer.setThreeBubbleTuning?.(threeBubbleTuning);
     renderer.reset();
   });
 }
@@ -224,6 +263,17 @@ const numericParamIds: readonly NumericParamId[] = [
   "haze"
 ];
 
+const threeBubbleTuningParamIds: readonly ThreeBubbleTuningParamId[] = [
+  "cameraYawDegrees",
+  "cameraPitchDegrees",
+  "cameraDistanceScale",
+  "sunAzimuthDegrees",
+  "sunElevationDegrees",
+  "sunIntensityScale",
+  "lightContrast",
+  "exposureScale"
+];
+
 function setupNavigationControls(): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-view-mode]")) {
     const targetMode = button.dataset.viewMode === "3d" ? "3d" : "field";
@@ -266,7 +316,7 @@ async function createRenderer(): Promise<PreviewRenderer> {
     if (rendererStatus) {
       rendererStatus.textContent = `Renderer: Three.js bubble model (${previewResolution.label}) · look=${threeBubbleLookPreset}${resolvePresetLabel()}${resolveFpsLabel()}`;
     }
-    return new ThreeBubblePreviewRenderer(canvas, threeBubbleLookPreset);
+    return new ThreeBubblePreviewRenderer(canvas, threeBubbleLookPreset, threeBubbleTuning);
   }
 
   const webGpuRenderer = FORCE_CPU ? null : await WebGpuPreviewRenderer.create(canvas);
@@ -357,6 +407,37 @@ function resolveViewMode(): "field" | "3d" {
 function resolveThreeBubbleLookPresetName(): ThreeBubbleLookPresetName {
   const rawLook = query.get("look") ?? query.get("lookPreset");
   return rawLook ? normalizeThreeBubbleLookPresetName(rawLook) : "demo-like";
+}
+
+function resolveThreeBubbleTuningFromQuery(): ThreeBubbleTuning {
+  return normalizeThreeBubbleTuning({
+    cameraYawDegrees: readNumberFromQuery(
+      "cameraYawDegrees",
+      DEFAULT_THREE_BUBBLE_TUNING.cameraYawDegrees
+    ),
+    cameraPitchDegrees: readNumberFromQuery(
+      "cameraPitchDegrees",
+      DEFAULT_THREE_BUBBLE_TUNING.cameraPitchDegrees
+    ),
+    cameraDistanceScale: readNumberFromQuery(
+      "cameraDistanceScale",
+      DEFAULT_THREE_BUBBLE_TUNING.cameraDistanceScale
+    ),
+    sunAzimuthDegrees: readNumberFromQuery(
+      "sunAzimuthDegrees",
+      DEFAULT_THREE_BUBBLE_TUNING.sunAzimuthDegrees
+    ),
+    sunElevationDegrees: readNumberFromQuery(
+      "sunElevationDegrees",
+      DEFAULT_THREE_BUBBLE_TUNING.sunElevationDegrees
+    ),
+    sunIntensityScale: readNumberFromQuery(
+      "sunIntensityScale",
+      DEFAULT_THREE_BUBBLE_TUNING.sunIntensityScale
+    ),
+    lightContrast: readNumberFromQuery("lightContrast", DEFAULT_THREE_BUBBLE_TUNING.lightContrast),
+    exposureScale: readNumberFromQuery("exposureScale", DEFAULT_THREE_BUBBLE_TUNING.exposureScale)
+  });
 }
 
 function renderPreviewMetrics(now: number): void {

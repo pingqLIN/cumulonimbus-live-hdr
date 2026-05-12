@@ -8,6 +8,10 @@ import {
 import { mapCloudParamsToBubbleParams } from "../core/bubble-params.js";
 import type { CloudParams } from "../core/cloud-field.js";
 import type { PreviewMetrics, PreviewRenderer } from "./preview-renderer.js";
+import {
+  normalizeThreeBubbleTuning,
+  type ThreeBubbleTuning
+} from "./three-bubble-tuning.js";
 export {
   normalizeThreeBubbleLookPresetName,
   type ThreeBubbleLookPresetName
@@ -228,6 +232,11 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
   private readonly camera = new THREE.PerspectiveCamera(42, 9 / 16, 0.1, 1200);
   private readonly cloudGroup = new THREE.Group();
   private readonly dummy = new THREE.Object3D();
+  private readonly cameraTarget = new THREE.Vector3();
+  private readonly cameraOffset = new THREE.Vector3();
+  private readonly cameraSpherical = new THREE.Spherical();
+  private readonly lightOffset = new THREE.Vector3();
+  private readonly lightSpherical = new THREE.Spherical();
   private readonly instanceColor = new THREE.Color();
   private readonly layerTintColors: Record<BubbleLayer, THREE.Color> = {
     base: new THREE.Color(0x66717a),
@@ -252,11 +261,14 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
   private lastModelSignature = "";
   private lastWidth = 0;
   private lastHeight = 0;
+  private threeBubbleTuning: ThreeBubbleTuning;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
-    private readonly lookPreset: ThreeBubbleLookPresetName = "structural"
+    private readonly lookPreset: ThreeBubbleLookPresetName = "structural",
+    tuning: Partial<ThreeBubbleTuning> = {}
   ) {
+    this.threeBubbleTuning = normalizeThreeBubbleTuning(tuning);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -324,6 +336,11 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
     this.model = new BubbleModel(mapCloudParamsToBubbleParams({ ...defaultCloudParamsShim }));
   }
 
+  setThreeBubbleTuning(tuning: Partial<ThreeBubbleTuning>): void {
+    this.threeBubbleTuning = normalizeThreeBubbleTuning(tuning);
+    this.applyDynamicSceneLook(this.resolveLookPreset());
+  }
+
   reset(): void {
     this.lastModelSignature = "";
     this.lastMetrics = null;
@@ -352,6 +369,7 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
     }
 
     this.lastMetrics = this.model.step(deltaSeconds);
+    this.applyDynamicSceneLook(look);
     this.updateCloudMaterialShader(look, bubbleParams.lightWrap);
     this.material.emissiveIntensity = bubbleParams.lightWrap * look.emissiveScale;
     this.material.roughness = Math.min(
@@ -378,7 +396,15 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
         { label: "Active", value: this.lastMetrics.activeNodes.toLocaleString("en-US") },
         { label: "Mature", value: `${(this.lastMetrics.matureRatio * 100).toFixed(1)}%` },
         { label: "Generation", value: String(this.lastMetrics.maxGeneration) },
-        { label: "Avg radius", value: this.lastMetrics.averageRadius.toFixed(2) }
+        { label: "Avg radius", value: this.lastMetrics.averageRadius.toFixed(2) },
+        {
+          label: "Camera",
+          value: `${this.threeBubbleTuning.cameraYawDegrees.toFixed(0)} deg / ${this.threeBubbleTuning.cameraPitchDegrees.toFixed(0)} deg`
+        },
+        {
+          label: "Light",
+          value: `${this.threeBubbleTuning.sunIntensityScale.toFixed(2)}x / ${this.threeBubbleTuning.lightContrast.toFixed(2)}`
+        }
       ]
     };
   }
@@ -389,26 +415,90 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
 
   private applySceneLook(look: ThreeBubbleLookPreset): void {
     this.renderer.setClearColor(look.clearColor, 1);
-    this.renderer.toneMappingExposure = look.toneExposure;
     this.scene.background = createSkyGradientTexture(look);
     this.scene.fog = new THREE.FogExp2(look.fogColor, look.fogDensity);
     this.camera.fov = look.fov;
-    this.camera.position.set(...look.cameraPosition);
-    this.camera.lookAt(...look.cameraLookAt);
-    this.camera.updateProjectionMatrix();
     this.cloudGroup.position.y = look.cloudPositionY;
     this.cloudGroup.scale.setScalar(look.cloudScale);
     this.ambientLight.color.setHex(look.ambientColor);
-    this.ambientLight.intensity = look.ambientIntensity;
     this.keyLight.color.setHex(look.keyColor);
-    this.keyLight.intensity = look.keyIntensity;
-    this.keyLight.position.set(...look.keyPosition);
     this.fillLight.color.setHex(look.fillColor);
-    this.fillLight.intensity = look.fillIntensity;
-    this.fillLight.position.set(...look.fillPosition);
     this.rimLight.color.setHex(look.rimColor);
-    this.rimLight.intensity = look.rimIntensity;
-    this.rimLight.position.set(...look.rimPosition);
+    this.applyDynamicSceneLook(look);
+  }
+
+  private applyDynamicSceneLook(look: ThreeBubbleLookPreset): void {
+    const tuning = this.threeBubbleTuning;
+    const contrast = tuning.lightContrast;
+    const ambientContrast = 1.1 - contrast * 0.34;
+    const keyContrast = 0.72 + contrast * 0.58;
+    const fillContrast = 1.18 - contrast * 0.68;
+    const rimContrast = 0.78 + contrast * 0.48;
+    const fillIntensityBalance = Math.max(0.55, 1.08 - (tuning.sunIntensityScale - 1) * 0.28);
+
+    this.renderer.toneMappingExposure = look.toneExposure * tuning.exposureScale;
+    this.updateCameraFromTuning(look, tuning);
+    this.ambientLight.intensity =
+      look.ambientIntensity * ambientContrast * Math.sqrt(tuning.sunIntensityScale);
+    this.keyLight.intensity = look.keyIntensity * tuning.sunIntensityScale * keyContrast;
+    this.fillLight.intensity = look.fillIntensity * fillContrast * fillIntensityBalance;
+    this.rimLight.intensity =
+      look.rimIntensity * rimContrast * (0.85 + tuning.sunIntensityScale * 0.15);
+    this.setAdjustedLightPosition(
+      this.keyLight,
+      look.keyPosition,
+      tuning.sunAzimuthDegrees,
+      tuning.sunElevationDegrees
+    );
+    this.setAdjustedLightPosition(
+      this.fillLight,
+      look.fillPosition,
+      tuning.sunAzimuthDegrees * 0.72,
+      tuning.sunElevationDegrees * 0.38
+    );
+    this.setAdjustedLightPosition(
+      this.rimLight,
+      look.rimPosition,
+      tuning.sunAzimuthDegrees * 1.12,
+      tuning.sunElevationDegrees * 0.72
+    );
+  }
+
+  private updateCameraFromTuning(
+    look: ThreeBubbleLookPreset,
+    tuning: ThreeBubbleTuning
+  ): void {
+    this.cameraTarget.set(...look.cameraLookAt);
+    this.cameraOffset.set(...look.cameraPosition).sub(this.cameraTarget);
+    this.cameraSpherical.setFromVector3(this.cameraOffset);
+    this.cameraSpherical.theta += THREE.MathUtils.degToRad(tuning.cameraYawDegrees);
+    this.cameraSpherical.phi = THREE.MathUtils.clamp(
+      this.cameraSpherical.phi - THREE.MathUtils.degToRad(tuning.cameraPitchDegrees),
+      0.12,
+      Math.PI - 0.12
+    );
+    this.cameraSpherical.radius *= tuning.cameraDistanceScale;
+    this.cameraOffset.setFromSpherical(this.cameraSpherical);
+    this.camera.position.copy(this.cameraTarget).add(this.cameraOffset);
+    this.camera.lookAt(this.cameraTarget);
+    this.camera.updateProjectionMatrix();
+  }
+
+  private setAdjustedLightPosition(
+    light: THREE.DirectionalLight,
+    basePosition: readonly [number, number, number],
+    azimuthDegrees: number,
+    elevationDegrees: number
+  ): void {
+    this.lightOffset.set(...basePosition);
+    this.lightSpherical.setFromVector3(this.lightOffset);
+    this.lightSpherical.theta += THREE.MathUtils.degToRad(azimuthDegrees);
+    this.lightSpherical.phi = THREE.MathUtils.clamp(
+      this.lightSpherical.phi - THREE.MathUtils.degToRad(elevationDegrees),
+      0.08,
+      Math.PI - 0.08
+    );
+    light.position.setFromSpherical(this.lightSpherical);
   }
 
   private updateInstances(surfaceDisplacement: number, look: ThreeBubbleLookPreset): void {

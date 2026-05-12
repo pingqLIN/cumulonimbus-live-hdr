@@ -19,10 +19,11 @@
     "tune:demo": "npm run build:core && node scripts/tune-demo-params.mjs",
     "format": "prettier --write .",
     "check": "tsc --noEmit",
-    "test": "npm run test:hdr && npm run test:smoke && npm run test:bubble",
+    "test": "npm run test:hdr && npm run test:smoke && npm run test:bubble && npm run test:raymarch",
     "test:hdr": "npm run build:core && node scripts/smoke-hdr-calibration.mjs",
     "test:smoke": "npm run build:core && node scripts/smoke-render.mjs",
     "test:bubble": "npm run build:core && node scripts/smoke-bubble-model.mjs",
+    "test:raymarch": "node scripts/raymarch-density-spike.mjs --width 90 --height 160 --steps 32 --out outputs/analysis/raymarch-density-smoke.ppm --metrics outputs/analysis/raymarch-density-smoke.json",
     "test:3d-capture": "npm run build && node scripts/smoke-3d-capture.mjs",
     "test:live-entry": "npm run build && node scripts/smoke-live-entry.mjs"
   },

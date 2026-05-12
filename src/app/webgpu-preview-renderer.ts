@@ -114,7 +114,15 @@ export class WebGpuPreviewRenderer implements PreviewRenderer {
       entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
     });
 
-    return new WebGpuPreviewRenderer(canvas, context, device, pipeline, uniformBuffer, bindGroup, format);
+    return new WebGpuPreviewRenderer(
+      canvas,
+      context,
+      device,
+      pipeline,
+      uniformBuffer,
+      bindGroup,
+      format
+    );
   }
 
   reset(): void {}
@@ -129,24 +137,7 @@ export class WebGpuPreviewRenderer implements PreviewRenderer {
   }
 
   render(time: number, _deltaSeconds: number, params: CloudParams): void {
-    const uniforms = new Float32Array([
-      this.canvas.width,
-      this.canvas.height,
-      time,
-      params.seed % 10000,
-      params.stormLifecycle.stormAge,
-      params.humidityUplift.humidity,
-      params.humidityUplift.upliftStrength,
-      params.anvilWind.windShear,
-      params.anvilWind.anvilOutflow,
-      params.anvilWind.anvilPersistence,
-      params.lightingHdr.silverLining,
-      params.lightingHdr.haze,
-      params.lightingHdr.sunEdgePeakNits / Math.max(1, params.lightingHdr.diffuseWhiteNits),
-      params.anvilWind.tropopauseHeight,
-      params.anvilWind.turbulentEntrainment,
-      0
-    ]);
+    const uniforms = buildWebGpuUniforms(this.canvas.width, this.canvas.height, time, params);
     this.device.queue.writeBuffer(this.uniformBuffer, 0, uniforms);
 
     const encoder = this.device.createCommandEncoder();
@@ -166,6 +157,32 @@ export class WebGpuPreviewRenderer implements PreviewRenderer {
     pass.end();
     this.device.queue.submit([encoder.finish()]);
   }
+}
+
+export function buildWebGpuUniforms(
+  width: number,
+  height: number,
+  time: number,
+  params: CloudParams
+): Float32Array {
+  return new Float32Array([
+    width,
+    height,
+    time,
+    params.seed % 10000,
+    params.stormLifecycle.stormAge,
+    params.humidityUplift.humidity,
+    params.humidityUplift.upliftStrength,
+    params.anvilWind.windShear,
+    params.anvilWind.anvilOutflow,
+    params.anvilWind.anvilPersistence,
+    params.lightingHdr.silverLining,
+    params.lightingHdr.haze,
+    params.lightingHdr.sunEdgePeakNits / Math.max(1, params.lightingHdr.diffuseWhiteNits),
+    params.anvilWind.tropopauseHeight,
+    params.anvilWind.turbulentEntrainment,
+    0
+  ]);
 }
 
 const shaderSource = `

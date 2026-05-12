@@ -47,6 +47,8 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `test:raymarch` runs a smaller isolated raymarch smoke and fails when alpha or lit-pixel coverage is too low.
 
+`test:webgpu-uniforms` validates the CPU parameter to WebGPU preview uniform mapping.
+
 ## Research
 
 The first source-backed research pass is in [docs/research-notes.md](docs/research-notes.md). It covers atmospheric science, procedural volumetric cloud rendering, HDR standards, and science-art precedents.

@@ -1,10 +1,16 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { hdrSettingsFromParams, maxSceneChannel, sceneLinearToNits } from "./hdr.js";
+import {
+  describeHdrEncoding,
+  hdrSettingsFromParams,
+  maxSceneChannel,
+  sceneLinearToNits,
+  type HdrEncodingSummary
+} from "./hdr.js";
 import type { CloudParams } from "./parameters.js";
 import type { IterativeCloudField, FieldMetrics } from "./iterative-cloud-field.js";
 
-const METRICS_SCHEMA_VERSION = "2.1.0";
+const METRICS_SCHEMA_VERSION = "2.2.0";
 
 function hashValue(value: string): string {
   let hash = 0x811c9dc5;
@@ -88,6 +94,7 @@ export interface RenderMetrics {
   activeEdgeRatio: number;
   peakSceneValue: number;
   peakNits: number;
+  hdrEncoding: HdrEncodingSummary;
   maxChannel: "r" | "g" | "b";
   renderDurationMs: number;
   comparison?: RenderMetricsComparison;
@@ -142,7 +149,8 @@ export function sampleFrameMetrics(
       const frameMax = maxSceneChannel(pixel);
       if (frameMax > accumulator.peakSceneValue) {
         accumulator.peakSceneValue = frameMax;
-        accumulator.maxChannel = pixel.r >= pixel.g && pixel.r >= pixel.b ? "r" : pixel.g >= pixel.b ? "g" : "b";
+        accumulator.maxChannel =
+          pixel.r >= pixel.g && pixel.r >= pixel.b ? "r" : pixel.g >= pixel.b ? "g" : "b";
       }
     }
   }
@@ -180,12 +188,19 @@ export function compareRenderMetrics(
     },
     ratios: {
       averageDensity:
-        baseline.averageDensity === 0 ? 0 : (current.averageDensity - baseline.averageDensity) / baseline.averageDensity,
+        baseline.averageDensity === 0
+          ? 0
+          : (current.averageDensity - baseline.averageDensity) / baseline.averageDensity,
       activeEdgeRatio:
-        baseline.activeEdgeRatio === 0 ? 0 : (current.activeEdgeRatio - baseline.activeEdgeRatio) / baseline.activeEdgeRatio,
+        baseline.activeEdgeRatio === 0
+          ? 0
+          : (current.activeEdgeRatio - baseline.activeEdgeRatio) / baseline.activeEdgeRatio,
       peakSceneValue:
-        baseline.peakSceneValue === 0 ? 0 : (current.peakSceneValue - baseline.peakSceneValue) / baseline.peakSceneValue,
-      peakNits: baseline.peakNits === 0 ? 0 : (current.peakNits - baseline.peakNits) / baseline.peakNits
+        baseline.peakSceneValue === 0
+          ? 0
+          : (current.peakSceneValue - baseline.peakSceneValue) / baseline.peakSceneValue,
+      peakNits:
+        baseline.peakNits === 0 ? 0 : (current.peakNits - baseline.peakNits) / baseline.peakNits
     }
   };
 }
@@ -215,6 +230,7 @@ export function finalizeRenderMetrics(
     activeEdgeRatio: accumulator.metrics.activeEdgeRatio,
     peakSceneValue: accumulator.peakSceneValue,
     peakNits: sceneLinearToNits(accumulator.peakSceneValue, settings),
+    hdrEncoding: describeHdrEncoding(settings),
     maxChannel: accumulator.maxChannel,
     renderDurationMs
   };
@@ -233,6 +249,9 @@ export function assertRenderMetrics(metrics: RenderMetrics): void {
     Number.isFinite(metrics.activeEdgeRatio),
     Number.isFinite(metrics.peakSceneValue),
     Number.isFinite(metrics.peakNits),
+    Number.isFinite(metrics.hdrEncoding.encodingPeakNits),
+    metrics.hdrEncoding.diffuseWhitePq16 > 0,
+    metrics.hdrEncoding.maxCllPq16 >= metrics.hdrEncoding.diffuseWhitePq16,
     metrics.renderDurationMs >= 0,
     metrics.averageDensity > 0.008,
     metrics.activeEdgeRatio > 0.04,

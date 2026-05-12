@@ -17,8 +17,10 @@ The reference clip is a 1920x3840, 30 fps, 5.03 second portrait MOV. This protot
 ```powershell
 npm install
 npm run dev
+npm run live:url
 npm run render:quick
 npm run render:test
+npm test
 ```
 
 `render:quick` writes `outputs/cumulonimbus-quick-hdr.mp4`.

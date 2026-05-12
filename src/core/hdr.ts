@@ -15,6 +15,18 @@ export interface HdrEncodingSettings {
   maxCll: number;
 }
 
+export interface HdrEncodingSummary extends HdrEncodingSettings {
+  encodingPeakNits: number;
+  diffuseWhitePq: number;
+  diffuseWhitePq16: number;
+  sunEdgePeakPq: number;
+  sunEdgePeakPq16: number;
+  maxCllPq: number;
+  maxCllPq16: number;
+  masterDisplayPeakPq: number;
+  masterDisplayPeakPq16: number;
+}
+
 export function hdrSettingsFromParams(params: CloudParams): HdrEncodingSettings {
   return {
     diffuseWhiteNits: params.lightingHdr.diffuseWhiteNits,
@@ -24,9 +36,36 @@ export function hdrSettingsFromParams(params: CloudParams): HdrEncodingSettings 
   };
 }
 
+export function hdrEncodingPeakNits(settings: HdrEncodingSettings): number {
+  return Math.max(
+    Math.max(1, settings.diffuseWhiteNits),
+    settings.sunEdgePeakNits,
+    settings.maxCll
+  );
+}
+
+export function describeHdrEncoding(settings: HdrEncodingSettings): HdrEncodingSummary {
+  const diffuseWhitePq = nitsToPq(settings.diffuseWhiteNits);
+  const sunEdgePeakPq = nitsToPq(settings.sunEdgePeakNits);
+  const maxCllPq = nitsToPq(settings.maxCll);
+  const masterDisplayPeakPq = nitsToPq(settings.masterDisplayPeakNits);
+  return {
+    ...settings,
+    encodingPeakNits: hdrEncodingPeakNits(settings),
+    diffuseWhitePq,
+    diffuseWhitePq16: pqTo16(diffuseWhitePq),
+    sunEdgePeakPq,
+    sunEdgePeakPq16: pqTo16(sunEdgePeakPq),
+    maxCllPq,
+    maxCllPq16: pqTo16(maxCllPq),
+    masterDisplayPeakPq,
+    masterDisplayPeakPq16: pqTo16(masterDisplayPeakPq)
+  };
+}
+
 export function sceneLinearToNits(value: number, settings: HdrEncodingSettings): number {
   const diffuseWhite = Math.max(1, settings.diffuseWhiteNits);
-  const peak = Math.max(diffuseWhite, settings.sunEdgePeakNits, settings.maxCll);
+  const peak = hdrEncodingPeakNits(settings);
   const shoulderStart = 1;
   const linear = Math.max(0, value);
   if (linear <= shoulderStart) {
@@ -37,6 +76,9 @@ export function sceneLinearToNits(value: number, settings: HdrEncodingSettings):
 }
 
 export function nitsToPq(nits: number): number {
+  if (nits <= 0) {
+    return 0;
+  }
   const normalized = clamp(nits / 10000);
   const powered = Math.pow(normalized, pqM1);
   const numerator = pqC1 + pqC2 * powered;
@@ -49,7 +91,7 @@ export function sceneLinearToPq(value: number, settings: HdrEncodingSettings): n
 }
 
 export function sceneLinearToPq16(value: number, settings: HdrEncodingSettings): number {
-  return Math.round(sceneLinearToPq(value, settings) * 65535);
+  return pqTo16(sceneLinearToPq(value, settings));
 }
 
 export function maxSceneChannel(pixel: Rgb): number {
@@ -64,4 +106,8 @@ export function maxPixelNits(pixel: Rgb, lighting: LightingHdrParams): number {
     maxCll: lighting.maxCll
   };
   return sceneLinearToNits(maxSceneChannel(pixel), settings);
+}
+
+function pqTo16(value: number): number {
+  return Math.round(clamp(value) * 65535);
 }

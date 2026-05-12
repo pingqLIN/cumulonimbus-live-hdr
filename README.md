@@ -21,6 +21,7 @@ npm run live:url
 npm run render:quick
 npm run render:test
 npm test
+npm run test:browser
 ```
 
 `render:quick` writes `outputs/cumulonimbus-quick-hdr.mp4`.
@@ -154,6 +155,7 @@ npm run spike:raymarch -- --width 180 --height 320 --steps 56
 - `renderer=cpu`：強制 CPU fallback。
 - `simPreset=low|mid|high|live4k`：控制預覽解析度。
 - `simWidth`/`simHeight`：自訂解析度（會套上安全上限）。
+- `captureFrames=<正整數>`：只給 browser-backed smoke/capture 使用；渲染到指定幀數後暫停，避免 headless screenshot 等待無止境動畫。
 - `preset=billow` 或 `cloudPreset=billow`：使用 demo-like 積雨雲起手樣態；目前會自動走 CPU preview，避免 WebGPU preview 與 CPU 模型不同步。
 - `view=3d` 或 `model=3d-billow`：使用 Three.js InstancedMesh 3D bubble model，保留相同參數控制語意。
 - `look=structural|demo-like|soft-volumetric-ish`：切換 3D look-dev preset。`structural` 保留幾何可讀性，`demo-like` 對齊 `outputs/analysis/demo_mid.png` 的暗背景與側逆光，`soft-volumetric-ish` 用更強 fog、halo、edge particles 模擬柔霧體積感。

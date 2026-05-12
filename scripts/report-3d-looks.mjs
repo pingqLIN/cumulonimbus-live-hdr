@@ -13,6 +13,7 @@ const width = readNumberArg("--width", 270);
 const height = readNumberArg("--height", 480);
 const waitMs = readNumberArg("--waitMs", 4000);
 const simPreset = readStringArg("--simPreset", "mid");
+const defaultLook = readStringArg("--default-look", "demo-like");
 const referencePath = resolve(
   projectRoot,
   readStringArg("--reference", join("outputs", "analysis", "demo_mid.png"))
@@ -44,11 +45,14 @@ const results = looks.map((look) => {
   };
 });
 
-const ranked = [...results].sort((left, right) => {
-  const leftScore = left.referenceScore ?? Number.POSITIVE_INFINITY;
-  const rightScore = right.referenceScore ?? Number.POSITIVE_INFINITY;
-  return leftScore - rightScore;
-});
+const ranked = reference
+  ? [...results].sort((left, right) => {
+      const leftScore = left.referenceScore ?? Number.POSITIVE_INFINITY;
+      const rightScore = right.referenceScore ?? Number.POSITIVE_INFINITY;
+      return leftScore - rightScore;
+    })
+  : [];
+const scoreSummary = createScoreSummary(ranked, results, defaultLook);
 
 const report = {
   ok: true,
@@ -57,13 +61,21 @@ const report = {
   height,
   waitMs,
   simPreset,
+  defaultLook,
   reference,
-  bestLook: ranked[0]?.look ?? null,
+  bestLook: scoreSummary.bestLook,
+  scoreSummary,
   results
 };
 
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-console.log(JSON.stringify({ ok: true, reportPath, bestLook: report.bestLook, results }, null, 2));
+console.log(
+  JSON.stringify(
+    { ok: true, reportPath, bestLook: report.bestLook, scoreSummary, results },
+    null,
+    2
+  )
+);
 
 function runCapture(look, outputPath) {
   const result = spawnSync(
@@ -111,6 +123,30 @@ function scoreAgainstReference(referenceAnalysis, candidateAnalysis) {
 
 function weightedAbs(left, right, weight) {
   return Math.abs(left - right) * weight;
+}
+
+function createScoreSummary(rankedResults, allResults, targetDefaultLook) {
+  const best = rankedResults[0] ?? null;
+  const defaultResult = allResults.find((result) => result.look === targetDefaultLook) ?? null;
+  const referenceAvailable = rankedResults.length > 0;
+  const bestScore = best?.referenceScore ?? null;
+  const defaultScore = defaultResult?.referenceScore ?? null;
+  const worstScore = rankedResults.at(-1)?.referenceScore ?? null;
+  return {
+    referenceAvailable,
+    defaultLook: targetDefaultLook,
+    bestLook: referenceAvailable ? (best?.look ?? null) : null,
+    bestReferenceScore: bestScore,
+    defaultReferenceScore: defaultScore,
+    defaultScoreDeltaFromBest:
+      referenceAvailable && defaultScore !== null && bestScore !== null
+        ? Number((defaultScore - bestScore).toFixed(6))
+        : null,
+    scoreSpread:
+      referenceAvailable && worstScore !== null && bestScore !== null
+        ? Number((worstScore - bestScore).toFixed(6))
+        : null
+  };
 }
 
 function readNumberArg(name, fallback) {

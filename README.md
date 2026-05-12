@@ -41,6 +41,8 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `report:3d-looks` captures all 3D look presets and writes comparison metrics to `outputs/analysis/3d-looks/report.json`.
 
+`test:3d-looks` runs a small browser-backed smoke over every 3D look preset and validates report ranking behavior.
+
 `spike:raymarch` writes an isolated CPU density-raymarch PPM still to `outputs/analysis/raymarch-density-spike.ppm`.
 
 `test:raymarch` runs a smaller isolated raymarch smoke and fails when alpha or lit-pixel coverage is too low.
@@ -128,6 +130,7 @@ http://127.0.0.1:5173/?view=3d&look=soft-volumetric-ish&simPreset=mid&fps=30
 ```powershell
 npm run capture:3d-still -- --look demo-like --simPreset mid --width 540 --height 960
 npm run test:3d-capture
+npm run test:3d-looks
 npm run report:3d-looks
 ```
 

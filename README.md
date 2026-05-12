@@ -33,6 +33,8 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `test:3d-capture` runs a small browser-backed 3D capture smoke test and validates the PNG is non-flat.
 
+`report:3d-looks` captures all 3D look presets and writes comparison metrics to `outputs/analysis/3d-looks/report.json`.
+
 `spike:raymarch` writes an isolated CPU density-raymarch PPM still to `outputs/analysis/raymarch-density-spike.ppm`.
 
 ## Research
@@ -103,6 +105,7 @@ http://127.0.0.1:5173/?view=3d&look=soft-volumetric-ish&simPreset=mid&fps=30
 ```powershell
 npm run capture:3d-still -- --look demo-like --simPreset mid --width 540 --height 960
 npm run test:3d-capture
+npm run report:3d-looks
 ```
 
 若要執行隔離的 volumetric raymarch still spike：

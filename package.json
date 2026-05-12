@@ -14,6 +14,7 @@
     "render:demo-loop": "npm run build:core && node scripts/render-demo-loop.mjs",
     "capture:3d-still": "npm run build && node scripts/capture-3d-still.mjs",
     "spike:raymarch": "node scripts/raymarch-density-spike.mjs",
+    "report:3d-looks": "npm run build && node scripts/report-3d-looks.mjs",
     "tune:demo": "npm run build:core && node scripts/tune-demo-params.mjs",
     "format": "prettier --write .",
     "check": "tsc --noEmit",

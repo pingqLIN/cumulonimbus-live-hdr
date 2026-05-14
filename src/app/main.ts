@@ -32,6 +32,7 @@ if (
 
 type PreviewViewMode = "field" | "3d";
 export type PreviewOrientation = "portrait" | "landscape";
+type ViewportFitMode = "best" | "width" | "height";
 
 type PreviewResolution = {
   width: number;
@@ -42,11 +43,15 @@ type PreviewResolution = {
 const cloudPresetName = normalizeCloudPresetName(query.get("cloudPreset") ?? query.get("preset"));
 const viewMode = resolveViewMode();
 const orientation = resolvePreviewOrientation();
+let viewportFitMode = resolveViewportFitMode();
 const threeBubbleLookPreset = resolveThreeBubbleLookPresetName();
 const initialThreeBubbleTuning = resolveThreeBubbleTuningFromQuery();
+const initialFieldFraming = resolveFieldFramingFromQuery();
 const params: CloudParams = createCloudPresetParams(cloudPresetName);
 
 let threeBubbleTuning: ThreeBubbleTuning = { ...initialThreeBubbleTuning };
+let fieldFraming: FieldFraming = { ...initialFieldFraming };
+let fieldPointerDrag: { pointerId: number; x: number; y: number } | null = null;
 let paused = false;
 let start = performance.now();
 let lastFrameTime = start;
@@ -74,6 +79,14 @@ const PRESET_PREVIEW_RESOLUTIONS = {
 } as const;
 
 type PresetResolutionName = keyof (typeof PRESET_PREVIEW_RESOLUTIONS)["portrait"];
+
+const FIELD_SQUARE_PREVIEW_RESOLUTIONS: Record<PresetResolutionName, PreviewResolution> = {
+  low: { width: 640, height: 640, label: "low square field (640x640)" },
+  mid: { width: 960, height: 960, label: "mid square field (960x960)" },
+  high: { width: 1280, height: 1280, label: "high square field (1280x1280)" },
+  live4k: { width: 1920, height: 1920, label: "live4k square field (1920x1920)" }
+};
+
 type NumericParamId =
   | "seed"
   | "stormAge"
@@ -83,7 +96,11 @@ type NumericParamId =
   | "anvilOutflow"
   | "anvilPersistence"
   | "sunEdgePeakNits"
-  | "haze";
+  | "haze"
+  | "lobeScale"
+  | "microBillowScale"
+  | "starterBlend"
+  | "shadowDepth";
 type VisibleThreeBubbleTuningParamId =
   | "cameraYawDegrees"
   | "cameraPitchDegrees"
@@ -93,6 +110,13 @@ type VisibleThreeBubbleTuningParamId =
   | "sunIntensityScale"
   | "lightContrast"
   | "exposureScale";
+type FieldFramingParamId = "fieldPanX" | "fieldPanY" | "fieldZoom";
+
+type FieldFraming = {
+  panX: number;
+  panY: number;
+  zoom: number;
+};
 
 const FORCE_CPU =
   query.get("renderer") === "cpu" ||
@@ -110,7 +134,11 @@ const numericParamIds: readonly NumericParamId[] = [
   "anvilOutflow",
   "anvilPersistence",
   "sunEdgePeakNits",
-  "haze"
+  "haze",
+  "lobeScale",
+  "microBillowScale",
+  "starterBlend",
+  "shadowDepth"
 ];
 const visibleThreeBubbleTuningParamIds: readonly VisibleThreeBubbleTuningParamId[] = [
   "cameraYawDegrees",
@@ -122,10 +150,12 @@ const visibleThreeBubbleTuningParamIds: readonly VisibleThreeBubbleTuningParamId
   "lightContrast",
   "exposureScale"
 ];
+const fieldFramingParamIds: readonly FieldFramingParamId[] = ["fieldPanX", "fieldPanY", "fieldZoom"];
 
 document.documentElement.dataset.currentView = viewMode;
 document.documentElement.dataset.currentLook = threeBubbleLookPreset;
 document.documentElement.dataset.currentOrientation = orientation;
+document.documentElement.dataset.viewportFit = viewportFitMode;
 
 void bootstrap();
 
@@ -153,6 +183,12 @@ function setupControls(): void {
   for (const id of visibleThreeBubbleTuningParamIds) {
     bindThreeBubbleTuningNumber(id);
   }
+  for (const id of fieldFramingParamIds) {
+    bindFieldFramingNumber(id);
+  }
+  setupViewportFitControls();
+  setupFieldCanvasInteraction();
+  setupSteppedRangeInputs();
 
   document.querySelector<HTMLButtonElement>("#pause")?.addEventListener("click", (event) => {
     paused = !paused;
@@ -173,9 +209,12 @@ function setupControls(): void {
 
   document.querySelector<HTMLButtonElement>("#reset-scene")?.addEventListener("click", () => {
     Object.assign(params, createCloudPresetParams(cloudPresetName));
+    applyFieldAccumulationRates();
     threeBubbleTuning = { ...initialThreeBubbleTuning };
+    fieldFraming = { ...initialFieldFraming };
     syncNumericInputs();
     syncThreeBubbleTuningInputs();
+    syncFieldFramingInputs();
     start = performance.now();
     lastFrameTime = start;
     nextFrameTime = start;
@@ -186,6 +225,12 @@ function setupControls(): void {
   });
 
   document.querySelector<HTMLButtonElement>("#reset-camera")?.addEventListener("click", () => {
+    if (viewMode === "field") {
+      fieldFraming = { ...initialFieldFraming };
+      syncFieldFramingInputs();
+      renderStageReadouts();
+      return;
+    }
     threeBubbleTuning = normalizeThreeBubbleTuning({
       ...threeBubbleTuning,
       cameraYawDegrees: initialThreeBubbleTuning.cameraYawDegrees,
@@ -202,7 +247,98 @@ function setupControls(): void {
 
   syncNumericInputs();
   syncThreeBubbleTuningInputs();
+  syncFieldFramingInputs();
+  syncFramingControlMode();
   syncControlDensity();
+}
+
+function setupViewportFitControls(): void {
+  const buttons = document.querySelectorAll<HTMLButtonElement>("button[data-viewport-fit]");
+  for (const button of buttons) {
+    const targetMode = resolveViewportFitMode(button.dataset.viewportFit ?? null);
+    button.setAttribute("aria-pressed", String(targetMode === viewportFitMode));
+    button.addEventListener("click", () => {
+      viewportFitMode = targetMode;
+      document.documentElement.dataset.viewportFit = viewportFitMode;
+      for (const peer of buttons) {
+        peer.setAttribute("aria-pressed", String(peer === button));
+      }
+    });
+  }
+}
+
+function setupSteppedRangeInputs(): void {
+  for (const input of document.querySelectorAll<HTMLInputElement>('input[type="range"]')) {
+    const step = Number(input.step);
+    if (!Number.isFinite(step) || step <= 0 || !Number.isInteger(step)) {
+      input.dataset.stepMode = "continuous";
+      continue;
+    }
+    const minimum = Number(input.min);
+    const maximum = Number(input.max);
+    const stepCount = Math.max(1, Math.round((maximum - minimum) / step));
+    input.dataset.stepMode = "stepped";
+    input.style.setProperty("--step-count", String(stepCount));
+  }
+}
+
+function setupFieldCanvasInteraction(): void {
+  const frame = document.querySelector<HTMLElement>(".canvas-fit-box");
+  if (!frame || viewMode !== "field") {
+    return;
+  }
+
+  frame.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+    fieldPointerDrag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    frame.setPointerCapture(event.pointerId);
+    frame.dataset.dragging = "true";
+    event.preventDefault();
+  });
+
+  frame.addEventListener("pointermove", (event) => {
+    if (!fieldPointerDrag || event.pointerId !== fieldPointerDrag.pointerId) {
+      return;
+    }
+    const rect = frame.getBoundingClientRect();
+    const nextPanX =
+      fieldFraming.panX + ((event.clientX - fieldPointerDrag.x) / Math.max(1, rect.width)) * 100;
+    const nextPanY =
+      fieldFraming.panY + ((event.clientY - fieldPointerDrag.y) / Math.max(1, rect.height)) * 100;
+    fieldPointerDrag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    updateFieldFraming({
+      ...fieldFraming,
+      panX: nextPanX,
+      panY: nextPanY
+    });
+  });
+
+  frame.addEventListener("pointerup", (event) => {
+    if (!fieldPointerDrag || event.pointerId !== fieldPointerDrag.pointerId) {
+      return;
+    }
+    fieldPointerDrag = null;
+    frame.dataset.dragging = "false";
+  });
+
+  frame.addEventListener("pointercancel", () => {
+    fieldPointerDrag = null;
+    frame.dataset.dragging = "false";
+  });
+
+  frame.addEventListener(
+    "wheel",
+    (event) => {
+      updateFieldFraming({
+        ...fieldFraming,
+        zoom: fieldFraming.zoom * Math.exp(-event.deltaY * 0.0012)
+      });
+      event.preventDefault();
+    },
+    { passive: false }
+  );
 }
 
 function draw(now: number): void {
@@ -343,6 +479,16 @@ function bindThreeBubbleTuningNumber(id: VisibleThreeBubbleTuningParamId): void 
   });
 }
 
+function bindFieldFramingNumber(id: FieldFramingParamId): void {
+  const input = document.querySelector<HTMLInputElement>(`#${id}`);
+  if (!input) {
+    return;
+  }
+  input.addEventListener("input", () => {
+    setFieldFramingParam(id, Number(input.value));
+  });
+}
+
 function setNumericParam(id: NumericParamId, value: number): void {
   switch (id) {
     case "seed":
@@ -355,7 +501,7 @@ function setNumericParam(id: NumericParamId, value: number): void {
       break;
     case "humidity":
       params.humidityUplift.humidity = value;
-      params.humidityUplift.condensationRate = 0.18 + value * 0.18;
+      applyFieldAccumulationRates();
       break;
     case "upliftStrength":
       params.humidityUplift.upliftStrength = value;
@@ -377,7 +523,27 @@ function setNumericParam(id: NumericParamId, value: number): void {
     case "haze":
       params.lightingHdr.haze = value;
       break;
+    case "lobeScale":
+      params.billowMorphology.lobeScale = value;
+      break;
+    case "microBillowScale":
+      params.billowMorphology.microBillowScale = value;
+      break;
+    case "starterBlend":
+      params.billowMorphology.starterBlend = value;
+      applyFieldAccumulationRates();
+      break;
+    case "shadowDepth":
+      params.billowMorphology.shadowDepth = value;
+      break;
   }
+}
+
+function applyFieldAccumulationRates(): void {
+  const accumulation = params.billowMorphology.starterBlend;
+  const humidity = params.humidityUplift.humidity;
+  params.humidityUplift.condensationRate = 0.09 + humidity * 0.16 + accumulation * 0.1;
+  params.humidityUplift.evaporationRate = Math.max(0.025, 0.105 - accumulation * 0.046);
 }
 
 function getNumericParam(id: NumericParamId): number {
@@ -400,6 +566,14 @@ function getNumericParam(id: NumericParamId): number {
       return params.lightingHdr.sunEdgePeakNits;
     case "haze":
       return params.lightingHdr.haze;
+    case "lobeScale":
+      return params.billowMorphology.lobeScale;
+    case "microBillowScale":
+      return params.billowMorphology.microBillowScale;
+    case "starterBlend":
+      return params.billowMorphology.starterBlend;
+    case "shadowDepth":
+      return params.billowMorphology.shadowDepth;
   }
 }
 
@@ -413,11 +587,50 @@ function setThreeBubbleTuningParam(id: VisibleThreeBubbleTuningParamId, value: n
   renderStageReadouts();
 }
 
+function setFieldFramingParam(id: FieldFramingParamId, value: number): void {
+  const next = { ...fieldFraming };
+  switch (id) {
+    case "fieldPanX":
+      next.panX = value;
+      break;
+    case "fieldPanY":
+      next.panY = value;
+      break;
+    case "fieldZoom":
+      next.zoom = value;
+      break;
+  }
+  updateFieldFraming(next);
+}
+
+function updateFieldFraming(next: FieldFraming): void {
+  fieldFraming = normalizeFieldFraming(next);
+  syncFieldFramingInputs();
+  renderStageReadouts();
+}
+
 function syncNumericInputs(): void {
   for (const id of numericParamIds) {
     const input = document.querySelector<HTMLInputElement>(`#${id}`);
     if (input) {
       input.value = String(getNumericParam(id));
+    }
+  }
+}
+
+function syncFieldFramingInputs(): void {
+  document.documentElement.style.setProperty("--field-pan-x", `${fieldFraming.panX.toFixed(2)}%`);
+  document.documentElement.style.setProperty("--field-pan-y", `${fieldFraming.panY.toFixed(2)}%`);
+  document.documentElement.style.setProperty("--field-zoom", fieldFraming.zoom.toFixed(3));
+  const values: Record<FieldFramingParamId, number> = {
+    fieldPanX: fieldFraming.panX,
+    fieldPanY: fieldFraming.panY,
+    fieldZoom: fieldFraming.zoom
+  };
+  for (const id of fieldFramingParamIds) {
+    const input = document.querySelector<HTMLInputElement>(`#${id}`);
+    if (input) {
+      input.value = String(Number(values[id].toFixed(id === "fieldZoom" ? 2 : 0)));
     }
   }
 }
@@ -439,6 +652,21 @@ function syncControlDensity(): void {
   }
   button.setAttribute("aria-pressed", String(controlsMinimized));
   button.textContent = controlsMinimized ? "Show controls" : "Hide controls";
+}
+
+function syncFramingControlMode(): void {
+  document.querySelector<HTMLElement>("#framing-control-label")!.textContent =
+    viewMode === "3d" ? "Camera" : "Viewport";
+  document.querySelector<HTMLElement>("#framing-control-title")!.textContent =
+    viewMode === "3d" ? "Framing and orbit" : "Framing and zoom";
+  document.querySelector<HTMLElement>("#framing-control-hint")!.textContent =
+    viewMode === "3d"
+      ? "Mouse orbit/pan/zoom updates these sliders live."
+      : "Drag the 2D viewport to pan. Wheel zooms in and out.";
+  const resetButton = document.querySelector<HTMLButtonElement>("#reset-camera");
+  if (resetButton) {
+    resetButton.textContent = viewMode === "3d" ? "Reset camera" : "Reset framing";
+  }
 }
 
 function renderPreviewMetrics(now: number): void {
@@ -468,18 +696,20 @@ function renderPreviewMetrics(now: number): void {
 function renderStageReadouts(metrics: PreviewMetrics | null = renderer?.getMetrics?.() ?? null): void {
   document.querySelector<HTMLElement>("#hud-view-mode")!.textContent =
     viewMode === "3d" ? "3D bubble preview" : "Field density preview";
+  document.querySelector<HTMLElement>("#hud-mode-detail")!.textContent =
+    `Mode ${viewMode} · ${renderer.mode}`;
   document.querySelector<HTMLElement>("#hud-resolution")!.textContent =
     `${orientation} · ${previewResolution.label}`;
   document.querySelector<HTMLElement>("#stage-orientation")!.textContent =
-    orientation === "portrait" ? "Portrait stage" : "Landscape stage";
+    orientation === "portrait" ? "Portrait viewport" : "Landscape viewport";
   document.querySelector<HTMLElement>("#stage-camera-summary")!.textContent =
     viewMode === "3d"
       ? `Yaw ${threeBubbleTuning.cameraYawDegrees.toFixed(0)} deg · Pitch ${threeBubbleTuning.cameraPitchDegrees.toFixed(0)} deg · Zoom ${threeBubbleTuning.cameraDistanceScale.toFixed(2)}x`
-      : "Field framing stays portrait-biased while the display window can rotate.";
+      : `Pan ${fieldFraming.panX.toFixed(0)}, ${fieldFraming.panY.toFixed(0)} · Zoom ${fieldFraming.zoom.toFixed(2)}x · Scale ${params.billowMorphology.lobeScale.toFixed(2)}`;
   document.querySelector<HTMLElement>("#stage-gesture-summary")!.textContent =
     viewMode === "3d"
       ? "Left drag orbit, right drag pan, wheel zoom, Ctrl/Cmd plus left drag pans."
-      : "Field mode keeps the atmospheric study view steady for visual comparison.";
+      : "Drag pans the square field behind the window; wheel changes viewport zoom.";
   document.querySelector<HTMLElement>("#hud-quick-metric")!.textContent = summarizeMetrics(metrics);
 }
 
@@ -563,6 +793,13 @@ function resolvePreviewOrientation(): PreviewOrientation {
   return query.get("orientation")?.toLowerCase() === "landscape" ? "landscape" : "portrait";
 }
 
+function resolveViewportFitMode(rawValue: string | null = query.get("viewportFit")): ViewportFitMode {
+  if (rawValue === "width" || rawValue === "height") {
+    return rawValue;
+  }
+  return "best";
+}
+
 function resolveThreeBubbleLookPresetName(): ThreeBubbleLookPresetName {
   const rawLook = query.get("look") ?? query.get("lookPreset");
   return rawLook ? normalizeThreeBubbleLookPresetName(rawLook) : "demo-like";
@@ -611,12 +848,46 @@ function resolveThreeBubbleTuningFromQuery(): ThreeBubbleTuning {
   });
 }
 
+function resolveFieldFramingFromQuery(): FieldFraming {
+  return normalizeFieldFraming({
+    panX: readNumberFromQuery("fieldPanX", 0),
+    panY: readNumberFromQuery("fieldPanY", 0),
+    zoom: readNumberFromQuery("fieldZoom", 1)
+  });
+}
+
+function normalizeFieldFraming(framing: FieldFraming): FieldFraming {
+  return {
+    panX: clampFinite(framing.panX, 0, -42, 42),
+    panY: clampFinite(framing.panY, 0, -42, 42),
+    zoom: clampFinite(framing.zoom, 1, 0.75, 2.25)
+  };
+}
+
+function clampFinite(value: number, fallback: number, minimum: number, maximum: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
 function resolvePreviewResolution(rendererHint: "cpu" | "webgpu"): PreviewResolution {
   const width = readNumberFromQuery("simWidth", 0);
   const height = readNumberFromQuery("simHeight", 0);
   if (width > 0 && height > 0) {
     const targetWidth = previewDimension(width);
     const targetHeight = previewDimension(height);
+    if (viewMode === "field") {
+      const side = Math.max(targetWidth, targetHeight);
+      return enforceRendererBudget(
+        {
+          width: side,
+          height: side,
+          label: `custom square field (${side}x${side})`
+        },
+        rendererHint
+      );
+    }
     return enforceRendererBudget(
       {
         width: targetWidth,
@@ -628,6 +899,11 @@ function resolvePreviewResolution(rendererHint: "cpu" | "webgpu"): PreviewResolu
   }
 
   const preset = query.get("simPreset")?.toLowerCase();
+  if (viewMode === "field") {
+    const squarePreset = preset && isPresetResolution(preset) ? preset : rendererHint === "webgpu" ? "mid" : "low";
+    return enforceRendererBudget(FIELD_SQUARE_PREVIEW_RESOLUTIONS[squarePreset], rendererHint);
+  }
+
   const orientationResolutions = PRESET_PREVIEW_RESOLUTIONS[orientation];
   if (preset && isPresetResolution(preset)) {
     return enforceRendererBudget(orientationResolutions[preset], rendererHint);

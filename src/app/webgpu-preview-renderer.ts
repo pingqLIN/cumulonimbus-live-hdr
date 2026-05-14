@@ -106,7 +106,7 @@ export class WebGpuPreviewRenderer implements PreviewRenderer {
       }
     });
     const uniformBuffer = device.createBuffer({
-      size: 64,
+      size: 80,
       usage: gpuBufferUsage.uniform | gpuBufferUsage.copyDst
     });
     const bindGroup = device.createBindGroup({
@@ -181,6 +181,10 @@ export function buildWebGpuUniforms(
     params.lightingHdr.sunEdgePeakNits / Math.max(1, params.lightingHdr.diffuseWhiteNits),
     params.anvilWind.tropopauseHeight,
     params.anvilWind.turbulentEntrainment,
+    params.billowMorphology.lobeScale,
+    params.billowMorphology.microBillowScale,
+    params.billowMorphology.shadowDepth,
+    params.billowMorphology.starterBlend,
     0
   ]);
 }
@@ -201,6 +205,10 @@ struct Uniforms {
   highlightScale: f32,
   tropopauseHeight: f32,
   turbulentEntrainment: f32,
+  lobeScale: f32,
+  microBillowScale: f32,
+  shadowDepth: f32,
+  starterBlend: f32,
   pad0: f32,
 };
 
@@ -251,27 +259,44 @@ fn fbm(p: vec2f) -> f32 {
 @fragment
 fn fragmentMain(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let uv = position.xy / uniforms.resolution;
-  let centeredX = (uv.x - 0.5) * 2.0;
-  let altitude = 1.0 - uv.y;
+  let fieldUv = (uv - vec2f(0.08, 0.34)) / vec2f(0.84, 0.58);
+  let fieldInside =
+    step(0.0, fieldUv.x) *
+    step(fieldUv.x, 1.0) *
+    step(0.0, fieldUv.y) *
+    step(fieldUv.y, 1.0);
+  let frameMask =
+    smoothstep(0.0, 0.08, fieldUv.x) *
+    (1.0 - smoothstep(0.92, 1.0, fieldUv.x)) *
+    smoothstep(0.0, 0.10, fieldUv.y) *
+    (1.0 - smoothstep(0.96, 1.0, fieldUv.y));
+  let centeredX = (fieldUv.x - 0.5) * 2.0;
+  let altitude = 1.0 - fieldUv.y;
+  let skyAltitude = 1.0 - uv.y;
   let slowTime = uniforms.time * (0.012 + uniforms.windShear * 0.032 + uniforms.stormAge * 0.014);
-  let warp = fbm(vec2f(centeredX * 1.8 + slowTime, uv.y * 2.1 - slowTime));
+  let detailFrequency = clamp(uniforms.microBillowScale, 0.1, 10.0);
+  let detailScale = clamp(0.55 + sqrt(detailFrequency) * 1.15, 0.6, 4.2);
+  let lobeScale = mix(0.68, 1.42, clamp(uniforms.lobeScale, 0.0, 1.2));
+  let accumulation = clamp(uniforms.starterBlend, 0.0, 1.3);
+  let warp = fbm(vec2f(centeredX * 1.8 + slowTime, fieldUv.y * 2.1 - slowTime));
   let wx = centeredX + (warp - 0.5) * (0.28 + uniforms.turbulentEntrainment * 0.32);
   let tropopause = mix(0.58, 0.9, uniforms.tropopauseHeight);
-  let towerWidth = mix(0.18, 0.42, smoothstep(0.02, 0.86, uv.y));
+  let towerWidth = mix(0.18, 0.42, smoothstep(0.02, 0.86, fieldUv.y)) * lobeScale;
   let anvil = smoothstep(tropopause - 0.08, 0.98, altitude) * uniforms.anvilOutflow;
   let silhouette = 1.0 - smoothstep(towerWidth + anvil * 0.42, towerWidth + anvil * 0.92, abs(wx));
-  let baseLift = smoothstep(0.98, 0.24, uv.y);
+  let baseLift = smoothstep(0.98, 0.24, fieldUv.y);
   let cap = smoothstep(0.04, 0.34 + uniforms.uplift * 0.34, altitude);
-  let mass = silhouette * baseLift * cap;
-  let bodyNoise = fbm(vec2f(wx * 5.0 + slowTime, uv.y * 6.4 - slowTime * 0.7));
-  let threshold = mix(0.54, 0.32, uniforms.humidity) - uniforms.stormAge * 0.09;
-  let density = clamp(mass * smoothstep(threshold, threshold + 0.28, bodyNoise), 0.0, 1.0);
+  let mass = silhouette * baseLift * cap * mix(0.78, 1.3, accumulation);
+  let bodyNoise = fbm(vec2f(wx * 5.0 * detailScale + slowTime, fieldUv.y * 6.4 * detailScale - slowTime * 0.7));
+  let threshold = mix(0.54, 0.32, uniforms.humidity) - uniforms.stormAge * 0.09 - accumulation * 0.045;
+  let density = clamp(mass * smoothstep(threshold, threshold + 0.28, bodyNoise) * fieldInside * frameMask, 0.0, 1.0);
   let edge = smoothstep(0.18, 0.68, density) * (1.0 - smoothstep(0.68, 1.0, density));
-  let sky = mix(vec3f(0.32, 0.50, 0.66), vec3f(0.022, 0.06, 0.13), altitude) + uniforms.haze * (1.0 - altitude) * vec3f(0.34, 0.29, 0.19);
+  let sky = mix(vec3f(0.32, 0.50, 0.66), vec3f(0.022, 0.06, 0.13), skyAltitude) + uniforms.haze * (1.0 - skyAltitude) * vec3f(0.34, 0.29, 0.19);
   let sun = clamp(1.0 - distance(uv, vec2f(0.24, 0.14)) * 1.55, 0.0, 1.0);
   let silver = edge * uniforms.silverLining * (0.75 + sun * 1.2);
   let bloom = pow(clamp(sun + silver * 0.58, 0.0, 1.0), 2.4) * mix(0.8, 1.24, clamp(uniforms.highlightScale / 6.0, 0.0, 1.0));
-  let cloud = vec3f(0.64, 0.68, 0.74) + density * vec3f(0.55, 0.52, 0.48) + silver * vec3f(1.7, 1.55, 1.25) + bloom * vec3f(1.2, 1.0, 0.72);
+  let layerShadow = smoothstep(0.22, 0.86, density) * clamp(uniforms.shadowDepth, 0.0, 1.6);
+  let cloud = vec3f(0.64, 0.68, 0.74) + density * vec3f(0.55, 0.52, 0.48) - layerShadow * vec3f(0.14, 0.13, 0.12) + silver * vec3f(1.7, 1.55, 1.25) + bloom * vec3f(1.2, 1.0, 0.72);
   let color = mix(sky, cloud, smoothstep(0.015, 0.66, density + edge * 0.4));
   let mapped = pow(clamp(1.0 - exp(-color * 1.05), vec3f(0.0), vec3f(1.0)), vec3f(1.0 / 2.2));
   return vec4f(mapped, 1.0);

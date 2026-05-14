@@ -10,7 +10,7 @@ const expectedHighlightScale =
   defaultCloudParams.lightingHdr.sunEdgePeakNits /
   Math.max(1, defaultCloudParams.lightingHdr.diffuseWhiteNits);
 
-assert.equal(uniforms.length, 16);
+assert.equal(uniforms.length, 20);
 assert.equal(uniforms[0], width);
 assert.equal(uniforms[1], height);
 assert.equal(uniforms[2], time);
@@ -26,7 +26,11 @@ assertClose(uniforms[11], defaultCloudParams.lightingHdr.haze);
 assertClose(uniforms[12], expectedHighlightScale);
 assertClose(uniforms[13], defaultCloudParams.anvilWind.tropopauseHeight);
 assertClose(uniforms[14], defaultCloudParams.anvilWind.turbulentEntrainment);
-assert.equal(uniforms[15], 0);
+assertClose(uniforms[15], defaultCloudParams.billowMorphology.lobeScale);
+assertClose(uniforms[16], defaultCloudParams.billowMorphology.microBillowScale);
+assertClose(uniforms[17], defaultCloudParams.billowMorphology.shadowDepth);
+assertClose(uniforms[18], defaultCloudParams.billowMorphology.starterBlend);
+assert.equal(uniforms[19], 0);
 for (const value of uniforms) {
   assert.ok(Number.isFinite(value), `uniform should be finite: ${value}`);
 }

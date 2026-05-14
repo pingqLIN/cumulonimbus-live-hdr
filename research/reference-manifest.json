@@ -1,0 +1,37 @@
+[
+  {
+    "role": "paper",
+    "source": "C:\\Users\\miles\\Downloads\\A_Method_for_Modeling_Clouds_Based_on_Atmospheric_.pdf",
+    "target": "references/papers/A_Method_for_Modeling_Clouds_Based_on_Atmospheric_.pdf"
+  },
+  {
+    "role": "portrait_reference",
+    "source": "C:\\Users\\miles\\Downloads\\image.png",
+    "target": "references/images/reference_portrait_cumulonimbus.png"
+  },
+  {
+    "role": "landscape_reference",
+    "source": "C:\\Users\\miles\\Downloads\\9ee7a185-692f-402c-923f-42818404aa7b.png",
+    "target": "references/images/reference_landscape_cumulonimbus.png"
+  },
+  {
+    "role": "motion_reference",
+    "source": "C:\\Users\\miles\\Downloads\\cumulonimbus_cloud_simulationmp_.mp4",
+    "target": "references/videos/reference_cumulonimbus_cloud_simulationmp.mp4"
+  },
+  {
+    "role": "motion_reference_frames",
+    "source": "C:\\Users\\miles\\Downloads\\cumulonimbus_ref_frames",
+    "target": "references/videos/cumulonimbus_cloud_simulationmp_frames/"
+  },
+  {
+    "role": "first_cpu_prototype_source",
+    "source": "C:\\Users\\miles\\Downloads\\cumulonimbus_proc_preview.py",
+    "target": "prototypes/cpu-procedural/cumulonimbus_proc_preview.py"
+  },
+  {
+    "role": "first_cpu_prototype_output",
+    "source": "C:\\Users\\miles\\Downloads\\cumulonimbus_proc_preview.mp4",
+    "target": "prototypes/cpu-procedural/cumulonimbus_proc_preview.mp4"
+  }
+]

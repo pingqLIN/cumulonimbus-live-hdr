@@ -21,6 +21,9 @@ import type { ThreeBubbleLookPresetName } from "./three-bubble-look.js";
 
 const MAX_INSTANCES = 12000;
 const MAX_PARTICLES = 16000;
+const INTEGRATED_LIGHTING_GRID_SIZE = 18;
+const INTEGRATED_LIGHTING_CELL_COUNT =
+  INTEGRATED_LIGHTING_GRID_SIZE * INTEGRATED_LIGHTING_GRID_SIZE;
 
 type ThreeBubbleLookPreset = {
   name: ThreeBubbleLookPresetName;
@@ -253,6 +256,7 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
   private readonly fillLight = new THREE.DirectionalLight();
   private readonly rimLight = new THREE.DirectionalLight();
   private readonly ambientLight = new THREE.AmbientLight();
+  private readonly integratedLightingField = new Float32Array(INTEGRATED_LIGHTING_CELL_COUNT);
   private readonly model: BubbleModel;
   private readonly material: THREE.MeshStandardMaterial;
   private readonly instancedMesh: THREE.InstancedMesh;
@@ -266,6 +270,7 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
   private lastModelSignature = "";
   private lastWidth = 0;
   private lastHeight = 0;
+  private lastIntegratedLightingStrength = 0;
   private threeBubbleTuning: ThreeBubbleTuning;
   private tuningChangeListener: ((tuning: ThreeBubbleTuning) => void) | null = null;
   private leftMouseWasPan = false;
@@ -435,6 +440,10 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
         {
           label: "Pan",
           value: `${this.threeBubbleTuning.cameraTargetOffsetX.toFixed(1)}, ${this.threeBubbleTuning.cameraTargetOffsetY.toFixed(1)}, ${this.threeBubbleTuning.cameraTargetOffsetZ.toFixed(1)}`
+        },
+        {
+          label: "Integrated light",
+          value: `${(this.lastIntegratedLightingStrength * 100).toFixed(0)}%`
         }
       ]
     };
@@ -590,6 +599,7 @@ export class ThreeBubblePreviewRenderer implements PreviewRenderer {
   private updateInstances(surfaceDisplacement: number, look: ThreeBubbleLookPreset): void {
     const nodes = this.model.getNodes();
     this.instancedMesh.count = Math.min(nodes.length, look.maxVisibleInstances, MAX_INSTANCES);
+    this.rebuildIntegratedLightingField(nodes, this.instancedMesh.count);
     for (let index = 0; index < this.instancedMesh.count; index += 1) {
       const node = nodes[index];
       if (!node) {
@@ -701,20 +711,94 @@ gl_FragColor.rgb += uCloudScatterColor * cloudFresnel * uCloudScatterIntensity;
   private getNodeColor(node: BubbleNode, look: ThreeBubbleLookPreset): THREE.Color {
     const color = this.instanceColor.setHex(look.materialColor);
     const generationShade = Math.min(0.18, node.generation * 0.018);
+    const integratedLight = this.sampleIntegratedLighting(node);
     switch (node.layer) {
       case "base":
         return color
-          .multiplyScalar(0.72 - generationShade * 0.4)
+          .multiplyScalar((0.72 - generationShade * 0.4) * integratedLight)
           .lerp(this.layerTintColors.base, 0.22);
       case "tower":
-        return color.multiplyScalar(0.92 - generationShade).lerp(this.layerTintColors.tower, 0.18);
+        return color
+          .multiplyScalar((0.92 - generationShade) * integratedLight)
+          .lerp(this.layerTintColors.tower, 0.18);
       case "anvil":
         return color
-          .multiplyScalar(1.04 - generationShade * 0.5)
+          .multiplyScalar((1.04 - generationShade * 0.5) * integratedLight)
           .lerp(this.layerTintColors.anvil, 0.28);
       case "veil":
-        return color.multiplyScalar(0.82).lerp(this.layerTintColors.veil, 0.38);
+        return color.multiplyScalar(0.82 * integratedLight).lerp(this.layerTintColors.veil, 0.38);
     }
+  }
+
+  private rebuildIntegratedLightingField(nodes: readonly BubbleNode[], count: number): void {
+    this.integratedLightingField.fill(0);
+    const metrics = this.lastMetrics;
+    if (!metrics || count <= 0) {
+      this.lastIntegratedLightingStrength = 0;
+      return;
+    }
+
+    const bounds = metrics.bounds;
+    const rangeX = Math.max(0.001, bounds.maxX - bounds.minX);
+    const rangeY = Math.max(0.001, bounds.maxY - bounds.minY);
+    let maxDensity = 0;
+
+    for (let index = 0; index < count; index += 1) {
+      const node = nodes[index];
+      if (!node) {
+        continue;
+      }
+      const gridX = Math.min(
+        INTEGRATED_LIGHTING_GRID_SIZE - 1,
+        Math.max(0, Math.floor(((node.x - bounds.minX) / rangeX) * INTEGRATED_LIGHTING_GRID_SIZE))
+      );
+      const gridY = Math.min(
+        INTEGRATED_LIGHTING_GRID_SIZE - 1,
+        Math.max(0, Math.floor(((node.y - bounds.minY) / rangeY) * INTEGRATED_LIGHTING_GRID_SIZE))
+      );
+      const cellIndex = gridY * INTEGRATED_LIGHTING_GRID_SIZE + gridX;
+      const density = node.radius * node.radius * getLayerOcclusionWeight(node.layer);
+      const nextCellDensity = (this.integratedLightingField[cellIndex] ?? 0) + density;
+      this.integratedLightingField[cellIndex] = nextCellDensity;
+      maxDensity = Math.max(maxDensity, nextCellDensity);
+    }
+
+    if (maxDensity <= 0) {
+      this.lastIntegratedLightingStrength = 0;
+      return;
+    }
+
+    for (let index = 0; index < this.integratedLightingField.length; index += 1) {
+      this.integratedLightingField[index] = Math.min(1, (this.integratedLightingField[index] ?? 0) / maxDensity);
+    }
+    this.lastIntegratedLightingStrength = maxDensity / (maxDensity + 24);
+  }
+
+  private sampleIntegratedLighting(node: BubbleNode): number {
+    const metrics = this.lastMetrics;
+    if (!metrics || this.lastIntegratedLightingStrength <= 0) {
+      return 1;
+    }
+
+    const bounds = metrics.bounds;
+    const rangeX = Math.max(0.001, bounds.maxX - bounds.minX);
+    const rangeY = Math.max(0.001, bounds.maxY - bounds.minY);
+    const rangeZ = Math.max(0.001, bounds.maxZ - bounds.minZ);
+    const gridX = Math.min(
+      INTEGRATED_LIGHTING_GRID_SIZE - 1,
+      Math.max(0, Math.floor(((node.x - bounds.minX) / rangeX) * INTEGRATED_LIGHTING_GRID_SIZE))
+    );
+    const gridY = Math.min(
+      INTEGRATED_LIGHTING_GRID_SIZE - 1,
+      Math.max(0, Math.floor(((node.y - bounds.minY) / rangeY) * INTEGRATED_LIGHTING_GRID_SIZE))
+    );
+    const density = this.integratedLightingField[gridY * INTEGRATED_LIGHTING_GRID_SIZE + gridX] ?? 0;
+    const rearDepth = 1 - (node.z - bounds.minZ) / rangeZ;
+    const verticalInterior = 1 - Math.abs((node.y - bounds.minY) / rangeY - 0.5) * 2;
+    const occlusion =
+      density * 0.2 + rearDepth * this.lastIntegratedLightingStrength * 0.18 + verticalInterior * density * 0.08;
+    const frontLift = (1 - rearDepth) * (1 - density * 0.45) * 0.08;
+    return Math.max(0.58, Math.min(1.12, 1 - occlusion + frontLift));
   }
 }
 
@@ -775,6 +859,19 @@ function getLayerParticleWeight(layer: BubbleLayer): number {
       return 0.82;
     case "veil":
       return 1;
+  }
+}
+
+function getLayerOcclusionWeight(layer: BubbleLayer): number {
+  switch (layer) {
+    case "base":
+      return 1.12;
+    case "tower":
+      return 1;
+    case "anvil":
+      return 0.78;
+    case "veil":
+      return 0.42;
   }
 }
 

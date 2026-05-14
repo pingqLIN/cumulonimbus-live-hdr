@@ -6,7 +6,12 @@ The prototype intentionally does not include YouTube live streaming. It exists o
 
 Current known issue: the broad cumulonimbus outline is acceptable, but fine billow detail, volumetric depth, and physically plausible self-shadowing need substantial improvement.
 
-Run locally from this folder or from the project root with Python and FFmpeg available:
+Files:
+
+- [cumulonimbus_proc_preview.py](cumulonimbus_proc_preview.py)
+- [cumulonimbus_proc_preview.mp4](cumulonimbus_proc_preview.mp4)
+
+Run locally from the project root with Python and FFmpeg available:
 
 ```powershell
 python .\prototypes\cpu-procedural\cumulonimbus_proc_preview.py

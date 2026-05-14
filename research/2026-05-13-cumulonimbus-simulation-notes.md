@@ -15,16 +15,16 @@ Build a lightweight cloud simulation preview focused on cumulonimbus HDR-style v
 
 ## Reference assets copied into this project
 
-- `references/papers/A_Method_for_Modeling_Clouds_Based_on_Atmospheric_.pdf`
-- `references/images/reference_portrait_cumulonimbus.png`
-- `references/images/reference_landscape_cumulonimbus.png`
-- `references/videos/reference_cumulonimbus_cloud_simulationmp.mp4`
-- `references/videos/cumulonimbus_cloud_simulationmp_frames/frame_*.png`
+- [A_Method_for_Modeling_Clouds_Based_on_Atmospheric_.pdf](../references/papers/A_Method_for_Modeling_Clouds_Based_on_Atmospheric_.pdf)
+- [reference_portrait_cumulonimbus.png](../references/images/reference_portrait_cumulonimbus.png)
+- [reference_landscape_cumulonimbus.png](../references/images/reference_landscape_cumulonimbus.png)
+- [reference_cumulonimbus_cloud_simulationmp.mp4](../references/videos/reference_cumulonimbus_cloud_simulationmp.mp4)
+- [cumulonimbus_cloud_simulationmp_frames](../references/videos/cumulonimbus_cloud_simulationmp_frames/)
 
 ## Prototype copied into this project
 
-- `prototypes/cpu-procedural/cumulonimbus_proc_preview.py`
-- `prototypes/cpu-procedural/cumulonimbus_proc_preview.mp4`
+- [cumulonimbus_proc_preview.py](../prototypes/cpu-procedural/cumulonimbus_proc_preview.py)
+- [cumulonimbus_proc_preview.mp4](../prototypes/cpu-procedural/cumulonimbus_proc_preview.mp4)
 
 Prototype output from the first successful full run:
 

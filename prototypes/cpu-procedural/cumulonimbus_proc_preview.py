@@ -17,7 +17,10 @@ FPS = 24
 SECONDS = 6
 FRAMES = FPS * SECONDS
 SEED = 4179
-OUT_PATH = r"C:\Users\miles\Downloads\cumulonimbus_proc_preview.mp4"
+OUT_PATH = os.environ.get(
+    "CUMULONIMBUS_PREVIEW_OUT",
+    os.path.join("outputs", "analysis", "cpu-procedural", "cumulonimbus_proc_preview.mp4"),
+)
 
 random.seed(SEED)
 np.random.seed(SEED)

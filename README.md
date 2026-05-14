@@ -5,7 +5,7 @@ Algorithmic prototype for a high-altitude cumulonimbus image that slowly grows, 
 ## Bootstrap Decisions
 
 - Archetype: single-package web app with a local render script.
-- Storage root: `Q:\Projects\cumulonimbus-live-hdr`.
+- Storage root: [repository root](.) (`Q:\Projects\cumulonimbus-live-hdr`).
 - Runtime: TypeScript, Vite preview, Node.js render pipeline.
 - Persistence: local files only for rendered frames and video outputs.
 - Output target: browser preview first, FFmpeg HDR-tagged MP4 test segment second.
@@ -61,6 +61,21 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 ## Research
 
 The first source-backed research pass is in [docs/research-notes.md](docs/research-notes.md). It covers atmospheric science, procedural volumetric cloud rendering, HDR standards, and science-art precedents.
+
+## Project Assets
+
+Reference and prototype files copied into this repository:
+
+- [Simulation research notes](research/2026-05-13-cumulonimbus-simulation-notes.md)
+- [Reference manifest](research/reference-manifest.json)
+- [Atmospheric cloud-modeling paper](references/papers/A_Method_for_Modeling_Clouds_Based_on_Atmospheric_.pdf)
+- [Portrait cumulonimbus reference](references/images/reference_portrait_cumulonimbus.png)
+- [Landscape cumulonimbus reference](references/images/reference_landscape_cumulonimbus.png)
+- [Motion reference video](references/videos/reference_cumulonimbus_cloud_simulationmp.mp4)
+- [Motion reference frames](references/videos/cumulonimbus_cloud_simulationmp_frames/)
+- [CPU procedural prototype notes](prototypes/cpu-procedural/README.md)
+- [CPU procedural prototype source](prototypes/cpu-procedural/cumulonimbus_proc_preview.py)
+- [CPU procedural prototype output](prototypes/cpu-procedural/cumulonimbus_proc_preview.mp4)
 
 ## Current State
 

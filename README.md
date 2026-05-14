@@ -50,7 +50,11 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `spike:raymarch` writes an isolated CPU density-raymarch PPM still to `outputs/analysis/raymarch-density-spike.ppm`.
 
+`spike:cml-lite` writes an offline CML-inspired density-grid research preview to `outputs/analysis/cml-lite-density-grid/`. It simulates a low-resolution 3D lattice with vapor source, updraft, humidity condensation, and advection; it is not used by the runtime renderer.
+
 `test:raymarch` runs a smaller isolated raymarch smoke and fails when alpha or lit-pixel coverage is too low.
+
+`test:cml-lite` runs a small no-MP4 CML-lite smoke and fails when the lattice does not condense, grow upward, or produce enough visible density.
 
 `test:webgpu-uniforms` validates the CPU parameter to WebGPU preview uniform mapping.
 

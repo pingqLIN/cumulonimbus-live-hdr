@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cumulonimbus SDR - 00 Cloud Form + Scientific Scale</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body { margin: 0; background-color: #05050a; color: #a1a1aa; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; flex-direction: column; }
+        #render-container { position: relative; background: #000; box-shadow: 0 0 50px rgba(0,0,0,0.8); border: 1px solid #27272a; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), height 0.4s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; }
+        .viewport-portrait { width: 360px; height: 640px; max-width: 95vw; max-height: 85vh; }
+        .viewport-landscape { width: 900px; height: 506px; max-width: 95vw; max-height: 85vh; }
+        canvas { display: block; width: 100%; height: 100%; outline: none; cursor: grab; }
+        canvas:active { cursor: grabbing; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; padding: 1rem; pointer-events: none; z-index: 10; }
+        .hud-text { font-size: 0.75rem; text-shadow: 0 1px 2px rgba(0,0,0,0.8); color: #d4d4d8; }
+        #ui-bar { margin-top: 1rem; display: flex; gap: 0.55rem; z-index: 20; flex-wrap: wrap; justify-content: center; align-items: center; max-width: 95vw; }
+        button { background-color: #1f2937; border: 1px solid #374151; color: #d1d5db; padding: 0.4rem 0.72rem; font-size: 0.8rem; border-radius: 0.375rem; cursor: pointer; transition: all 0.2s; font-family: inherit; display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+        button:hover { background-color: #374151; color: white; }
+        button.active { background-color: #3b82f6; border-color: #60a5fa; color: white; }
+        .btn-action { background-color: #065f46; border-color: #059669; color: #ecfdf5; }
+        .btn-action:hover { background-color: #059669; }
+        .btn-toggle { background-color: #334155; border-color: #475569; color: #f8fafc; }
+        .btn-toggle.enabled { background-color: #7c3aed; border-color: #a78bfa; }
+        .btn-toggle.camera { background-color: #0369a1; border-color: #0284c7; }
+        .btn-toggle.camera.ortho { background-color: #0f766e; border-color: #14b8a6; }
+        .slider-group { display: flex; align-items: center; gap: 0.45rem; background: #111827; padding: 0.35rem 0.65rem; border-radius: 0.375rem; border: 1px solid #374151; font-size: 0.75rem; white-space: nowrap; }
+        .slider-group input[type=range] { width: 72px; accent-color: #3b82f6; cursor: pointer; }
+        .slider-group.accent-red input[type=range] { accent-color: #ef4444; }
+        .seed-input { width: 54px; background: transparent; border: 1px solid #4b5563; color: white; border-radius: 3px; padding: 2px 4px; font-size: 0.75rem; text-align: center; outline: none; }
+        .divider { width: 1px; height: 18px; background: #374151; margin: 0 0.1rem; }
+    </style>
+</head>
+<body>
+    <div id="render-container" class="viewport-landscape">
+        <div id="overlay">
+            <div class="text-xs font-bold text-emerald-400 mb-1">CUMULONIMBUS SDR // 00 FORM + KM SCALE</div>
+            <div class="hud-text" id="target-label">Target: 16:9 Broadcast</div>
+            <div class="hud-text mt-2">
+                [✓] Cloud form: Cb tower + anvil profile, 00.html density detail<br>
+                [✓] Scale: 1 Unit = 1 KM, Tropopause 8-18 KM<br>
+                [✓] Structure: low cloud field, main updraft tower, tropopause anvil<br>
+                [✓] Camera: -Z overview, center locks to tropopause / 2<br>
+                <span class="text-blue-300 mt-1 block">» 左鍵: 旋轉 | 滾輪: 縮放 | 右鍵: 平移</span>
+            </div>
+            <div class="hud-text mt-4 opacity-50" id="fps-counter">FPS: 00 | RES: 0.72x</div>
+        </div>
+    </div>
+
+    <div id="ui-bar">
+        <button id="btn-landscape" class="active">16:9</button>
+        <button id="btn-portrait">9:16</button>
+        <div class="divider"></div>
+        <div class="slider-group">
+            <label>種子</label>
+            <input type="number" id="input-seed" class="seed-input">
+            <button id="btn-random-seed" style="padding: 2px 6px; background: #3b82f6; border:none; border-radius:3px;">↻</button>
+        </div>
+        <div class="slider-group" title="控制雲系生命週期速度">
+            <label>時間</label>
+            <input type="range" id="slider-time" min="0" max="16" step="0.25" value="4">
+            <span id="time-readout">4x</span>
+        </div>
+        <button id="btn-time-toggle" class="btn-toggle">暫停</button>
+        <button id="btn-time-reset" class="btn-toggle">時間歸零</button>
+        <button id="btn-grid" class="btn-toggle">尺度尺標</button>
+        <button id="btn-cam-mode" class="btn-toggle camera">透視投影</button>
+        <div class="divider"></div>
+        <div class="slider-group" title="渲染解析倍率，控制算力負載">
+            <label>算力</label>
+            <input type="range" id="slider-quality" min="0.45" max="1" step="0.05" value="0.72">
+            <span id="quality-readout">0.72x</span>
+        </div>
+        <div class="slider-group accent-red" title="對流層頂高度 Tropopause，單位 KM">
+            <label>頂高</label>
+            <input type="range" id="slider-tropo" min="8" max="18" step="0.5" value="12">
+            <span id="tropo-readout">12km</span>
+        </div>
+        <div class="slider-group" title="日光對雲體散射與高光的影響">
+            <label>日光</label>
+            <input type="range" id="slider-sun" min="0" max="8" step="0.1" value="3.8">
+        </div>
+        <div class="slider-group" title="背景空間與雲體環境光">
+            <label>背景</label>
+            <input type="range" id="slider-amb" min="0.1" max="3" step="0.1" value="1.0">
+        </div>
+        <div class="divider"></div>
+        <button id="btn-reset-cam" class="btn-action">回復中心</button>
+    </div>
+
+    <script>
+        const fragmentShader = `
+            uniform float uTime;
+            uniform vec2 uResolution;
+            uniform vec3 uCameraPos;
+            uniform vec3 uCameraTarget;
+            uniform float uAspect;
+            uniform float uTropopause;
+            uniform float uShowGrid;
+            uniform float uSeed;
+            uniform float uIsOrtho;
+            uniform float uOrthoSize;
+            uniform float uOrthoVerticalScale;
+            uniform float uStepSize;
+            uniform float uMaxSteps;
+            uniform float uSunIntensity;
+            uniform float uAmbientIntensity;
+
+            float hash(float n) { return fract(sin(n) * 43758.5453123); }
+
+            float noise(vec3 x) {
+                vec3 p = floor(x);
+                vec3 f = fract(x);
+                f = f * f * (3.0 - 2.0 * f);
+                float n = p.x + p.y * 57.0 + 113.0 * p.z + uSeed * 17.0;
+                return mix(
+                    mix(mix(hash(n + 0.0), hash(n + 1.0), f.x), mix(hash(n + 57.0), hash(n + 58.0), f.x), f.y),
+                    mix(mix(hash(n + 113.0), hash(n + 114.0), f.x), mix(hash(n + 170.0), hash(n + 171.0), f.x), f.y),
+                    f.z
+                );
+            }
+
+            float fbm(vec3 p) {
+                float f = 0.0;
+                float weight = 0.5;
+                for (int i = 0; i < 4; i++) {
+                    f += weight * (1.0 - abs(noise(p * 2.0 - 1.0)));
+                    p = vec3(
+                        p.x * 1.74 + p.z * 0.31,
+                        p.y * 1.91 + p.x * 0.17,
+                        p.z * 1.63 - p.y * 0.23
+                    );
+                    weight *= 0.5;
+                }
+                return f;
+            }
+
+            vec3 detailDomain(vec3 p) {
+                return vec3(
+                    p.x * 0.82 + p.z * 0.57,
+                    p.y * 1.05 + p.x * 0.13 - p.z * 0.08,
+                    p.z * 0.76 - p.x * 0.42 + p.y * 0.11
+                );
+            }
+
+            float domainWarp(vec3 p, float phase) {
+                vec3 a = detailDomain(p * 0.18 + vec3(phase, 3.1, 7.7));
+                vec3 b = detailDomain(p * 0.31 + vec3(9.4, phase * 0.7, 1.8));
+                return (fbm(a) - 0.5) * 0.9 + (noise(b) - 0.5) * 0.55;
+            }
+
+            float smin(float a, float b, float k) {
+                float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+                return mix(b, a, h) - k * h * (1.0 - h);
+            }
+
+            float smax(float a, float b, float k) {
+                float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+                return mix(a, b, h) + k * h * (1.0 - h);
+            }
+
+            vec2 intersectAABB(vec3 ro, vec3 rd, vec3 boxMin, vec3 boxMax) {
+                vec3 safeRd = rd;
+                safeRd.x = abs(safeRd.x) < 0.0001 ? 0.0001 : safeRd.x;
+                safeRd.y = abs(safeRd.y) < 0.0001 ? 0.0001 : safeRd.y;
+                safeRd.z = abs(safeRd.z) < 0.0001 ? 0.0001 : safeRd.z;
+                vec3 tMin = (boxMin - ro) / safeRd;
+                vec3 tMax = (boxMax - ro) / safeRd;
+                vec3 t1 = min(tMin, tMax);
+                vec3 t2 = max(tMin, tMax);
+                float tNear = max(max(t1.x, t1.y), t1.z);
+                float tFar = min(min(t2.x, t2.y), t2.z);
+                return vec2(tNear, tFar);
+            }
+
+            float getCell(
+                vec3 p,
+                vec2 offset,
+                float maxR,
+                float baseH,
+                float maxH,
+                float phase,
+                float speed,
+                float age,
+                float anvilBias
+            ) {
+                float cycle = sin(uTime * speed + phase) * 0.5 + 0.5;
+                float life = mix(cycle, age, 0.72);
+                vec2 local = p.xz - offset;
+                float twist = sin(p.y * 0.11 + phase) * 0.22;
+                mat2 rot = mat2(cos(twist), -sin(twist), sin(twist), cos(twist));
+                local = rot * local;
+                float eccentricity = mix(0.72, 1.28, fract(sin(phase * 19.17) * 43758.5453));
+                vec2 shapedLocal = vec2(local.x * eccentricity, local.y / max(0.62, eccentricity));
+                float lobeWarp = domainWarp(vec3(p.x * 0.72, p.y * 0.48, p.z * 0.72), phase);
+                float r = length(shapedLocal) + lobeWarp * maxR * 0.12;
+                float currentR = maxR * (0.62 + 0.22 * life);
+                float naturalTop = mix(baseH + 1.4, maxH, life);
+                float actualTop = min(naturalTop, uTropopause);
+                float hitLid = smoothstep(uTropopause - 1.8, uTropopause, naturalTop);
+                float anvilMask = smoothstep(actualTop - 2.2, actualTop + 0.45, p.y);
+                float anvilBreak = smoothstep(0.18, 0.86, noise(vec3(local * 0.16, p.y * 0.08 + phase)));
+                float anvil = hitLid * anvilMask * life * maxR * anvilBias * mix(0.28, 0.82, anvilBreak);
+                float shape = r - currentR - anvil;
+                float topDist = p.y - actualTop;
+                float bottomDist = baseH - p.y;
+                float verticalDist = smax(topDist, bottomDist, 0.82);
+                return smax(shape, verticalDist, 1.15);
+            }
+
+            float getCell01(vec3 p, vec2 offset, float maxR, float phase, float maxH, float age, float anvilBias) {
+                float r = length(p.xz - offset);
+                float cycle = sin(uTime * 0.18 + phase) * 0.5 + 0.5;
+                float life = mix(cycle, age, 0.62);
+                float currentR = maxR * (0.7 + 0.3 * life);
+                float naturalTop = mix(0.0, maxH, life);
+                float actualTop = min(naturalTop, 4.5);
+                float hitLid = smoothstep(3.0, 4.5, naturalTop);
+                float anvilMask = smoothstep(actualTop - 2.0, actualTop + 0.5, p.y);
+                float anvil = hitLid * anvilMask * life * maxR * anvilBias * 1.18;
+                float shape = r - currentR - anvil;
+                float topDist = p.y - actualTop;
+                float bottomDist = -2.5 - p.y;
+                float verticalDist = smax(topDist, bottomDist, 0.8);
+                return smax(shape, verticalDist, 1.2);
+            }
+
+            float getCell00(vec3 p, vec2 offset, float maxR, float phase, float maxH) {
+                float r = length(p.xz - offset);
+                float cycle = sin(uTime * 0.2 + phase) * 0.5 + 0.5;
+                float currentR = maxR * (0.7 + 0.3 * cycle);
+                float currentTop = mix(0.5, maxH, cycle);
+                float anvil = smoothstep(currentTop - 1.5, currentTop + 0.5, p.y) * cycle * maxR * 1.5;
+                float shape = r - currentR - anvil;
+                float topDist = p.y - currentTop;
+                vec2 baseLocal = p.xz - offset;
+                float baseWave =
+                    (noise(vec3(baseLocal * 0.24 + phase, uSeed * 0.17)) - 0.5) * 0.86 +
+                    sin(baseLocal.x * 1.08 + phase * 1.7) * 0.18 +
+                    cos(baseLocal.y * 0.82 - phase * 1.2) * 0.13;
+                float undersideNoise = noise(vec3(baseLocal * 0.46 + phase * 0.7, uSeed * 0.31));
+                float lowerPouch = smoothstep(maxR * 0.92, maxR * 0.12, r)
+                    * max(0.0, undersideNoise - 0.28) * 0.72;
+                float localBase = -1.5 + baseWave - max(0.0, lowerPouch);
+                float bottomDist = localBase - p.y;
+                float verticalDist = smax(topDist, bottomDist, 0.62);
+                return smax(shape, verticalDist, 1.0);
+            }
+
+            float getCbCellKm(
+                vec3 p,
+                vec2 offset,
+                float baseH,
+                float topPotential,
+                float baseR,
+                float towerR,
+                float anvilR,
+                float phase,
+                float maturity
+            ) {
+                float pulse = sin(uTime * 0.055 + phase) * 0.5 + 0.5;
+                float topH = min(uTropopause, mix(baseH + 2.4, topPotential, maturity) + (pulse - 0.5) * 0.42);
+                float height = max(1.0, topH - baseH);
+                float h = clamp((p.y - baseH) / height, 0.0, 1.0);
+                vec2 lean = vec2(sin(phase * 1.73), cos(phase * 1.17)) * mix(0.15, 0.82, h);
+                vec2 local = p.xz - offset - lean;
+                float twist = sin(p.y * 0.28 + phase) * 0.2;
+                mat2 rot = mat2(cos(twist), -sin(twist), sin(twist), cos(twist));
+                local = rot * local;
+
+                float lower = smoothstep(0.0, 0.2, h) * (1.0 - smoothstep(0.46, 0.76, h));
+                float tower = smoothstep(0.12, 0.42, h) * (1.0 - smoothstep(0.78, 0.98, h));
+                float crown = smoothstep(0.68, 0.98, h);
+                float cap = smoothstep(0.84, 1.0, h);
+                float anvilSkew = mix(1.0, 0.68, cap);
+                vec2 shapedLocal = vec2(local.x * anvilSkew, local.y * mix(1.0, 0.84, cap));
+                float r = length(shapedLocal);
+
+                float radius = mix(baseR, towerR, smoothstep(0.06, 0.42, h));
+                radius += lower * baseR * 0.18;
+                radius += crown * anvilR * mix(0.32, 1.0, cap);
+                radius += domainWarp(vec3(local.x * 0.32, p.y * 0.24, local.y * 0.32), phase) * mix(0.34, 1.08, tower + crown);
+                radius *= 0.96 + pulse * 0.08;
+
+                float baseWave =
+                    (noise(vec3(local * 0.18 + phase, uSeed * 0.11)) - 0.5) * 0.72 +
+                    sin(local.x * 0.42 + phase) * 0.18 +
+                    cos(local.y * 0.36 - phase * 0.7) * 0.16;
+                float basePouch = lower * max(0.0, noise(vec3(local * 0.38, phase + uSeed * 0.07)) - 0.3) * 0.72;
+                float localBase = baseH + baseWave - basePouch;
+                float coreDistance = length(local);
+                float coreTopLift = (1.0 - smoothstep(towerR * 0.65, towerR * 2.25, coreDistance)) * 0.95 * maturity;
+                float outerAnvilDrop = smoothstep(towerR * 1.25, towerR + anvilR + baseR * 0.72, coreDistance) * cap * 1.15;
+                float topWave = (noise(vec3(local * 0.18 + phase * 0.4, uSeed * 0.19)) - 0.5) * mix(0.28, 0.96, crown);
+                float localTop = min(uTropopause + 0.55, topH + topWave + coreTopLift - outerAnvilDrop);
+
+                float shape = r - radius;
+                float bottomDist = localBase - p.y;
+                float topDist = p.y - localTop;
+                float verticalDist = smax(topDist, bottomDist, 0.72);
+                return smax(shape, verticalDist, 1.16);
+            }
+
+            float ellipsoidSdf(vec3 p, vec3 center, vec3 radius) {
+                vec3 q = (p - center) / radius;
+                return (length(q) - 1.0) * min(radius.x, min(radius.y, radius.z));
+            }
+
+            float cbLobe(vec3 p, vec3 center, vec3 radius, float phase, float roughness) {
+                vec3 local = p - center;
+                float d = ellipsoidSdf(p, center, radius);
+                float broad = noise(vec3(local.x * 0.22 + phase, local.y * 0.28, local.z * 0.22 - phase));
+                float scallop =
+                    sin(local.x * 0.72 + phase) *
+                    cos(local.y * 0.54 - phase * 0.6) *
+                    sin(local.z * 0.62 + phase * 0.3);
+                return d - (broad - 0.48) * roughness * 0.72 - scallop * roughness * 0.16;
+            }
+
+            float addLobe(float field, vec3 p, vec3 center, vec3 radius, float phase, float roughness, float blend) {
+                return smin(field, cbLobe(p, center, radius, phase, roughness), blend);
+            }
+
+            float mapCloudMacro(vec3 p) {
+                float widthStretch = mix(1.0, 1.18, smoothstep(0.5, 2.0, uAspect));
+                vec3 layoutP = p;
+                layoutP.x /= widthStretch;
+                float tropo = uTropopause;
+                float field = 99.0;
+
+                field = addLobe(field, layoutP, vec3(-10.8, 1.55, 0.1), vec3(4.4, 1.35, 2.35), 0.2, 0.76, 0.92);
+                field = addLobe(field, layoutP, vec3(-7.4, 2.0, 0.2), vec3(5.1, 1.9, 2.75), 0.6, 0.78, 1.05);
+                field = addLobe(field, layoutP, vec3(-3.5, 2.35, -0.7), vec3(4.7, 2.15, 2.9), 1.5, 0.86, 1.1);
+                field = addLobe(field, layoutP, vec3(1.8, 2.15, 0.5), vec3(5.2, 2.0, 2.8), 2.8, 0.78, 1.05);
+                field = addLobe(field, layoutP, vec3(6.9, 2.35, -0.6), vec3(4.8, 2.05, 2.55), 4.2, 0.82, 1.0);
+                field = addLobe(field, layoutP, vec3(10.5, 1.85, 0.4), vec3(3.9, 1.55, 2.1), 5.1, 0.74, 0.86);
+
+                field = addLobe(field, layoutP, vec3(-1.0, 3.9, 0.0), vec3(4.2, 2.55, 2.45), 0.2, 0.9, 1.05);
+                field = addLobe(field, layoutP, vec3(-0.7, 6.0, -0.2), vec3(3.8, 2.75, 2.35), 1.1, 0.96, 1.0);
+                field = addLobe(field, layoutP, vec3(-0.2, 8.05, 0.2), vec3(3.55, 2.85, 2.2), 2.2, 0.98, 0.95);
+                field = addLobe(field, layoutP, vec3(0.5, 10.05, 0.0), vec3(3.75, 2.15, 2.15), 3.0, 0.86, 0.9);
+
+                field = addLobe(field, layoutP, vec3(-3.4, 5.15, 0.8), vec3(2.8, 2.15, 1.95), 4.8, 0.82, 0.82);
+                field = addLobe(field, layoutP, vec3(4.2, 5.05, -0.5), vec3(2.9, 2.2, 1.9), 5.7, 0.82, 0.82);
+                field = addLobe(field, layoutP, vec3(5.5, 7.35, 0.15), vec3(2.55, 2.05, 1.7), 6.4, 0.76, 0.72);
+                field = addLobe(field, layoutP, vec3(-3.0, 7.65, -0.45), vec3(2.4, 2.0, 1.65), 6.9, 0.82, 0.72);
+                field = addLobe(field, layoutP, vec3(2.8, 9.2, 0.35), vec3(2.45, 1.9, 1.55), 7.7, 0.76, 0.68);
+                field = addLobe(field, layoutP, vec3(-2.5, 9.75, 0.65), vec3(2.2, 1.65, 1.45), 8.4, 0.74, 0.62);
+                field = addLobe(field, layoutP, vec3(2.15, 6.8, -1.05), vec3(2.05, 1.8, 1.35), 9.1, 0.78, 0.62);
+                field = addLobe(field, layoutP, vec3(-4.3, 3.55, -0.9), vec3(2.3, 1.45, 1.35), 9.9, 0.72, 0.68);
+                field = addLobe(field, layoutP, vec3(3.9, 3.2, 1.0), vec3(2.4, 1.5, 1.4), 10.7, 0.72, 0.68);
+                field = addLobe(field, layoutP, vec3(-0.2, tropo + 0.15, 0.0), vec3(2.7, 0.72, 1.55), 9.6, 0.54, 0.5);
+
+                float anvilY = min(tropo - 0.45, 11.8);
+                field = addLobe(field, layoutP, vec3(-1.0, anvilY, 0.0), vec3(7.8, 0.95, 2.45), 7.2, 0.52, 0.72);
+                field = addLobe(field, layoutP, vec3(-6.0, anvilY - 0.1, 0.1), vec3(4.8, 0.72, 2.05), 8.0, 0.46, 0.62);
+                field = addLobe(field, layoutP, vec3(5.6, anvilY - 0.15, -0.1), vec3(4.1, 0.65, 1.85), 8.9, 0.42, 0.58);
+
+                float capLimiter = p.y - (tropo + 0.62 + (noise(vec3(layoutP.xz * 0.1, uSeed * 0.23)) - 0.5) * 0.32);
+                float groundLimiter = 0.35 - p.y;
+                return smax(smax(field, capLimiter, 0.42), groundLimiter, 0.58);
+            }
+
+            float mapCloudFromMacro(vec3 p, float macro) {
+                float kmScale = uTropopause / 3.3;
+                vec3 q = vec3(p.x / kmScale, p.y / kmScale - 1.5, p.z / kmScale);
+                vec3 baseQ = q;
+                q.y -= uTime * 0.25;
+                q.x += uTime * 0.05;
+
+                float d = -macro;
+                if (d > -1.0) {
+                    float carving = noise(q * 0.4 + uTime * 0.1) * 1.5;
+                    float details = fbm(q * 1.0) * 1.0;
+                    float billow = fbm(vec3(p.x * 0.34, p.y * 0.48, p.z * 0.34) + uSeed * 0.018);
+                    float cauliflower = fbm(vec3(p.x * 0.72, p.y * 0.82, p.z * 0.72) + vec3(uSeed * 0.011, uTime * 0.05, 2.7));
+                    float towerBand = smoothstep(1.4, 5.2, p.y) * (1.0 - smoothstep(uTropopause - 0.9, uTropopause + 0.25, p.y));
+                    d += details - carving * 0.62 + (billow - 0.4) * 0.86 + (cauliflower - 0.48) * towerBand * 0.82;
+                    float edgeBand = smoothstep(-0.72, 0.34, macro);
+                    float edgeCuts = noise(vec3(p.x * 0.52 + uSeed * 0.019, p.y * 0.62, p.z * 0.52 - uTime * 0.03));
+                    d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * 0.46;
+                    float towerFill = smoothstep(0.8, 4.2, p.y) * (1.0 - smoothstep(uTropopause - 1.3, uTropopause + 0.4, p.y));
+                    d += towerFill * 0.22;
+                    float raggedFloor =
+                        -1.48 +
+                        (noise(vec3(baseQ.xz * 0.54 + uSeed * 0.13, uSeed * 0.29)) - 0.5) * 0.58 +
+                        sin(baseQ.x * 0.72 + uSeed * 0.04) * 0.12;
+                    float undersideBand = 1.0 - smoothstep(raggedFloor - 0.12, raggedFloor + 0.52, baseQ.y);
+                    float undersidePocket = smoothstep(
+                        0.32,
+                        0.88,
+                        noise(vec3(baseQ.xz * 1.18 + vec2(3.4, 7.1), uSeed * 0.41))
+                    );
+                    d -= undersideBand * undersidePocket * 0.36;
+                }
+                return clamp(d, 0.0, 1.0);
+            }
+
+            float mapCloud(vec3 p) {
+                return mapCloudFromMacro(p, mapCloudMacro(p));
+            }
+
+            float phaseHG(float cosTheta, float g) {
+                float g2 = g * g;
+                return (1.0 - g2) / (4.0 * 3.14159 * pow(1.0 + g2 - 2.0 * g * cosTheta, 1.5));
+            }
+
+            vec3 ACESFilm(vec3 x) {
+                float a = 2.51; float b = 0.03; float c = 2.43; float d = 0.59; float e = 0.14;
+                return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+            }
+
+            vec3 gridOverlay(vec3 col, vec3 ro, vec3 rd) {
+                if (uShowGrid < 0.5) return col;
+
+                if (abs(rd.y) > 0.001) {
+                    float tG = (0.0 - ro.y) / rd.y;
+                    if (tG > 0.0 && tG < 160.0) {
+                        vec3 pG = ro + rd * tG;
+                        if (length(pG.xz) <= 15.0) {
+                            vec2 grid = abs(fract(pG.xz) - 0.5);
+                            float line = smoothstep(0.47, 0.5, max(grid.x, grid.y));
+                            float axis = max(smoothstep(0.045, 0.0, abs(pG.x)), smoothstep(0.045, 0.0, abs(pG.z)));
+                            line = max(line * 0.58, axis);
+                            col = mix(col, vec3(0.05, 0.34, 0.72), line * exp(-tG * 0.012));
+                        }
+                    }
+                }
+
+                float aCyl = dot(rd.xz, rd.xz);
+                float bCyl = 2.0 * dot(ro.xz, rd.xz);
+                float cCyl = dot(ro.xz, ro.xz) - 0.018;
+                float disc = bCyl * bCyl - 4.0 * aCyl * cCyl;
+                if (disc > 0.0 && aCyl > 0.0001) {
+                    float tR = (-bCyl - sqrt(disc)) / (2.0 * aCyl);
+                    if (tR > 0.0 && tR < 160.0) {
+                        vec3 pR = ro + rd * tR;
+                        if (pR.y >= 0.0 && pR.y <= uTropopause + 1.0) {
+                            float band = mod(floor(pR.y), 2.0);
+                            vec3 rCol = (band < 0.5) ? vec3(0.86, 0.08, 0.08) : vec3(0.92, 0.92, 0.88);
+                            float rim = smoothstep(0.14, 0.0, length(pR.xz));
+                            col = mix(col, rCol * (0.35 + 0.65 * rim), 0.95);
+                        }
+                    }
+                }
+                return col;
+            }
+
+            void main() {
+                vec2 res = max(uResolution, vec2(1.0));
+                vec2 uv = (gl_FragCoord.xy - 0.5 * res.xy) / res.y;
+                vec3 ro = uCameraPos;
+                vec3 target = uCameraTarget;
+                vec3 forward = normalize(target - ro);
+                vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+                vec3 up = cross(right, forward);
+                vec3 rd;
+
+                if (uIsOrtho > 0.5) {
+                    ro = ro + right * uv.x * uOrthoSize + up * uv.y * uOrthoSize * uOrthoVerticalScale;
+                    rd = forward;
+                } else {
+                    float fovScale = mix(1.02, 1.22, smoothstep(0.5, 2.0, uAspect));
+                    rd = normalize(forward * fovScale + uv.x * right + uv.y * up);
+                }
+
+                vec3 lightDir = normalize(vec3(-0.8, 0.9, 0.4));
+                vec3 lightColor = vec3(1.0, 0.9, 0.85) * uSunIntensity;
+                vec3 ambientColor = vec3(0.08, 0.12, 0.22) * uAmbientIntensity;
+                vec3 bgDark = vec3(0.015, 0.025, 0.07) * uAmbientIntensity;
+                vec3 bgLight = vec3(0.075, 0.115, 0.24) * uAmbientIntensity;
+                vec3 col = mix(bgDark, bgLight, clamp(uv.y + 0.5, 0.0, 1.0));
+                col = gridOverlay(col, ro, rd);
+
+                vec3 boxMin = vec3(-18.0, 0.0, -18.0);
+                vec3 boxMax = vec3(18.0, uTropopause + 1.5, 18.0);
+                vec2 aabb = intersectAABB(ro, rd, boxMin, boxMax);
+                float densityAcc = 0.0;
+                vec3 cloudCol = vec3(0.0);
+
+                if (aabb.x < aabb.y && aabb.y > 0.0) {
+                    float stepSize = uStepSize;
+                    float t = max(0.0, aabb.x);
+                    float maxT = aabb.y;
+                    t += stepSize * hash(uv.x * 31.0 + uv.y * 113.0);
+                    float cosTheta = dot(rd, lightDir);
+                    float phase = clamp(phaseHG(cosTheta, 0.6) * 0.7 + phaseHG(cosTheta, -0.2) * 0.3, 0.0, 1.5);
+
+                    for(int i = 0; i < 168; i++) {
+                        if (float(i) > uMaxSteps || t > maxT || densityAcc > 0.955) break;
+                        vec3 p = ro + rd * t;
+                        if (p.y < 0.0 || p.y > uTropopause + 1.2) {
+                            t += stepSize * 3.0;
+                            continue;
+                        }
+                        float macro = mapCloudMacro(p);
+                        if (macro > 2.8) {
+                            t += stepSize * min(8.0, 3.4 + macro * 1.45);
+                            continue;
+                        }
+                        if (macro > 1.15) {
+                            t += stepSize * 4.5;
+                            continue;
+                        }
+                        float density = mapCloudFromMacro(p, macro);
+                        if (density > 0.012) {
+                            float shadow = 0.0;
+                            vec3 lPos = p;
+                            float lStep = 0.34;
+                            for(int j = 0; j < 3; j++) {
+                                float jitter = float(j) * 1.37 + hash(dot(p.xz, vec2(17.0, 31.0)));
+                                vec3 shadowDir = normalize(lightDir + vec3(
+                                    sin(jitter) * 0.16,
+                                    cos(jitter * 1.7) * 0.08,
+                                    cos(jitter) * 0.16
+                                ));
+                                lPos += shadowDir * lStep;
+                                float shadowMacro = mapCloudMacro(lPos);
+                                if (shadowMacro < 2.4) {
+                                    shadow += mapCloudFromMacro(lPos, shadowMacro);
+                                }
+                            }
+                            float transmittance = exp(-shadow * 0.82);
+                            float relief = fbm(vec3(p.x * 0.42, p.y * 0.58, p.z * 0.42) + uSeed * 0.021);
+                            float reliefLight = mix(0.78, 1.22, smoothstep(0.28, 0.82, relief));
+                            vec3 lighting = ambientColor + lightColor * transmittance * phase * reliefLight;
+                            float alpha = 1.0 - exp(-density * stepSize * 12.8);
+                            cloudCol += (1.0 - densityAcc) * lighting * alpha;
+                            densityAcc += (1.0 - densityAcc) * alpha;
+                        } else if (macro > 0.35) {
+                            t += stepSize * 1.55;
+                        }
+                        t += stepSize;
+                    }
+                }
+
+                col = mix(col, cloudCol, densityAcc);
+                col = ACESFilm(col);
+                col = pow(col, vec3(1.0 / 2.2));
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `;
+
+        const vertexShader = `void main() { gl_Position = vec4(position, 1.0); }`;
+        const container = document.getElementById('render-container');
+        const renderer = new THREE.WebGLRenderer({ antialias: false });
+        container.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const aspect = container.clientWidth / container.clientHeight;
+        const perspCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 220);
+        let currentTropo = 12.0;
+        let orthoFrustumSize = currentTropo + 8.0;
+        const orthoCamera = new THREE.OrthographicCamera(
+            -orthoFrustumSize * aspect / 2,
+            orthoFrustumSize * aspect / 2,
+            orthoFrustumSize / 2,
+            -orthoFrustumSize / 2,
+            0.1,
+            220
+        );
+
+        const DEFAULT_SEED = 574;
+        const RESET_TARGET_HEIGHT_RATIO = 0.5;
+        const RESET_CAMERA_DISTANCE = 72.0;
+        const ORTHO_VERTICAL_WORLD_SCALE = 2.28;
+        const MOTION_SPEED_SCALE = 2.2;
+        const DEFAULT_TIME_SPEED = 4.0;
+        const DEFAULT_RENDER_SCALE = 0.72;
+
+        function resetPosition() {
+            return new THREE.Vector3(0, currentTropo * RESET_TARGET_HEIGHT_RATIO, -RESET_CAMERA_DISTANCE);
+        }
+
+        function resetTarget() {
+            return new THREE.Vector3(0, currentTropo * RESET_TARGET_HEIGHT_RATIO, 0);
+        }
+
+        perspCamera.position.copy(resetPosition());
+        orthoCamera.position.copy(resetPosition());
+
+        const controlsPersp = new THREE.OrbitControls(perspCamera, renderer.domElement);
+        controlsPersp.enableDamping = true;
+        controlsPersp.dampingFactor = 0.05;
+        controlsPersp.target.copy(resetTarget());
+        controlsPersp.minDistance = 8.0;
+        controlsPersp.maxDistance = 110.0;
+
+        const controlsOrtho = new THREE.OrbitControls(orthoCamera, renderer.domElement);
+        controlsOrtho.enableDamping = true;
+        controlsOrtho.dampingFactor = 0.05;
+        controlsOrtho.target.copy(resetTarget());
+        controlsOrtho.enabled = false;
+
+        const query = new URLSearchParams(window.location.search);
+        const captureMode = query.get('capture');
+        let isOrthoMode = false;
+        let currentSeed = DEFAULT_SEED;
+        let timeSpeed = DEFAULT_TIME_SPEED;
+        let timePaused = false;
+        let simulationTime = 0;
+        let renderScale = DEFAULT_RENDER_SCALE;
+        let lastFrameTime = performance.now();
+        const seedParam = query.get('seed');
+        const querySeed = Number(seedParam);
+        if (seedParam !== null && seedParam !== '' && Number.isFinite(querySeed)) {
+            currentSeed = Math.floor(querySeed);
+        } else if (captureMode === 'ortho-grid') {
+            currentSeed = 6577;
+        }
+
+        const material = new THREE.ShaderMaterial({
+            vertexShader,
+            fragmentShader,
+            uniforms: {
+                uTime: { value: 0 },
+                uResolution: { value: new THREE.Vector2() },
+                uCameraPos: { value: new THREE.Vector3() },
+                uCameraTarget: { value: new THREE.Vector3() },
+                uAspect: { value: 1.0 },
+                uTropopause: { value: currentTropo },
+                uShowGrid: { value: 0.0 },
+                uSeed: { value: currentSeed },
+                uIsOrtho: { value: 0.0 },
+                uOrthoSize: { value: orthoFrustumSize },
+                uOrthoVerticalScale: { value: ORTHO_VERTICAL_WORLD_SCALE },
+                uStepSize: { value: 0.2 },
+                uMaxSteps: { value: 126.0 },
+                uSunIntensity: { value: 3.8 },
+                uAmbientIntensity: { value: 1.0 }
+            }
+        });
+
+        const fullscreenCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+        scene.add(plane);
+        const drawingBufferSize = new THREE.Vector2();
+
+        function updateOrthoBounds(newAspect) {
+            orthoCamera.left = -orthoFrustumSize * newAspect / 2;
+            orthoCamera.right = orthoFrustumSize * newAspect / 2;
+            orthoCamera.top = orthoFrustumSize / 2;
+            orthoCamera.bottom = -orthoFrustumSize / 2;
+            orthoCamera.updateProjectionMatrix();
+        }
+
+        function resizeCanvasToDisplaySize() {
+            const canvas = renderer.domElement;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            if (width === 0 || height === 0) return;
+            const expectedWidth = Math.floor(width * Math.min(window.devicePixelRatio, renderScale));
+            const expectedHeight = Math.floor(height * Math.min(window.devicePixelRatio, renderScale));
+            if (canvas.width !== expectedWidth || canvas.height !== expectedHeight) {
+                renderer.setSize(width, height, false);
+                const newAspect = width / height;
+                renderer.getDrawingBufferSize(drawingBufferSize);
+                material.uniforms.uResolution.value.copy(drawingBufferSize);
+                material.uniforms.uAspect.value = newAspect;
+                perspCamera.aspect = newAspect;
+                perspCamera.updateProjectionMatrix();
+                updateOrthoBounds(newAspect);
+            }
+        }
+
+        const btnPortrait = document.getElementById('btn-portrait');
+        const btnLandscape = document.getElementById('btn-landscape');
+        const btnResetCam = document.getElementById('btn-reset-cam');
+        const btnGrid = document.getElementById('btn-grid');
+        const btnCamMode = document.getElementById('btn-cam-mode');
+        const targetLabel = document.getElementById('target-label');
+        const sliderTropo = document.getElementById('slider-tropo');
+        const sliderSun = document.getElementById('slider-sun');
+        const sliderAmb = document.getElementById('slider-amb');
+        const sliderTime = document.getElementById('slider-time');
+        const timeReadout = document.getElementById('time-readout');
+        const sliderQuality = document.getElementById('slider-quality');
+        const qualityReadout = document.getElementById('quality-readout');
+        const btnTimeToggle = document.getElementById('btn-time-toggle');
+        const btnTimeReset = document.getElementById('btn-time-reset');
+        const inputSeed = document.getElementById('input-seed');
+        const btnRandomSeed = document.getElementById('btn-random-seed');
+        const tropoReadout = document.getElementById('tropo-readout');
+
+        const timeSpeedQuery = query.get('timeSpeed');
+        const timeSpeedParam = Number(timeSpeedQuery);
+        if (timeSpeedQuery !== null && timeSpeedQuery !== '' && Number.isFinite(timeSpeedParam)) {
+            timeSpeed = Math.max(0, Math.min(16, timeSpeedParam));
+            sliderTime.value = String(timeSpeed);
+        }
+
+        const qualityQuery = query.get('quality');
+        const qualityParam = Number(qualityQuery);
+        if (qualityQuery !== null && qualityQuery !== '' && Number.isFinite(qualityParam)) {
+            renderScale = Math.max(0.45, Math.min(1.0, qualityParam));
+            sliderQuality.value = String(renderScale);
+        }
+
+        function applyRenderScale() {
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, renderScale));
+            material.uniforms.uStepSize.value = THREE.MathUtils.lerp(0.28, 0.16, renderScale);
+            material.uniforms.uMaxSteps.value = THREE.MathUtils.lerp(84, 156, renderScale);
+            qualityReadout.innerText = `${renderScale.toFixed(2)}x`;
+        }
+
+        applyRenderScale();
+
+        function updateTimeReadout() {
+            timeReadout.innerText = `${timeSpeed.toFixed(timeSpeed % 1 === 0 ? 0 : 2)}x`;
+            btnTimeToggle.innerText = timePaused ? '播放' : '暫停';
+            btnTimeToggle.classList.toggle('enabled', timePaused);
+        }
+
+        updateTimeReadout();
+
+        inputSeed.value = currentSeed;
+        inputSeed.addEventListener('change', (event) => {
+            let nextSeed = parseInt(event.target.value, 10);
+            if (Number.isNaN(nextSeed)) {
+                nextSeed = Math.floor(Math.random() * 10000);
+                event.target.value = nextSeed;
+            }
+            currentSeed = nextSeed;
+            material.uniforms.uSeed.value = currentSeed;
+        });
+
+        btnRandomSeed.addEventListener('click', () => {
+            currentSeed = Math.floor(Math.random() * 10000);
+            inputSeed.value = currentSeed;
+            material.uniforms.uSeed.value = currentSeed;
+        });
+
+        function setGridVisible(showGrid) {
+            material.uniforms.uShowGrid.value = showGrid ? 1.0 : 0.0;
+            btnGrid.classList.toggle('enabled', showGrid);
+        }
+
+        btnGrid.addEventListener('click', () => {
+            const showGrid = material.uniforms.uShowGrid.value < 0.5;
+            setGridVisible(showGrid);
+        });
+
+        function setCameraMode(nextIsOrtho) {
+            if (isOrthoMode === nextIsOrtho) return;
+            isOrthoMode = nextIsOrtho;
+            material.uniforms.uIsOrtho.value = isOrthoMode ? 1.0 : 0.0;
+            btnCamMode.classList.toggle('ortho', isOrthoMode);
+            if (isOrthoMode) {
+                btnCamMode.innerText = '正交投影';
+                orthoCamera.position.copy(perspCamera.position);
+                controlsOrtho.target.copy(controlsPersp.target);
+                controlsPersp.enabled = false;
+                controlsOrtho.enabled = true;
+            } else {
+                btnCamMode.innerText = '透視投影';
+                perspCamera.position.copy(orthoCamera.position);
+                controlsPersp.target.copy(controlsOrtho.target);
+                controlsOrtho.enabled = false;
+                controlsPersp.enabled = true;
+            }
+        }
+
+        btnCamMode.addEventListener('click', () => {
+            setCameraMode(!isOrthoMode);
+        });
+
+        sliderTropo.addEventListener('input', (event) => {
+            currentTropo = parseFloat(event.target.value);
+            material.uniforms.uTropopause.value = currentTropo;
+            tropoReadout.innerText = `${currentTropo.toFixed(1).replace('.0', '')}km`;
+            orthoFrustumSize = currentTropo + 8.0;
+            updateOrthoBounds(container.clientWidth / container.clientHeight);
+            const nextTarget = resetTarget();
+            if (isOrthoMode) {
+                controlsOrtho.target.copy(nextTarget);
+            } else {
+                controlsPersp.target.copy(nextTarget);
+            }
+        });
+
+        sliderSun.addEventListener('input', (event) => {
+            material.uniforms.uSunIntensity.value = parseFloat(event.target.value);
+        });
+
+        sliderAmb.addEventListener('input', (event) => {
+            material.uniforms.uAmbientIntensity.value = parseFloat(event.target.value);
+        });
+
+        sliderTime.addEventListener('input', (event) => {
+            timeSpeed = parseFloat(event.target.value);
+            if (timeSpeed > 0 && timePaused) {
+                timePaused = false;
+            }
+            updateTimeReadout();
+        });
+
+        sliderQuality.addEventListener('input', (event) => {
+            renderScale = parseFloat(event.target.value);
+            applyRenderScale();
+            resizeCanvasToDisplaySize();
+        });
+
+        btnTimeToggle.addEventListener('click', () => {
+            timePaused = !timePaused;
+            updateTimeReadout();
+        });
+
+        btnTimeReset.addEventListener('click', () => {
+            simulationTime = 0;
+            material.uniforms.uTime.value = 0;
+            btnTimeReset.style.transform = 'scale(0.95)';
+            setTimeout(() => { btnTimeReset.style.transform = 'scale(1)'; }, 150);
+        });
+
+        btnPortrait.addEventListener('click', () => {
+            container.className = 'viewport-portrait';
+            btnPortrait.classList.add('active');
+            btnLandscape.classList.remove('active');
+            targetLabel.innerText = 'Target: 9:16 Live Source';
+        });
+
+        btnLandscape.addEventListener('click', () => {
+            container.className = 'viewport-landscape';
+            btnLandscape.classList.add('active');
+            btnPortrait.classList.remove('active');
+            targetLabel.innerText = 'Target: 16:9 Broadcast';
+        });
+
+        btnResetCam.addEventListener('click', () => {
+            const nextPosition = resetPosition();
+            const nextTarget = resetTarget();
+            if (isOrthoMode) {
+                orthoCamera.position.copy(nextPosition);
+                controlsOrtho.target.copy(nextTarget);
+                orthoCamera.zoom = 1.0;
+                orthoCamera.updateProjectionMatrix();
+                controlsOrtho.update();
+            } else {
+                perspCamera.position.copy(nextPosition);
+                controlsPersp.target.copy(nextTarget);
+                controlsPersp.update();
+            }
+            btnResetCam.style.transform = 'scale(0.95)';
+            setTimeout(() => { btnResetCam.style.transform = 'scale(1)'; }, 150);
+        });
+
+        if (query.get('grid') === '1' || captureMode === 'ortho-grid') {
+            setGridVisible(true);
+        }
+        if (query.get('ortho') === '1' || captureMode === 'ortho-grid') {
+            setCameraMode(true);
+        }
+
+        let lastTime = performance.now();
+        let frames = 0;
+        const fpsEl = document.getElementById('fps-counter');
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+            resizeCanvasToDisplaySize();
+            const activeCamera = isOrthoMode ? orthoCamera : perspCamera;
+            const activeControls = isOrthoMode ? controlsOrtho : controlsPersp;
+            activeControls.update();
+            const deltaMs = Math.min(100, Math.max(0, time - lastFrameTime));
+            lastFrameTime = time;
+            if (!timePaused) {
+                simulationTime += deltaMs * 0.00018 * MOTION_SPEED_SCALE * timeSpeed;
+            }
+            material.uniforms.uTime.value = simulationTime;
+            material.uniforms.uCameraPos.value.copy(activeCamera.position);
+            material.uniforms.uCameraTarget.value.copy(activeControls.target);
+            if (isOrthoMode) {
+                material.uniforms.uOrthoSize.value = orthoFrustumSize / orthoCamera.zoom;
+            }
+            renderer.render(scene, fullscreenCam);
+            frames++;
+            if (time - lastTime >= 1000) {
+                const aspectStr = (container.clientWidth / container.clientHeight).toFixed(2);
+                fpsEl.innerHTML = `FPS: ${frames} | RES: ${renderScale.toFixed(2)}x | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'} | Tropo: ${currentTropo}km | Time: ${timePaused ? 'pause' : `${timeSpeed}x`}`;
+                frames = 0;
+                lastTime = time;
+            }
+        }
+
+        animate(0);
+    </script>
+</body>
+</html>

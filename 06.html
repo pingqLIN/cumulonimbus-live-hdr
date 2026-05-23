@@ -26,6 +26,7 @@
         .btn-toggle.enabled { background-color: #7c3aed; border-color: #a78bfa; }
         .btn-toggle.camera { background-color: #0369a1; border-color: #0284c7; }
         .btn-toggle.camera.ortho { background-color: #0f766e; border-color: #14b8a6; }
+        .btn-toggle.hud-off { background-color: #111827; border-color: #4b5563; color: #94a3b8; }
         .slider-group { display: flex; align-items: center; gap: 0.45rem; background: #111827; padding: 0.35rem 0.65rem; border-radius: 0.375rem; border: 1px solid #374151; font-size: 0.75rem; white-space: nowrap; }
         .slider-group input[type=range] { width: 72px; accent-color: #3b82f6; cursor: pointer; }
         .slider-group.accent-red input[type=range] { accent-color: #ef4444; }
@@ -65,6 +66,7 @@
         </div>
         <button id="btn-time-toggle" class="btn-toggle">暫停</button>
         <button id="btn-time-reset" class="btn-toggle">時間歸零</button>
+        <button id="btn-hud" class="btn-toggle">HUD</button>
         <button id="btn-grid" class="btn-toggle">尺度尺標</button>
         <button id="btn-cam-mode" class="btn-toggle camera">透視投影</button>
         <div class="divider"></div>
@@ -621,12 +623,16 @@
         } else if (captureMode === 'ortho-grid') {
             currentSeed = 6577;
         }
+        const timeParam = Number(query.get('time'));
+        if (query.get('time') !== null && Number.isFinite(timeParam)) {
+            simulationTime = Math.max(0, timeParam);
+        }
 
         const material = new THREE.ShaderMaterial({
             vertexShader,
             fragmentShader,
             uniforms: {
-                uTime: { value: 0 },
+                uTime: { value: simulationTime },
                 uResolution: { value: new THREE.Vector2() },
                 uCameraPos: { value: new THREE.Vector3() },
                 uCameraTarget: { value: new THREE.Vector3() },
@@ -691,6 +697,8 @@
         const qualityReadout = document.getElementById('quality-readout');
         const btnTimeToggle = document.getElementById('btn-time-toggle');
         const btnTimeReset = document.getElementById('btn-time-reset');
+        const btnHud = document.getElementById('btn-hud');
+        const overlay = document.getElementById('overlay');
         const inputSeed = document.getElementById('input-seed');
         const btnRandomSeed = document.getElementById('btn-random-seed');
         const tropoReadout = document.getElementById('tropo-readout');
@@ -725,6 +733,18 @@
         }
 
         updateTimeReadout();
+
+        function setHudVisible(visible) {
+            overlay.style.display = visible ? 'block' : 'none';
+            btnHud.classList.toggle('hud-off', !visible);
+            btnHud.innerText = visible ? 'HUD' : 'HUD OFF';
+        }
+
+        setHudVisible(query.get('hud') !== '0');
+
+        btnHud.addEventListener('click', () => {
+            setHudVisible(overlay.style.display === 'none');
+        });
 
         inputSeed.value = currentSeed;
         inputSeed.addEventListener('change', (event) => {
@@ -889,7 +909,7 @@
             frames++;
             if (time - lastTime >= 1000) {
                 const aspectStr = (container.clientWidth / container.clientHeight).toFixed(2);
-                fpsEl.innerHTML = `FPS: ${frames} | RES: ${renderScale.toFixed(2)}x | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'} | Tropo: ${currentTropo}km | Time: ${timePaused ? 'pause' : `${timeSpeed}x`}`;
+                fpsEl.innerHTML = `FPS: ${frames} | RES: ${renderScale.toFixed(2)}x | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'} | Tropo: ${currentTropo}km | Time: ${timePaused ? 'pause' : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
                 frames = 0;
                 lastTime = time;
             }

@@ -376,8 +376,11 @@
                     float details = fbm(q * 1.0) * 1.0;
                     float billow = fbm(vec3(p.x * 0.34, p.y * 0.48, p.z * 0.34) + uSeed * 0.018);
                     float cauliflower = fbm(vec3(p.x * 0.72, p.y * 0.82, p.z * 0.72) + vec3(uSeed * 0.011, uTime * 0.05, 2.7));
+                    float microBillow = fbm(vec3(p.x * 1.08, p.y * 1.18, p.z * 1.08) + vec3(uSeed * 0.017, 1.9, uTime * 0.04));
                     float towerBand = smoothstep(1.4, 5.2, p.y) * (1.0 - smoothstep(uTropopause - 0.9, uTropopause + 0.25, p.y));
-                    d += details - carving * 0.62 + (billow - 0.4) * 0.86 + (cauliflower - 0.48) * towerBand * 0.82;
+                    float surfaceShell = smoothstep(-0.7, 0.16, macro) * (1.0 - smoothstep(0.18, 0.82, macro));
+                    d += details - carving * 0.58 + (billow - 0.4) * 0.86 + (cauliflower - 0.46) * towerBand * 0.92;
+                    d += surfaceShell * towerBand * (microBillow - 0.42) * 0.88;
                     float edgeBand = smoothstep(-0.72, 0.34, macro);
                     float edgeCuts = noise(vec3(p.x * 0.52 + uSeed * 0.019, p.y * 0.62, p.z * 0.52 - uTime * 0.03));
                     d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * 0.46;
@@ -524,7 +527,10 @@
                             }
                             float transmittance = exp(-shadow * 0.82);
                             float relief = fbm(vec3(p.x * 0.42, p.y * 0.58, p.z * 0.42) + uSeed * 0.021);
-                            float reliefLight = mix(0.78, 1.22, smoothstep(0.28, 0.82, relief));
+                            float fineRelief = fbm(vec3(p.x * 0.9, p.y * 1.05, p.z * 0.9) + vec3(uSeed * 0.013, 4.1, uTime * 0.03));
+                            float surfaceRelief = smoothstep(-0.72, 0.18, macro) * (1.0 - smoothstep(0.2, 0.92, macro));
+                            float reliefLight = mix(0.66, 1.34, smoothstep(0.26, 0.84, relief));
+                            reliefLight *= mix(1.0, mix(0.72, 1.42, smoothstep(0.3, 0.82, fineRelief)), surfaceRelief);
                             vec3 lighting = ambientColor + lightColor * transmittance * phase * reliefLight;
                             float alpha = 1.0 - exp(-density * stepSize * 12.8);
                             cloudCol += (1.0 - densityAcc) * lighting * alpha;

@@ -117,6 +117,8 @@ Renderer implication:
 
 - Move toward a volume-like mental model even while the prototype is 2D.
 - Keep density separate from shading.
+- Current mainline: `06.html` uses a single shader/raymarch scene as the observable volumetric approximation, so camera changes should observe the same cloud structure rather than replace the model.
+- 中文定位：目前主線是 `06.html` 的單一 shader/raymarch 雲體場景；多角度觀察應看見同一個雲體結構，而不是每個角度重生一張雲圖。
 - Future WebGPU version should ray-march through a 3D density field.
 
 Source: NVIDIA GPU Gems, Chapter 39: Volume Rendering Techniques  
@@ -286,6 +288,24 @@ Initial presets:
 - `Dissipating anvil`: weak tower, persistent upper anvil, thinning/wispy edges.
 - `Severe overshooting top`: optional, sparse top protrusions and above-anvil plume.
 
+### Dissipation behavior pass, 2026-05-26
+
+Implementation note for `06.html`: avoid making the mature cloud body disappear as a simple horizontal top-down crop. Public NOAA/NWS guidance describes the dissipating stage as downdrafts and outflow cutting off the warm moist inflow, often leaving a remnant anvil. NCAR/UCAR anvil observations also support a separate upper-anvil memory: attached anvil can evolve into thinning dissipating cirrus over hours while lower convective structure has already weakened.
+
+Renderer implication:
+
+- Keep the upper anvil persistent and allow it to thin/settle unevenly.
+- Erode the lower and middle tower first with downdraft/dry-pocket masks.
+- Slow the lifecycle clock so dissipation reads as weather-scale drift rather than a UI animation.
+- Treat the result as research-informed art direction, not validated cloud microphysics.
+
+Sources:
+
+- NOAA/NWS Spotter Guide, Thunderstorm Life Cycle  
+  https://www.weather.gov/spotterguide/life
+- Garrett et al., Thunderstorm anvils: A close look at their evolution, NCAR/UCAR record  
+  https://impacts.ucar.edu/en/publications/thunderstorm-anvils-a-close-look-at-their-evolution-2/
+
 ### Rendering pipeline upgrades
 
 Short term:
@@ -312,6 +332,8 @@ Long term:
 
 - The current code is not a validated meteorological model.
 - Noise fields are artistic approximations, not Navier-Stokes or cloud microphysics.
+- The current `06.html` model is a visual approximation for multi-angle observable consistency, not a measured or unitful atmospheric volume.
+- 中文注意事項：`06.html` 是視覺一致性模型，不是具單位、可驗證的真實大氣體積資料。
 - `condensation` and `evaporation` are currently visual rates, not physically unitful rates.
 - HDR metadata does not guarantee perceptually correct HDR. The pixel values need proper scene-linear and PQ mapping.
 - Science-art precedents should guide process and philosophy, not be visually copied.

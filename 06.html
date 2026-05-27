@@ -41,7 +41,8 @@
             <div class="hud-text" id="target-label">Target: 16:9 Broadcast</div>
             <div class="hud-text mt-2">
                 [✓] Cloud form: Cb tower + anvil profile, 00.html density detail<br>
-                [✓] Scale: 1 Unit = 1 KM, Cloud base ~0.5 KM, Tropopause 8-18 KM<br>
+                [✓] Scale: sea level 0 KM plane, 1 grid = 1 KM, bold/ring = 5 KM<br>
+                [✓] Cloud base ~0.5 KM, Tropopause 8-18 KM<br>
                 [✓] Structure: low cloud field, main updraft tower, tropopause anvil<br>
                 [✓] Camera: -Z overview, center locks to cloud layer midpoint<br>
                 <span class="text-blue-300 mt-1 block">» 左鍵: 旋轉 | 滾輪: 縮放 | 右鍵: 平移</span>
@@ -59,6 +60,11 @@
             <input type="number" id="input-seed" class="seed-input">
             <button id="btn-random-seed" style="padding: 2px 6px; background: #3b82f6; border:none; border-radius:3px;">↻</button>
         </div>
+        <div class="slider-group" title="選擇同時活躍的對流子系統數量">
+            <label>子系統</label>
+            <input type="range" id="slider-systems" min="1" max="3" step="1" value="3">
+            <span id="systems-readout">3</span>
+        </div>
         <div class="slider-group" title="控制雲系生命週期速度">
             <label>時間</label>
             <input type="range" id="slider-time" min="0" max="5" step="0.25" value="1.5">
@@ -70,7 +76,7 @@
         <button id="btn-grid" class="btn-toggle">尺度尺標</button>
         <button id="btn-cam-mode" class="btn-toggle camera">透視投影</button>
         <div class="divider"></div>
-        <div class="slider-group" title="渲染解析倍率，控制算力負載">
+        <div class="slider-group" title="算力 = 內部渲染解析倍率；降低會減少 raymarch 像素負載、提高 FPS，但雲邊會較軟">
             <label>算力</label>
             <input type="range" id="slider-quality" min="0.45" max="1" step="0.05" value="0.72">
             <span id="quality-readout">0.72x</span>
@@ -102,6 +108,7 @@
             uniform float uTropopause;
             uniform float uShowGrid;
             uniform float uSeed;
+            uniform float uSystemCount;
             uniform float uIsOrtho;
             uniform float uOrthoSize;
             uniform float uOrthoVerticalScale;
@@ -191,27 +198,39 @@
                 return vec3(p.x / kmScale, (p.y - MODEL_BASE_KM) / kmScale + MODEL_LOCAL_BASE, p.z / kmScale);
             }
 
-            float cellCycleAngle(float phase) {
-                return uTime * 0.113 + phase * 0.53 + uSeed * 0.00082;
+            float cellCycleAngle(float phase, float speedScale, float ageOffset) {
+                return uTime * 0.113 * speedScale + phase * 0.53 + ageOffset + uSeed * 0.00082;
             }
 
-            float getCell01(vec3 p, vec2 offset, float maxR, float phase, float maxH) {
-                float cycleAngle = cellCycleAngle(phase);
+            float getCell01(
+                vec3 p,
+                vec2 offset,
+                float maxR,
+                float phase,
+                float maxH,
+                float speedScale,
+                float ageOffset,
+                float earlyDecay,
+                float anvilScale
+            ) {
+                float cycleAngle = cellCycleAngle(phase, speedScale, ageOffset);
                 float cycle = sin(cycleAngle) * 0.5 + 0.5;
                 float falling = smoothstep(0.44, 0.9, -cos(cycleAngle) * 0.5 + 0.5);
                 float growth = smoothstep(0.08, 0.86, cycle);
                 float mature = smoothstep(0.58, 0.92, cycle) * (1.0 - falling * 0.32);
-                float dissipating = falling * smoothstep(0.46, 0.92, cycle);
+                float decayStart = clamp(0.46 - earlyDecay, 0.18, 0.72);
+                float decayEnd = clamp(0.92 - earlyDecay * 0.48, decayStart + 0.18, 0.98);
+                float dissipating = falling * smoothstep(decayStart, decayEnd, cycle);
 
                 vec2 baseLocal = p.xz - offset;
                 float r = length(baseLocal);
-                float currentR = maxR * (0.58 + 0.42 * growth) * (1.0 - dissipating * 0.12);
+                float currentR = maxR * (0.58 + 0.42 * growth) * (1.0 - dissipating * mix(0.08, 0.24, earlyDecay));
                 float naturalTop = mix(MODEL_LOCAL_BASE + 1.05, maxH, growth);
                 float actualTop = min(naturalTop, MODEL_LOCAL_TROPO);
                 float hitLid = smoothstep(MODEL_LOCAL_TROPO - 1.5, MODEL_LOCAL_TROPO, naturalTop);
                 float anvilMask = smoothstep(actualTop - 2.0, actualTop + 0.5, p.y);
                 float anvilLife = hitLid * smoothstep(0.34, 0.82, cycle) * (1.0 - dissipating * 0.18);
-                float anvil = anvilLife * anvilMask * maxR * 1.8;
+                float anvil = anvilLife * anvilMask * maxR * 1.8 * anvilScale;
                 float shape = r - currentR - anvil;
                 float topDist = p.y - actualTop;
 
@@ -344,42 +363,51 @@
                 layoutP.x /= widthStretch;
 
                 vec3 modelP = worldToModelSpace(layoutP);
-                float c1 = getCell01(modelP, vec2(0.0, 0.0), 3.2, 0.0, 5.0);
-                float c2 = getCell01(modelP, vec2(4.0, -1.0), 2.5, 2.0, 3.5);
-                float c3 = getCell01(modelP, vec2(-3.5, 1.5), 2.2, 4.0, 4.0);
-                float c4 = getCell01(modelP, vec2(1.0, 3.5), 2.8, 1.0, 4.5);
-                float macro = smin(smin(c1, c2, 1.5), smin(c3, c4, 1.5), 1.5);
+                float c1 = getCell01(modelP, vec2(0.0, 0.0), 3.2, 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
+                float macro = c1;
+                if (uSystemCount >= 1.5) {
+                    float c2 = getCell01(modelP, vec2(4.15, -0.95), 2.8, 2.0, 3.75, 0.82, 1.12, 0.28, 0.8);
+                    macro = smin(macro, c2, 1.35);
+                }
+                if (uSystemCount >= 2.5) {
+                    float c3 = getCell01(modelP, vec2(-3.35, 1.45), 2.65, 4.0, 4.35, 1.26, 4.85, 0.1, 1.14);
+                    macro = smin(macro, c3, 1.45);
+                }
                 float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
                 float groundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
                 return smax(smax(macro, capLimiter, 0.18), groundLimiter, 0.22);
             }
 
             float mapCloudFromMacro(vec3 p, float macro) {
+                if (macro >= 1.0) {
+                    return 0.0;
+                }
+
                 vec3 q = worldToModelSpace(p);
                 vec3 baseQ = q;
                 q.y -= uTime * 0.25;
                 q.x += uTime * 0.05;
                 float heightRange = max(0.1, uTropopause - MODEL_BASE_KM);
                 float height01 = clamp((p.y - MODEL_BASE_KM) / heightRange, 0.0, 1.0);
-                float stormAngle = uTime * 0.075 + uSeed * 0.00107;
-                float stormCycle = sin(stormAngle) * 0.5 + 0.5;
-                float stormFalling = smoothstep(0.44, 0.9, -cos(stormAngle) * 0.5 + 0.5);
-                float dissipating = stormFalling * smoothstep(0.46, 0.92, stormCycle);
-                float anvilBand = smoothstep(0.72, 0.94, height01);
-                float towerErosionBand = smoothstep(0.08, 0.24, height01) * (1.0 - smoothstep(0.58, 0.82, height01));
-                float downdraftColumn = smoothstep(
-                    0.38,
-                    0.88,
-                    noise(vec3(q.xz * 0.28 + vec2(uTime * 0.018, -uTime * 0.01), q.y * 0.22 + uSeed * 0.09))
-                );
-                float settlingAnvil = smoothstep(
-                    0.44,
-                    0.9,
-                    noise(vec3(q.x * 0.18 - uTime * 0.015, q.z * 0.22 + uSeed * 0.05, q.y * 0.11))
-                );
 
                 float d = -macro;
                 if (d > -1.0) {
+                    float stormAngle = uTime * 0.075 + uSeed * 0.00107;
+                    float stormCycle = sin(stormAngle) * 0.5 + 0.5;
+                    float stormFalling = smoothstep(0.44, 0.9, -cos(stormAngle) * 0.5 + 0.5);
+                    float dissipating = stormFalling * smoothstep(0.46, 0.92, stormCycle);
+                    float anvilBand = smoothstep(0.72, 0.94, height01);
+                    float towerErosionBand = smoothstep(0.08, 0.24, height01) * (1.0 - smoothstep(0.58, 0.82, height01));
+                    float downdraftColumn = smoothstep(
+                        0.38,
+                        0.88,
+                        noise(vec3(q.xz * 0.28 + vec2(uTime * 0.018, -uTime * 0.01), q.y * 0.22 + uSeed * 0.09))
+                    );
+                    float settlingAnvil = smoothstep(
+                        0.44,
+                        0.9,
+                        noise(vec3(q.x * 0.18 - uTime * 0.015, q.z * 0.22 + uSeed * 0.05, q.y * 0.11))
+                    );
                     float carving = noise(q * 0.4 + uTime * 0.1) * 1.5;
                     float details = fbm(q * 1.2) * 1.0;
                     float microBillow = fbm(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(uSeed * 0.017, 1.9, uTime * 0.04));
@@ -431,11 +459,25 @@
                     if (tG > 0.0 && tG < 160.0) {
                         vec3 pG = ro + rd * tG;
                         if (length(pG.xz) <= 15.0) {
-                            vec2 grid = abs(fract(pG.xz) - 0.5);
-                            float line = smoothstep(0.47, 0.5, max(grid.x, grid.y));
-                            float axis = max(smoothstep(0.045, 0.0, abs(pG.x)), smoothstep(0.045, 0.0, abs(pG.z)));
-                            line = max(line * 0.58, axis);
-                            col = mix(col, vec3(0.05, 0.34, 0.72), line * exp(-tG * 0.012));
+                            float radius = length(pG.xz);
+                            vec2 oneKmCell = abs(fract(pG.xz + 0.5) - 0.5);
+                            vec2 fiveKmCell = abs(fract(pG.xz / 5.0 + 0.5) - 0.5) * 5.0;
+                            float oneKmDist = min(oneKmCell.x, oneKmCell.y);
+                            float fiveKmDist = min(fiveKmCell.x, fiveKmCell.y);
+                            float oneKmAa = max(fwidth(oneKmDist), 0.002);
+                            float fiveKmAa = max(fwidth(fiveKmDist), 0.002);
+                            float ringDist = abs(fract(radius / 5.0 + 0.5) - 0.5) * 5.0;
+                            float ringAa = max(fwidth(ringDist), 0.002);
+                            float minor = 1.0 - smoothstep(0.035, 0.035 + oneKmAa, oneKmDist);
+                            float major = 1.0 - smoothstep(0.065, 0.065 + fiveKmAa, fiveKmDist);
+                            float ring = (1.0 - smoothstep(0.07, 0.07 + ringAa, ringDist)) * smoothstep(0.8, 1.4, radius);
+                            float axis = max(
+                                1.0 - smoothstep(0.09, 0.09 + max(fwidth(pG.x), 0.002), abs(pG.x)),
+                                1.0 - smoothstep(0.09, 0.09 + max(fwidth(pG.z), 0.002), abs(pG.z))
+                            );
+                            float line = max(minor * 0.38, max(major * 0.72, max(ring * 0.62, axis)));
+                            vec3 gridCol = mix(vec3(0.03, 0.22, 0.46), vec3(0.08, 0.48, 0.92), max(major, axis));
+                            col = mix(col, gridCol, line * exp(-tG * 0.012));
                         }
                     }
                 }
@@ -451,7 +493,7 @@
                         if (pR.y >= 0.0 && pR.y <= uTropopause + 1.0) {
                             float band = mod(floor(pR.y), 2.0);
                             vec3 rCol = (band < 0.5) ? vec3(0.86, 0.08, 0.08) : vec3(0.92, 0.92, 0.88);
-                            float rim = smoothstep(0.14, 0.0, length(pR.xz));
+                            float rim = smoothstep(0.2, 0.0, length(pR.xz));
                             col = mix(col, rCol * (0.35 + 0.65 * rim), 0.95);
                         }
                     }
@@ -534,13 +576,17 @@
                                 }
                             }
                             float transmittance = exp(-shadow * 0.82);
-                            float relief = fbm(vec3(p.x * 0.42, p.y * 0.58, p.z * 0.42) + uSeed * 0.021);
-                            float fineRelief = fbm(vec3(p.x * 0.9, p.y * 1.05, p.z * 0.9) + vec3(uSeed * 0.013, 4.1, uTime * 0.03));
                             float surfaceRelief = smoothstep(-0.72, 0.18, macro) * (1.0 - smoothstep(0.2, 0.92, macro));
+                            float relief = fbm(vec3(p.x * 0.42, p.y * 0.58, p.z * 0.42) + uSeed * 0.021);
+                            float fineRelief = 0.5;
+                            if (surfaceRelief > 0.025) {
+                                fineRelief = fbm(vec3(p.x * 0.9, p.y * 1.05, p.z * 0.9) + vec3(uSeed * 0.013, 4.1, uTime * 0.03));
+                            }
                             float reliefLight = mix(0.66, 1.34, smoothstep(0.26, 0.84, relief));
                             reliefLight *= mix(1.0, mix(0.72, 1.42, smoothstep(0.3, 0.82, fineRelief)), surfaceRelief);
                             vec3 lighting = ambientColor + lightColor * transmittance * phase * reliefLight;
-                            float alpha = 1.0 - exp(-density * stepSize * 12.8);
+                            float cloudOpacity = mix(1.0, 0.46, uShowGrid);
+                            float alpha = (1.0 - exp(-density * stepSize * 12.8)) * cloudOpacity;
                             cloudCol += (1.0 - densityAcc) * lighting * alpha;
                             densityAcc += (1.0 - densityAcc) * alpha;
                         } else if (macro > 0.35) {
@@ -581,6 +627,7 @@
         const RESET_TARGET_HEIGHT_RATIO = 0.5;
         const RESET_CAMERA_HEIGHT_RATIO = 0.93;
         const RESET_CAMERA_DISTANCE = 42.0;
+        const FRAME_VERTICAL_PADDING_KM = 2.0;
         const ORTHO_VERTICAL_WORLD_SCALE = 1.0;
         const MOTION_SPEED_SCALE = 1.35;
         const DEFAULT_TIME_SPEED = 1.5;
@@ -598,6 +645,24 @@
             return new THREE.Vector3(0, heightAtCloudRatio(RESET_TARGET_HEIGHT_RATIO), 0);
         }
 
+        function resetOrthoHeight() {
+            return heightAtCloudRatio(RESET_TARGET_HEIGHT_RATIO);
+        }
+
+        function resetOrthoPosition() {
+            return new THREE.Vector3(0, resetOrthoHeight(), -RESET_CAMERA_DISTANCE);
+        }
+
+        function resetOrthoTarget() {
+            return new THREE.Vector3(0, resetOrthoHeight(), 0);
+        }
+
+        function updateOrthoFrameForCurrentTropo() {
+            orthoFrustumSize = Math.max(10.0, currentTropo + FRAME_VERTICAL_PADDING_KM * 2.0);
+            updateOrthoBounds(container.clientWidth / container.clientHeight);
+            material.uniforms.uOrthoSize.value = orthoFrustumSize / Math.max(orthoCamera.zoom, 0.001);
+        }
+
         function cameraPositionFromOrbit(yawDegrees, pitchDegrees, distance) {
             const target = resetTarget();
             const yaw = THREE.MathUtils.degToRad(yawDegrees);
@@ -611,7 +676,7 @@
         }
 
         perspCamera.position.copy(resetPosition());
-        orthoCamera.position.copy(resetPosition());
+        orthoCamera.position.copy(resetOrthoPosition());
 
         const controlsPersp = new THREE.OrbitControls(perspCamera, renderer.domElement);
         controlsPersp.enableDamping = true;
@@ -623,7 +688,7 @@
         const controlsOrtho = new THREE.OrbitControls(orthoCamera, renderer.domElement);
         controlsOrtho.enableDamping = true;
         controlsOrtho.dampingFactor = 0.05;
-        controlsOrtho.target.copy(resetTarget());
+        controlsOrtho.target.copy(resetOrthoTarget());
         controlsOrtho.enabled = false;
 
         const query = new URLSearchParams(window.location.search);
@@ -634,6 +699,7 @@
         let timePaused = false;
         let simulationTime = 0;
         let renderScale = DEFAULT_RENDER_SCALE;
+        let systemCount = 3;
         let lastFrameTime = performance.now();
         const seedParam = query.get('seed');
         const querySeed = Number(seedParam);
@@ -645,6 +711,11 @@
         const timeParam = Number(query.get('time'));
         if (query.get('time') !== null && Number.isFinite(timeParam)) {
             simulationTime = Math.max(0, timeParam);
+        }
+        const systemCountQuery = query.get('systems') ?? query.get('systemCount');
+        const systemCountParam = Number(systemCountQuery);
+        if (systemCountQuery !== null && systemCountQuery !== '' && Number.isFinite(systemCountParam)) {
+            systemCount = Math.max(1, Math.min(3, Math.round(systemCountParam)));
         }
 
         function readQueryFloat(names, fallback) {
@@ -676,6 +747,9 @@
         applyInitialCameraQuery();
 
         const material = new THREE.ShaderMaterial({
+            extensions: {
+                derivatives: true
+            },
             vertexShader,
             fragmentShader,
             uniforms: {
@@ -687,6 +761,7 @@
                 uTropopause: { value: currentTropo },
                 uShowGrid: { value: 0.0 },
                 uSeed: { value: currentSeed },
+                uSystemCount: { value: systemCount },
                 uIsOrtho: { value: 0.0 },
                 uOrthoSize: { value: orthoFrustumSize },
                 uOrthoVerticalScale: { value: ORTHO_VERTICAL_WORLD_SCALE },
@@ -708,6 +783,38 @@
             orthoCamera.top = orthoFrustumSize / 2;
             orthoCamera.bottom = -orthoFrustumSize / 2;
             orthoCamera.updateProjectionMatrix();
+        }
+
+        function resetActiveCamera() {
+            if (isOrthoMode) {
+                updateOrthoFrameForCurrentTropo();
+                orthoCamera.position.copy(resetOrthoPosition());
+                controlsOrtho.target.copy(resetOrthoTarget());
+                orthoCamera.zoom = 1.0;
+                orthoCamera.updateProjectionMatrix();
+                controlsOrtho.update();
+            } else {
+                perspCamera.position.copy(resetPosition());
+                controlsPersp.target.copy(resetTarget());
+                controlsPersp.update();
+            }
+        }
+
+        function recenterActiveCameraForCurrentTropo() {
+            if (isOrthoMode) {
+                updateOrthoFrameForCurrentTropo();
+                const nextTarget = resetOrthoTarget();
+                const deltaY = nextTarget.y - controlsOrtho.target.y;
+                orthoCamera.position.y += deltaY;
+                controlsOrtho.target.copy(nextTarget);
+                controlsOrtho.update();
+            } else {
+                const nextTarget = resetTarget();
+                const deltaY = nextTarget.y - controlsPersp.target.y;
+                perspCamera.position.y += deltaY;
+                controlsPersp.target.copy(nextTarget);
+                controlsPersp.update();
+            }
         }
 
         function resizeCanvasToDisplaySize() {
@@ -742,6 +849,8 @@
         const timeReadout = document.getElementById('time-readout');
         const sliderQuality = document.getElementById('slider-quality');
         const qualityReadout = document.getElementById('quality-readout');
+        const sliderSystems = document.getElementById('slider-systems');
+        const systemsReadout = document.getElementById('systems-readout');
         const btnTimeToggle = document.getElementById('btn-time-toggle');
         const btnTimeReset = document.getElementById('btn-time-reset');
         const btnHud = document.getElementById('btn-hud');
@@ -763,6 +872,7 @@
             renderScale = Math.max(0.45, Math.min(1.0, qualityParam));
             sliderQuality.value = String(renderScale);
         }
+        sliderSystems.value = String(systemCount);
 
         function applyRenderScale() {
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, renderScale));
@@ -780,6 +890,13 @@
         }
 
         updateTimeReadout();
+
+        function updateSystemReadout() {
+            systemsReadout.innerText = String(systemCount);
+            material.uniforms.uSystemCount.value = systemCount;
+        }
+
+        updateSystemReadout();
 
         function setHudVisible(visible) {
             overlay.style.display = visible ? 'block' : 'none';
@@ -848,14 +965,7 @@
             currentTropo = parseFloat(event.target.value);
             material.uniforms.uTropopause.value = currentTropo;
             tropoReadout.innerText = `${currentTropo.toFixed(1).replace('.0', '')}km`;
-            orthoFrustumSize = currentTropo + 8.0;
-            updateOrthoBounds(container.clientWidth / container.clientHeight);
-            const nextTarget = resetTarget();
-            if (isOrthoMode) {
-                controlsOrtho.target.copy(nextTarget);
-            } else {
-                controlsPersp.target.copy(nextTarget);
-            }
+            recenterActiveCameraForCurrentTropo();
         });
 
         sliderSun.addEventListener('input', (event) => {
@@ -878,6 +988,12 @@
             renderScale = parseFloat(event.target.value);
             applyRenderScale();
             resizeCanvasToDisplaySize();
+        });
+
+        sliderSystems.addEventListener('input', (event) => {
+            systemCount = Math.max(1, Math.min(3, Math.round(parseFloat(event.target.value))));
+            event.target.value = String(systemCount);
+            updateSystemReadout();
         });
 
         btnTimeToggle.addEventListener('click', () => {
@@ -907,19 +1023,7 @@
         });
 
         btnResetCam.addEventListener('click', () => {
-            const nextPosition = resetPosition();
-            const nextTarget = resetTarget();
-            if (isOrthoMode) {
-                orthoCamera.position.copy(nextPosition);
-                controlsOrtho.target.copy(nextTarget);
-                orthoCamera.zoom = 1.0;
-                orthoCamera.updateProjectionMatrix();
-                controlsOrtho.update();
-            } else {
-                perspCamera.position.copy(nextPosition);
-                controlsPersp.target.copy(nextTarget);
-                controlsPersp.update();
-            }
+            resetActiveCamera();
             btnResetCam.style.transform = 'scale(0.95)';
             setTimeout(() => { btnResetCam.style.transform = 'scale(1)'; }, 150);
         });

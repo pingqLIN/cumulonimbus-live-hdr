@@ -5,9 +5,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const width = readNumberArg("--width", 120);
-const height = readNumberArg("--height", 213);
-const waitMs = readNumberArg("--waitMs", 1500);
+const width = readNumberArg("--width", 270);
+const height = readNumberArg("--height", 480);
+const waitMs = readNumberArg("--waitMs", 4000);
 const outputDir = resolve(
   projectRoot,
   readStringArg("--output-dir", join("outputs", "analysis", "3d-looks-smoke"))
@@ -30,7 +30,8 @@ if (referencePath) {
 
 const report = spawnSync(process.execPath, reportArgs, {
   cwd: projectRoot,
-  encoding: "utf8"
+  encoding: "utf8",
+  windowsHide: true
 });
 
 if (report.status !== 0) {

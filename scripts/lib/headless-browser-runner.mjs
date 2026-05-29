@@ -19,6 +19,9 @@ export function resolveBrowser(explicitBrowser) {
     if (candidate.includes("\\") && !existsSync(candidate)) {
       continue;
     }
+    if (process.platform === "win32" && candidate.includes("\\") && candidate.toLowerCase().endsWith(".exe")) {
+      return candidate;
+    }
     const probe = spawnSync(candidate, ["--version"], {
       encoding: "utf8",
       timeout: 5000,
@@ -149,6 +152,10 @@ function isPidRunning(pid) {
 function findVisibleProcessWindows(rootPid) {
   const script = `
 $rootPid = ${rootPid}
+Add-Type -Namespace Win32 -Name User32 -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool IsWindowVisible(System.IntPtr hWnd);
+'@
 $all = Get-CimInstance Win32_Process
 $ids = New-Object System.Collections.Generic.HashSet[int]
 [void]$ids.Add($rootPid)
@@ -163,7 +170,7 @@ while ($changed) {
   }
 }
 Get-Process -Id ([int[]]$ids) -ErrorAction SilentlyContinue |
-  Where-Object { $_.MainWindowHandle -ne 0 } |
+  Where-Object { $_.MainWindowHandle -ne 0 -and [Win32.User32]::IsWindowVisible($_.MainWindowHandle) } |
   Select-Object Id, ProcessName, MainWindowTitle |
   ConvertTo-Json -Compress
 `;

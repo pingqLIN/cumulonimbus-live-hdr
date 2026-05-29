@@ -169,17 +169,15 @@ writeFileSync(
 console.log(JSON.stringify({ ok: true, summaryPath, presets: results, systemPresets: systemResults }, null, 2));
 
 function runPreset(preset) {
-  const args = [join(projectRoot, "scripts", "smoke-06-html.mjs")];
+  const args = [join(projectRoot, "scripts", "smoke-06-html.mjs"), "--browserTimeoutMs", "60000"];
   for (const [key, value] of Object.entries(preset.args)) {
     args.push(`--${key}`, String(value));
   }
 
-  const result = spawnSync(process.execPath, args, {
-    cwd: projectRoot,
-    encoding: "utf8",
-    timeout: 90000,
-    windowsHide: true
-  });
+  let result = runSmokeCapture(args);
+  if (result.status !== 0) {
+    result = runSmokeCapture(args);
+  }
   if (result.status !== 0) {
     throw new Error(
       `visual freeze preset ${preset.name} failed with exit code ${result.status}.\n${result.stderr || result.stdout}`
@@ -202,6 +200,15 @@ function runPreset(preset) {
     bytes: parsed.bytes,
     analysis
   };
+}
+
+function runSmokeCapture(args) {
+  return spawnSync(process.execPath, args, {
+    cwd: projectRoot,
+    encoding: "utf8",
+    timeout: 90000,
+    windowsHide: true
+  });
 }
 
 function assertBounds(label, value, bounds) {

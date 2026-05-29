@@ -58,7 +58,8 @@ function runCase(testCase) {
   return new Promise((resolveRun) => {
     const child = spawn(process.execPath, [scriptPath, ...(testCase.args ?? [])], {
       cwd: projectRoot,
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true
     });
     let stdout = "";
     let stderr = "";
@@ -123,7 +124,10 @@ function stopTree(child) {
     return;
   }
   if (process.platform === "win32") {
-    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true
+    });
     return;
   }
   child.kill("SIGKILL");

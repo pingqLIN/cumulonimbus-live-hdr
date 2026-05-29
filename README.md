@@ -1,6 +1,6 @@
 # Cumulonimbus Live HDR
 
-Algorithmic prototype for a high-altitude cumulonimbus image that slowly grows, drifts, and recedes at the edge. The immediate target is a single portrait test segment; the longer target is a live HDR video source.
+積雨雲視覺模型原型。現階段主線維護目標是 standalone 的 `06.html` 模型：以 Three.js shader/raymarch 做出具物理模擬外觀的雲體觀察狀態，但不宣稱是真實物理還原。
 
 ## Bootstrap Decisions
 
@@ -18,6 +18,7 @@ The reference clip is a 1920x3840, 30 fps, 5.03 second portrait MOV. This protot
 npm install
 npm run dev
 npm run live:url
+npm run test:06
 npm run render:quick
 npm run render:test
 npm test
@@ -33,6 +34,14 @@ npm run test:browser
 Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 10-bit HEVC with HDR10 metadata. This is a prototype HDR path, not final color mastering.
 
 `live:url` prints the canonical local `live=1` Browser Source URL plus suggested OBS Browser Source dimensions.
+
+`06.html` 是目前主線模型入口，可直接開啟：
+
+```text
+file:///Q:/Projects/cumulonimbus-live-hdr/06.html
+```
+
+`test:06` 會以 headless browser 開啟同一個 file URL，確認 06 主線畫面能渲染出非空雲體。
 
 `capture:field-still` launches a local browser-backed CPU field preview capture and writes `outputs/cumulonimbus-field-still.png` unless `--out` is provided.
 
@@ -83,15 +92,17 @@ Reference and prototype files copied into this repository:
 
 ## Current State
 
-The current renderer uses a persistent `IterativeCloudField`, so the cloud edge now has memory: target density condenses into the field gradually, previous density is advected by slow wind shear, and evaporation trails behind the ideal mathematical shape.
+目前主線是 [06.html](06.html)。它是單檔 Three.js shader/raymarch 模型，具備 seed、time、quality、tropopause、sun、ambient、grid、orthographic/perspective 與 HUD 控制；可用 `file:///Q:/Projects/cumulonimbus-live-hdr/06.html` 直接觀察。
 
-The 3D preview is a separate `view=3d` mode with selectable looks, a capture smoke test, and a comparison report for tuning portrait framing. The `live=1` query flag provides a local canvas-only browser-source entry; the remaining live work is actual OBS/NDI/Spout, streaming, and HDR capture integration.
+定位：`06.html` 不是科學驗證過的物理模擬，而是視覺/可觀察狀態的 volumetric approximation。目標是讓雲體在多角度觀察時維持同一個主線模型的結構一致性，而不是每個角度重新生成不同雲圖。
+
+`src/` 內的 Vite/TypeScript preview、`view=3d` bubble model 與離線 render scripts 仍保留為歷史原型與工具鏈，但現階段不再視為主線模型核心。
 
 ## Next Steps
 
-1. Tune growth, turbulence, edge drift, and color response against the reference clip plus the `capture:3d-still` and `report:3d-looks` outputs.
-2. Add shader/WebGPU or raymarch rendering when the 3D bubble baseline needs real volume fidelity.
-3. Extend the `live=1` canvas entry into an OBS/NDI/Spout or streaming pipeline with an explicit HDR capture/export path.
+1. 先以 `06.html` 作為單一 source of truth，調整雲塔、砧狀雲、tropopause scale、光照與觀察角度。
+2. 若要工程化，再把 06 的 shader/raymarch 結構拆回可測的 TypeScript/Vite 模組。
+3. 後續再接 OBS/NDI/Spout、streaming 或 HDR capture/export path。
 
 ## 進階使用：持續迭代 Demo 影片
 
@@ -128,7 +139,7 @@ http://127.0.0.1:5173/?simPreset=low&simFps=30
 http://127.0.0.1:5173/?preset=billow&simPreset=low&fps=15
 ```
 
-若要啟動新的 3D bubble model 預覽：
+若要啟動舊的 3D bubble model 預覽：
 
 ```text
 http://127.0.0.1:5173/?view=3d&look=demo-like&simPreset=mid&fps=30
@@ -155,7 +166,7 @@ http://127.0.0.1:5173/?view=3d&look=demo-like&simPreset=mid&fps=30
 http://127.0.0.1:5173/?view=3d&look=soft-volumetric-ish&simPreset=mid&fps=30
 ```
 
-若要輸出目前 3D baseline 的可重複 PNG still：
+若要輸出舊 3D/Vite baseline 的可重複 PNG still：
 
 ```powershell
 npm run capture:field-still -- --width 540 --height 960 --captureFrames 12

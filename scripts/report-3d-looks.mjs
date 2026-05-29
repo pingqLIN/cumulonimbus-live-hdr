@@ -100,7 +100,8 @@ function runCapture(look, outputPath) {
     ],
     {
       cwd: projectRoot,
-      encoding: "utf8"
+      encoding: "utf8",
+      windowsHide: true
     }
   );
 

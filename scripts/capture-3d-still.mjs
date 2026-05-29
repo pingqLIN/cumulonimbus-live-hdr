@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { get } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { resolveBrowser, runBrowserScreenshot, stopProcessTree } from "./lib/headless-browser-runner.mjs";
 import { analyzePng } from "./lib/png-analysis.mjs";
 import {
   buildPreviewUrl,
@@ -84,7 +85,7 @@ try {
       `--screenshot=${outputPath}`,
       url.toString()
     ],
-    browserTimeoutMs
+    { cwd: projectRoot, timeoutMs: browserTimeoutMs }
   );
 
   if (result.status !== 0) {
@@ -191,84 +192,13 @@ function startVite(targetPort) {
   const args = ["--host", "127.0.0.1", "--port", String(targetPort), "--strictPort"];
   return spawn(process.execPath, [viteBin, ...args], {
     cwd: projectRoot,
-    stdio: "ignore"
+    stdio: "ignore",
+    windowsHide: true
   });
 }
 
 function stopServer(child) {
   return stopProcessTree(child);
-}
-
-function stopProcessTree(child) {
-  const pid = child.pid ?? null;
-  if (!pid) {
-    return { pid, stopped: true };
-  }
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
-    return { pid, stopped: !isPidRunning(pid) };
-  }
-  child.kill();
-  return { pid, stopped: !isPidRunning(pid) };
-}
-
-function isPidRunning(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function runBrowserScreenshot(browser, browserArgs, timeoutMs) {
-  return new Promise((resolveRun) => {
-    const child = spawn(browser, browserArgs, {
-      cwd: projectRoot,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      const processCleanup = stopProcessTree(child);
-      resolveRun({
-        status: 124,
-        stdout,
-        stderr: `${stderr}\nBrowser screenshot timed out after ${timeoutMs}ms`.trim(),
-        processCleanup
-      });
-    }, timeoutMs);
-
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.once("error", (error) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timer);
-      const processCleanup = stopProcessTree(child);
-      resolveRun({ status: 1, stdout, stderr: `${stderr}\n${error.message}`.trim(), processCleanup });
-    });
-    child.once("exit", (code) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timer);
-      const processCleanup = stopProcessTree(child);
-      resolveRun({ status: code ?? 1, stdout, stderr, processCleanup });
-    });
-  });
 }
 
 function waitForServer(origin, timeoutMs, readServerExit) {
@@ -308,33 +238,6 @@ function waitForServer(origin, timeoutMs, readServerExit) {
 
     tick();
   });
-}
-
-function resolveBrowser(explicitBrowser) {
-  const candidates = [
-    explicitBrowser,
-    process.env.CHROME_PATH,
-    process.env.EDGE_PATH,
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
-    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    "google-chrome",
-    "chromium",
-    "msedge"
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    if (candidate.includes("\\") && !existsSync(candidate)) {
-      continue;
-    }
-    const probe = spawnSync(candidate, ["--version"], { encoding: "utf8", timeout: 5000 });
-    if (probe.status === 0) {
-      return candidate;
-    }
-  }
-
-  throw new Error("No compatible Chrome or Edge executable found. Set CHROME_PATH or EDGE_PATH.");
 }
 
 function readPngHeader(path) {

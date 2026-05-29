@@ -35,7 +35,8 @@ const capture = spawnSync(
   ],
   {
     cwd: projectRoot,
-    encoding: "utf8"
+    encoding: "utf8",
+    windowsHide: true
   }
 );
 

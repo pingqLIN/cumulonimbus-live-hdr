@@ -89,6 +89,16 @@
             <input type="range" id="slider-tropo" min="8" max="18" step="0.5" value="12">
             <span id="tropo-readout">12km</span>
         </div>
+        <div class="slider-group" title="凍結高度，控制水滴到冰晶纖維質感的過渡高度">
+            <label>凍結</label>
+            <input type="range" id="slider-freezing" min="3" max="6" step="0.25" value="5">
+            <span id="freezing-readout">5km</span>
+        </div>
+        <div class="slider-group" title="高空風切，控制砧狀雲迎風/下風不對稱外流">
+            <label>風切</label>
+            <input type="range" id="slider-shear" min="0" max="1" step="0.05" value="0.7">
+            <span id="shear-readout">0.70</span>
+        </div>
         <div class="slider-group" title="日光對雲體散射與高光的影響">
             <label>日光</label>
             <input type="range" id="slider-sun" min="0" max="8" step="0.1" value="4.6">
@@ -119,6 +129,8 @@
             uniform float uMaxSteps;
             uniform float uSunIntensity;
             uniform float uAmbientIntensity;
+            uniform float uFreezingLevel;
+            uniform float uWindShear;
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
@@ -191,8 +203,6 @@
             const float MODEL_LOCAL_BASE = -2.5;
             const float MODEL_LOCAL_TROPO = 4.5;
             const float MODEL_LOCAL_HEIGHT = MODEL_LOCAL_TROPO - MODEL_LOCAL_BASE;
-            const float FREEZING_LEVEL_KM = 5.0;
-
             float modelKmScale() {
                 return max(0.7, (uTropopause - MODEL_BASE_KM) / MODEL_LOCAL_HEIGHT);
             }
@@ -214,7 +224,7 @@
             }
 
             float iceFactorAtHeight(float heightKm) {
-                return smoothstep(FREEZING_LEVEL_KM, uTropopause, heightKm);
+                return smoothstep(uFreezingLevel, uTropopause, heightKm);
             }
 
             float getCell01(
@@ -256,8 +266,8 @@
                 float downwind = dot(baseLocal, windAxis);
                 float crosswind = length(baseLocal - windAxis * downwind);
                 float downwind01 = smoothstep(-maxR * 0.65, maxR * 2.6, downwind);
-                float anvilLength = mix(maxR * 0.72, maxR * 2.45, downwind01);
-                float anvilWidth = maxR * mix(0.74, 1.26, downwind01);
+                float anvilLength = maxR * mix(1.0, mix(0.72, 2.45, downwind01), uWindShear);
+                float anvilWidth = maxR * mix(0.92, mix(0.74, 1.26, downwind01), uWindShear);
                 float anvilPlume = exp(-crosswind * crosswind / max(0.01, anvilWidth * anvilWidth))
                     * smoothstep(-maxR * 0.95, maxR * 3.25, downwind)
                     * (1.0 - smoothstep(anvilLength * 0.78, anvilLength * 1.18, downwind));
@@ -430,7 +440,7 @@
                     float stormFalling = smoothstep(0.44, 0.9, -cos(stormAngle) * 0.5 + 0.5);
                     float dissipating = stormFalling * smoothstep(0.46, 0.92, stormCycle);
                     float anvilBand = smoothstep(0.72, 0.94, height01);
-                    float freezing01 = clamp((FREEZING_LEVEL_KM - MODEL_BASE_KM) / heightRange, 0.0, 1.0);
+                    float freezing01 = clamp((uFreezingLevel - MODEL_BASE_KM) / heightRange, 0.0, 1.0);
                     float mixedPhaseBand = smoothstep(freezing01 - 0.08, freezing01 + 0.16, height01)
                         * (1.0 - smoothstep(0.72, 0.9, height01));
                     float iceFactor = iceFactorAtHeight(p.y);
@@ -757,6 +767,8 @@
         let renderScale = DEFAULT_RENDER_SCALE;
         let autoQualityEnabled = true;
         let systemCount = 3;
+        let freezingLevel = 5.0;
+        let windShear = 0.7;
         let lastFrameTime = performance.now();
         const seedParam = query.get('seed');
         const querySeed = Number(seedParam);
@@ -825,7 +837,9 @@
                 uStepSize: { value: 0.2 },
                 uMaxSteps: { value: 126.0 },
                 uSunIntensity: { value: 4.6 },
-                uAmbientIntensity: { value: 0.75 }
+                uAmbientIntensity: { value: 0.75 },
+                uFreezingLevel: { value: freezingLevel },
+                uWindShear: { value: windShear }
             }
         });
 
@@ -900,6 +914,10 @@
         const btnCamMode = document.getElementById('btn-cam-mode');
         const targetLabel = document.getElementById('target-label');
         const sliderTropo = document.getElementById('slider-tropo');
+        const sliderFreezing = document.getElementById('slider-freezing');
+        const freezingReadout = document.getElementById('freezing-readout');
+        const sliderShear = document.getElementById('slider-shear');
+        const shearReadout = document.getElementById('shear-readout');
         const sliderSun = document.getElementById('slider-sun');
         const sliderAmb = document.getElementById('slider-amb');
         const sliderTime = document.getElementById('slider-time');
@@ -939,6 +957,19 @@
         }
         sliderSystems.value = String(systemCount);
 
+        const freezingQuery = query.get('freezingLevel') ?? query.get('freezing');
+        const freezingParam = Number(freezingQuery);
+        if (freezingQuery !== null && freezingQuery !== '' && Number.isFinite(freezingParam)) {
+            freezingLevel = Math.max(3, Math.min(6, freezingParam));
+            sliderFreezing.value = String(freezingLevel);
+        }
+        const shearQuery = query.get('windShear') ?? query.get('shear');
+        const shearParam = Number(shearQuery);
+        if (shearQuery !== null && shearQuery !== '' && Number.isFinite(shearParam)) {
+            windShear = Math.max(0, Math.min(1, shearParam));
+            sliderShear.value = String(windShear);
+        }
+
         function applyRenderScale() {
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, renderScale));
             material.uniforms.uStepSize.value = THREE.MathUtils.lerp(0.28, 0.16, renderScale);
@@ -971,6 +1002,15 @@
         }
 
         updateSystemReadout();
+
+        function updateScienceReadouts() {
+            material.uniforms.uFreezingLevel.value = freezingLevel;
+            material.uniforms.uWindShear.value = windShear;
+            freezingReadout.innerText = `${freezingLevel.toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}km`;
+            shearReadout.innerText = windShear.toFixed(2);
+        }
+
+        updateScienceReadouts();
 
         function setHudVisible(visible) {
             overlay.style.display = visible ? 'block' : 'none';
@@ -1040,6 +1080,16 @@
             material.uniforms.uTropopause.value = currentTropo;
             tropoReadout.innerText = `${currentTropo.toFixed(1).replace('.0', '')}km`;
             recenterActiveCameraForCurrentTropo();
+        });
+
+        sliderFreezing.addEventListener('input', (event) => {
+            freezingLevel = parseFloat(event.target.value);
+            updateScienceReadouts();
+        });
+
+        sliderShear.addEventListener('input', (event) => {
+            windShear = parseFloat(event.target.value);
+            updateScienceReadouts();
         });
 
         sliderSun.addEventListener('input', (event) => {
@@ -1169,7 +1219,7 @@
                 applyAutoQualityGovernor(avgFps);
                 autoQualityCooldown = Math.max(0, autoQualityCooldown - 1);
                 const aspectStr = (container.clientWidth / container.clientHeight).toFixed(2);
-                fpsEl.innerHTML = `FPS: ${frames} | AVG: ${avgFps.toFixed(0)} | RES: ${renderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''} | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'} | Tropo: ${currentTropo}km | Time: ${timePaused ? 'pause' : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
+                fpsEl.innerHTML = `FPS: ${frames} | AVG: ${avgFps.toFixed(0)} | RES: ${renderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''} | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'} | Tropo: ${currentTropo}km | Freeze: ${freezingLevel.toFixed(1)}km | Shear: ${windShear.toFixed(2)} | Time: ${timePaused ? 'pause' : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
                 frames = 0;
                 fpsAccumulator = 0;
                 fpsSamples = 0;

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cumulonimbus SDR - 00 Cloud Form + Scientific Scale</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -26,6 +27,7 @@
         .btn-toggle.enabled { background-color: #7c3aed; border-color: #a78bfa; }
         .btn-toggle.camera { background-color: #0369a1; border-color: #0284c7; }
         .btn-toggle.camera.ortho { background-color: #0f766e; border-color: #14b8a6; }
+        .btn-toggle.quality-auto { background-color: #166534; border-color: #22c55e; }
         .btn-toggle.hud-off { background-color: #111827; border-color: #4b5563; color: #94a3b8; }
         .slider-group { display: flex; align-items: center; gap: 0.45rem; background: #111827; padding: 0.35rem 0.65rem; border-radius: 0.375rem; border: 1px solid #374151; font-size: 0.75rem; white-space: nowrap; }
         .slider-group input[type=range] { width: 72px; accent-color: #3b82f6; cursor: pointer; }
@@ -78,9 +80,10 @@
         <div class="divider"></div>
         <div class="slider-group" title="算力 = 內部渲染解析倍率；降低會減少 raymarch 像素負載、提高 FPS，但雲邊會較軟">
             <label>算力</label>
-            <input type="range" id="slider-quality" min="0.45" max="1" step="0.05" value="0.72">
+            <input type="range" id="slider-quality" min="0.45" max="1" step="0.01" value="0.72">
             <span id="quality-readout">0.72x</span>
         </div>
+        <button id="btn-auto-quality" class="btn-toggle quality-auto" title="依平均 FPS 自動微調內部渲染解析與 raymarch 步數">自動算力</button>
         <div class="slider-group accent-red" title="對流層頂高度 Tropopause，單位 KM">
             <label>頂高</label>
             <input type="range" id="slider-tropo" min="8" max="18" step="0.5" value="12">
@@ -188,6 +191,7 @@
             const float MODEL_LOCAL_BASE = -2.5;
             const float MODEL_LOCAL_TROPO = 4.5;
             const float MODEL_LOCAL_HEIGHT = MODEL_LOCAL_TROPO - MODEL_LOCAL_BASE;
+            const float FREEZING_LEVEL_KM = 5.0;
 
             float modelKmScale() {
                 return max(0.7, (uTropopause - MODEL_BASE_KM) / MODEL_LOCAL_HEIGHT);
@@ -200,6 +204,17 @@
 
             float cellCycleAngle(float phase, float speedScale, float ageOffset) {
                 return uTime * 0.113 * speedScale + phase * 0.53 + ageOffset + uSeed * 0.00082;
+            }
+
+            vec2 windShearAxis(float phase) {
+                float angle = phase * 0.17 + uSeed * 0.00021;
+                vec2 axis = normalize(vec2(1.0, 0.28));
+                mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
+                return normalize(rot * axis);
+            }
+
+            float iceFactorAtHeight(float heightKm) {
+                return smoothstep(FREEZING_LEVEL_KM, uTropopause, heightKm);
             }
 
             float getCell01(
@@ -227,11 +242,31 @@
                 float currentR = maxR * (0.58 + 0.42 * growth) * (1.0 - dissipating * mix(0.08, 0.24, earlyDecay));
                 float naturalTop = mix(MODEL_LOCAL_BASE + 1.05, maxH, growth);
                 float actualTop = min(naturalTop, MODEL_LOCAL_TROPO);
+                float height = max(0.5, actualTop - MODEL_LOCAL_BASE);
+                float h = clamp((p.y - MODEL_LOCAL_BASE) / height, 0.0, 1.0);
+                float lowerShelf = smoothstep(0.02, 0.18, h) * (1.0 - smoothstep(0.3, 0.52, h));
+                float towerColumn = smoothstep(0.16, 0.42, h) * (1.0 - smoothstep(0.66, 0.88, h));
+                float crownSpread = smoothstep(0.6, 0.94, h);
+                float verticalProfile = 0.56 + lowerShelf * 0.34 + towerColumn * 0.08 + crownSpread * 0.34;
+                verticalProfile *= mix(1.0, 0.82, dissipating * smoothstep(0.12, 0.62, h));
                 float hitLid = smoothstep(MODEL_LOCAL_TROPO - 1.5, MODEL_LOCAL_TROPO, naturalTop);
                 float anvilMask = smoothstep(actualTop - 2.0, actualTop + 0.5, p.y);
                 float anvilLife = hitLid * smoothstep(0.34, 0.82, cycle) * (1.0 - dissipating * 0.18);
-                float anvil = anvilLife * anvilMask * maxR * 1.8 * anvilScale;
-                float shape = r - currentR - anvil;
+                vec2 windAxis = windShearAxis(phase);
+                float downwind = dot(baseLocal, windAxis);
+                float crosswind = length(baseLocal - windAxis * downwind);
+                float downwind01 = smoothstep(-maxR * 0.65, maxR * 2.6, downwind);
+                float anvilLength = mix(maxR * 0.72, maxR * 2.45, downwind01);
+                float anvilWidth = maxR * mix(0.74, 1.26, downwind01);
+                float anvilPlume = exp(-crosswind * crosswind / max(0.01, anvilWidth * anvilWidth))
+                    * smoothstep(-maxR * 0.95, maxR * 3.25, downwind)
+                    * (1.0 - smoothstep(anvilLength * 0.78, anvilLength * 1.18, downwind));
+                float anvil = anvilLife * anvilMask * maxR * 1.48 * anvilScale * anvilPlume;
+                float anvilSlab = max(abs(crosswind) - anvilWidth, max(-downwind - maxR * 0.95, downwind - anvilLength));
+                float anvilThickness = mix(0.12, 0.68, anvilMask) * (0.4 + anvilLife * 0.6);
+                float anvilVertical = abs(p.y - actualTop) - anvilThickness;
+                float anvilShape = smax(anvilSlab - anvil * 0.36, anvilVertical, 0.52) + (1.0 - anvilLife) * 4.0;
+                float shape = smin(r - currentR * verticalProfile, anvilShape, 0.92);
                 float topDist = p.y - actualTop;
 
                 float baseWave =
@@ -245,8 +280,6 @@
                 float bottomDist = localBase - p.y;
                 float verticalDist = smax(topDist, bottomDist, 0.72);
 
-                float height = max(0.5, actualTop - MODEL_LOCAL_BASE);
-                float h = clamp((p.y - MODEL_LOCAL_BASE) / height, 0.0, 1.0);
                 float lowerDowndraft = smoothstep(0.04, 0.2, h) * (1.0 - smoothstep(0.58, 0.8, h));
                 float coreVoid = (1.0 - smoothstep(maxR * 0.12, maxR * 0.72, r));
                 float dryPocket = smoothstep(
@@ -397,6 +430,10 @@
                     float stormFalling = smoothstep(0.44, 0.9, -cos(stormAngle) * 0.5 + 0.5);
                     float dissipating = stormFalling * smoothstep(0.46, 0.92, stormCycle);
                     float anvilBand = smoothstep(0.72, 0.94, height01);
+                    float freezing01 = clamp((FREEZING_LEVEL_KM - MODEL_BASE_KM) / heightRange, 0.0, 1.0);
+                    float mixedPhaseBand = smoothstep(freezing01 - 0.08, freezing01 + 0.16, height01)
+                        * (1.0 - smoothstep(0.72, 0.9, height01));
+                    float iceFactor = iceFactorAtHeight(p.y);
                     float towerErosionBand = smoothstep(0.08, 0.24, height01) * (1.0 - smoothstep(0.58, 0.82, height01));
                     float downdraftColumn = smoothstep(
                         0.38,
@@ -411,10 +448,19 @@
                     float carving = noise(q * 0.4 + uTime * 0.1) * 1.5;
                     float details = fbm(q * 1.2) * 1.0;
                     float microBillow = fbm(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(uSeed * 0.017, 1.9, uTime * 0.04));
+                    vec2 iceAxis = windShearAxis(uSeed * 0.003 + 4.0);
+                    float iceFiber = noise(vec3(
+                        dot(q.xz, iceAxis) * 0.18 + uTime * 0.026,
+                        q.y * 1.75,
+                        dot(q.xz, vec2(-iceAxis.y, iceAxis.x)) * 0.56 + uSeed * 0.011
+                    ));
                     float towerBand = smoothstep(0.12, 0.58, height01) * (1.0 - smoothstep(0.78, 1.02, height01));
                     float surfaceShell = smoothstep(-0.7, 0.16, macro) * (1.0 - smoothstep(0.18, 0.82, macro));
                     d += details - carving * 0.8;
                     d += surfaceShell * towerBand * (microBillow - 0.46) * 0.42;
+                    d += mixedPhaseBand * surfaceShell * 0.14;
+                    d += anvilBand * iceFactor * (iceFiber - 0.42) * 0.38;
+                    d -= anvilBand * iceFactor * smoothstep(0.72, 0.98, iceFiber) * 0.12;
                     float edgeBand = smoothstep(-0.72, 0.34, macro);
                     float edgeCuts = noise(vec3(q.x * 0.82 + uSeed * 0.019, q.y * 0.92, q.z * 0.82 - uTime * 0.03));
                     d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * 0.24;
@@ -539,7 +585,7 @@
                     float maxT = aabb.y;
                     t += stepSize * hash(uv.x * 31.0 + uv.y * 113.0);
                     float cosTheta = dot(rd, lightDir);
-                    float phase = clamp(phaseHG(cosTheta, 0.6) * 0.7 + phaseHG(cosTheta, -0.2) * 0.3, 0.0, 1.5);
+                    float heightRange = max(0.1, uTropopause - MODEL_BASE_KM);
 
                     for(int i = 0; i < 168; i++) {
                         if (float(i) > uMaxSteps || t > maxT || densityAcc > 0.955) break;
@@ -559,6 +605,10 @@
                         }
                         float density = mapCloudFromMacro(p, macro);
                         if (density > 0.012) {
+                            float height01 = clamp((p.y - MODEL_BASE_KM) / heightRange, 0.0, 1.0);
+                            float iceFactor = iceFactorAtHeight(p.y);
+                            float phaseG = mix(0.62, 0.82, iceFactor);
+                            float phase = clamp(phaseHG(cosTheta, phaseG) * mix(0.7, 0.9, iceFactor) + phaseHG(cosTheta, -0.18) * 0.28, 0.0, 1.65);
                             float shadow = 0.0;
                             vec3 lPos = p;
                             float lStep = 0.34;
@@ -575,7 +625,8 @@
                                     shadow += mapCloudFromMacro(lPos, shadowMacro);
                                 }
                             }
-                            float transmittance = exp(-shadow * 0.82);
+                            float mixedPhaseShadow = 1.0 + smoothstep(0.36, 0.7, height01) * (1.0 - smoothstep(0.78, 0.94, height01)) * 0.38;
+                            float transmittance = exp(-shadow * mix(0.86, 0.58, iceFactor) * mixedPhaseShadow);
                             float surfaceRelief = smoothstep(-0.72, 0.18, macro) * (1.0 - smoothstep(0.2, 0.92, macro));
                             float relief = fbm(vec3(p.x * 0.42, p.y * 0.58, p.z * 0.42) + uSeed * 0.021);
                             float fineRelief = 0.5;
@@ -584,7 +635,9 @@
                             }
                             float reliefLight = mix(0.66, 1.34, smoothstep(0.26, 0.84, relief));
                             reliefLight *= mix(1.0, mix(0.72, 1.42, smoothstep(0.3, 0.82, fineRelief)), surfaceRelief);
-                            vec3 lighting = ambientColor + lightColor * transmittance * phase * reliefLight;
+                            vec3 phaseTint = mix(vec3(1.0, 0.95, 0.88), vec3(0.78, 0.9, 1.08), iceFactor);
+                            vec3 lowerWaterDarkening = mix(vec3(0.78, 0.8, 0.86), vec3(1.0), smoothstep(0.16, 0.46, height01));
+                            vec3 lighting = ambientColor * lowerWaterDarkening + lightColor * phaseTint * transmittance * phase * reliefLight;
                             float cloudOpacity = mix(1.0, 0.46, uShowGrid);
                             float alpha = (1.0 - exp(-density * stepSize * 12.8)) * cloudOpacity;
                             cloudCol += (1.0 - densityAcc) * lighting * alpha;
@@ -632,6 +685,9 @@
         const MOTION_SPEED_SCALE = 1.35;
         const DEFAULT_TIME_SPEED = 1.5;
         const DEFAULT_RENDER_SCALE = 0.72;
+        const AUTO_QUALITY_TARGET_FPS = 60;
+        const AUTO_QUALITY_MIN_SCALE = 0.55;
+        const AUTO_QUALITY_MAX_SCALE = 1.0;
 
         function heightAtCloudRatio(ratio) {
             return MODEL_BASE_KM + (currentTropo - MODEL_BASE_KM) * ratio;
@@ -699,6 +755,7 @@
         let timePaused = false;
         let simulationTime = 0;
         let renderScale = DEFAULT_RENDER_SCALE;
+        let autoQualityEnabled = true;
         let systemCount = 3;
         let lastFrameTime = performance.now();
         const seedParam = query.get('seed');
@@ -849,6 +906,7 @@
         const timeReadout = document.getElementById('time-readout');
         const sliderQuality = document.getElementById('slider-quality');
         const qualityReadout = document.getElementById('quality-readout');
+        const btnAutoQuality = document.getElementById('btn-auto-quality');
         const sliderSystems = document.getElementById('slider-systems');
         const systemsReadout = document.getElementById('systems-readout');
         const btnTimeToggle = document.getElementById('btn-time-toggle');
@@ -871,6 +929,13 @@
         if (qualityQuery !== null && qualityQuery !== '' && Number.isFinite(qualityParam)) {
             renderScale = Math.max(0.45, Math.min(1.0, qualityParam));
             sliderQuality.value = String(renderScale);
+            autoQualityEnabled = false;
+        }
+        const autoQualityQuery = query.get('autoQuality');
+        if (autoQualityQuery === '0') {
+            autoQualityEnabled = false;
+        } else if (autoQualityQuery === '1') {
+            autoQualityEnabled = true;
         }
         sliderSystems.value = String(systemCount);
 
@@ -878,10 +943,19 @@
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, renderScale));
             material.uniforms.uStepSize.value = THREE.MathUtils.lerp(0.28, 0.16, renderScale);
             material.uniforms.uMaxSteps.value = THREE.MathUtils.lerp(84, 156, renderScale);
-            qualityReadout.innerText = `${renderScale.toFixed(2)}x`;
+            qualityReadout.innerText = `${renderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''}`;
         }
 
         applyRenderScale();
+
+        function updateAutoQualityButton() {
+            btnAutoQuality.classList.toggle('enabled', autoQualityEnabled);
+            btnAutoQuality.classList.toggle('quality-auto', autoQualityEnabled);
+            btnAutoQuality.innerText = autoQualityEnabled ? '自動算力' : '手動算力';
+            applyRenderScale();
+        }
+
+        updateAutoQualityButton();
 
         function updateTimeReadout() {
             timeReadout.innerText = `${timeSpeed.toFixed(timeSpeed % 1 === 0 ? 0 : 2)}x`;
@@ -986,8 +1060,15 @@
 
         sliderQuality.addEventListener('input', (event) => {
             renderScale = parseFloat(event.target.value);
+            autoQualityEnabled = false;
             applyRenderScale();
             resizeCanvasToDisplaySize();
+            updateAutoQualityButton();
+        });
+
+        btnAutoQuality.addEventListener('click', () => {
+            autoQualityEnabled = !autoQualityEnabled;
+            updateAutoQualityButton();
         });
 
         sliderSystems.addEventListener('input', (event) => {
@@ -1037,7 +1118,28 @@
 
         let lastTime = performance.now();
         let frames = 0;
+        let fpsAccumulator = 0;
+        let fpsSamples = 0;
+        let autoQualityCooldown = 0;
         const fpsEl = document.getElementById('fps-counter');
+
+        function applyAutoQualityGovernor(avgFps) {
+            if (!autoQualityEnabled || autoQualityCooldown > 0) return;
+            let nextScale = renderScale;
+            if (avgFps < AUTO_QUALITY_TARGET_FPS - 8 && renderScale > AUTO_QUALITY_MIN_SCALE) {
+                nextScale = Math.max(AUTO_QUALITY_MIN_SCALE, renderScale - 0.04);
+                autoQualityCooldown = 2;
+            } else if (avgFps > AUTO_QUALITY_TARGET_FPS - 2 && renderScale < AUTO_QUALITY_MAX_SCALE) {
+                nextScale = Math.min(AUTO_QUALITY_MAX_SCALE, renderScale + 0.02);
+                autoQualityCooldown = 3;
+            }
+            if (Math.abs(nextScale - renderScale) >= 0.001) {
+                renderScale = nextScale;
+                sliderQuality.value = String(renderScale);
+                applyRenderScale();
+                resizeCanvasToDisplaySize();
+            }
+        }
 
         function animate(time) {
             requestAnimationFrame(animate);
@@ -1058,10 +1160,19 @@
             }
             renderer.render(scene, fullscreenCam);
             frames++;
+            if (deltaMs > 0) {
+                fpsAccumulator += 1000 / deltaMs;
+                fpsSamples++;
+            }
             if (time - lastTime >= 1000) {
+                const avgFps = fpsSamples > 0 ? fpsAccumulator / fpsSamples : frames;
+                applyAutoQualityGovernor(avgFps);
+                autoQualityCooldown = Math.max(0, autoQualityCooldown - 1);
                 const aspectStr = (container.clientWidth / container.clientHeight).toFixed(2);
-                fpsEl.innerHTML = `FPS: ${frames} | RES: ${renderScale.toFixed(2)}x | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'} | Tropo: ${currentTropo}km | Time: ${timePaused ? 'pause' : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
+                fpsEl.innerHTML = `FPS: ${frames} | AVG: ${avgFps.toFixed(0)} | RES: ${renderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''} | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'} | Tropo: ${currentTropo}km | Time: ${timePaused ? 'pause' : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
                 frames = 0;
+                fpsAccumulator = 0;
+                fpsSamples = 0;
                 lastTime = time;
             }
         }

@@ -32,7 +32,7 @@ for (const key of ["cameraYawDegrees", "cameraPitchDegrees", "cameraDistance"]) 
   }
 }
 
-for (const key of ["systems"]) {
+for (const key of ["systems", "controls", "lang"]) {
   if (args[key] !== undefined && args[key] !== "") {
     url.searchParams.set(key, args[key]);
   }

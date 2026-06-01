@@ -9,3 +9,4 @@ outputs/*.webm
 outputs/*.png
 *.log
 .env
+.worktrees/

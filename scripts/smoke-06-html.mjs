@@ -11,7 +11,7 @@ const args = parseArgs(process.argv.slice(2));
 const width = readIntegerArg(args, "width", 900);
 const height = readIntegerArg(args, "height", 506);
 const waitMs = readIntegerArg(args, "waitMs", 7000);
-const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(30000, waitMs + 20000));
+const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(60000, waitMs + 20000));
 const outputPath = resolve(
   projectRoot,
   args.out ?? join("outputs", "analysis", "06-html-smoke.png")
@@ -32,7 +32,28 @@ for (const key of ["cameraYawDegrees", "cameraPitchDegrees", "cameraDistance"]) 
   }
 }
 
-for (const key of ["systems", "controls", "lang"]) {
+for (const key of [
+  "systems",
+  "controls",
+  "lang",
+  "viewport",
+  "preset",
+  "capturePreset",
+  "style",
+  "light",
+  "lighting",
+  "sky",
+  "tropopause",
+  "tropo",
+  "sun",
+  "ambient",
+  "amb",
+  "freezingLevel",
+  "freezing",
+  "windShear",
+  "shear",
+  "autoQuality"
+]) {
   if (args[key] !== undefined && args[key] !== "") {
     url.searchParams.set(key, args[key]);
   }

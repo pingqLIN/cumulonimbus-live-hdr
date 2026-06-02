@@ -180,6 +180,9 @@
             uniform float uAmbientIntensity;
             uniform float uFreezingLevel;
             uniform float uWindShear;
+            uniform float uPhotographicStyle;
+            uniform float uLightPreset;
+            uniform float uSkyMode;
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
@@ -306,26 +309,36 @@
                 float lowerShelf = smoothstep(0.02, 0.18, h) * (1.0 - smoothstep(0.3, 0.52, h));
                 float towerColumn = smoothstep(0.16, 0.42, h) * (1.0 - smoothstep(0.66, 0.88, h));
                 float crownSpread = smoothstep(0.6, 0.94, h);
-                float verticalProfile = 0.56 + lowerShelf * 0.34 + towerColumn * 0.08 + crownSpread * 0.34;
+                float photo = uPhotographicStyle;
+                float verticalProfile = mix(
+                    0.56 + lowerShelf * 0.34 + towerColumn * 0.08 + crownSpread * 0.34,
+                    0.48 + lowerShelf * 0.22 + towerColumn * 0.2 + crownSpread * 0.3,
+                    photo
+                );
                 verticalProfile *= mix(1.0, 0.82, dissipating * smoothstep(0.12, 0.62, h));
                 float hitLid = smoothstep(MODEL_LOCAL_TROPO - 1.5, MODEL_LOCAL_TROPO, naturalTop);
-                float anvilMask = smoothstep(actualTop - 2.0, actualTop + 0.5, p.y);
+                float anvilMask = mix(
+                    smoothstep(actualTop - 2.0, actualTop + 0.5, p.y),
+                    smoothstep(actualTop - 1.05, actualTop + 0.35, p.y),
+                    uPhotographicStyle
+                );
                 float anvilLife = hitLid * smoothstep(0.34, 0.82, cycle) * (1.0 - dissipating * 0.18);
                 vec2 windAxis = windShearAxis(phase);
                 float downwind = dot(baseLocal, windAxis);
                 float crosswind = length(baseLocal - windAxis * downwind);
                 float downwind01 = smoothstep(-maxR * 0.65, maxR * 2.6, downwind);
-                float anvilLength = maxR * mix(1.0, mix(0.72, 2.45, downwind01), uWindShear);
-                float anvilWidth = maxR * mix(0.92, mix(0.74, 1.26, downwind01), uWindShear);
+                float anvilLength = maxR * mix(1.0, mix(0.72, 2.45 + photo * 0.7, downwind01), uWindShear);
+                float anvilWidth = maxR * mix(0.92, mix(0.74, 1.26 + photo * 0.36, downwind01), uWindShear);
                 float anvilPlume = exp(-crosswind * crosswind / max(0.01, anvilWidth * anvilWidth))
                     * smoothstep(-maxR * 0.95, maxR * 3.25, downwind)
                     * (1.0 - smoothstep(anvilLength * 0.78, anvilLength * 1.18, downwind));
-                float anvil = anvilLife * anvilMask * maxR * 1.48 * anvilScale * anvilPlume;
+                float anvil = anvilLife * anvilMask * maxR * mix(1.48, 1.56, photo) * anvilScale * anvilPlume;
                 float anvilSlab = max(abs(crosswind) - anvilWidth, max(-downwind - maxR * 0.95, downwind - anvilLength));
-                float anvilThickness = mix(0.12, 0.68, anvilMask) * (0.4 + anvilLife * 0.6);
+                float anvilThickness = mix(0.12, mix(0.68, 0.42, photo), anvilMask) * (0.4 + anvilLife * 0.6);
                 float anvilVertical = abs(p.y - actualTop) - anvilThickness;
-                float anvilShape = smax(anvilSlab - anvil * 0.36, anvilVertical, 0.52) + (1.0 - anvilLife) * 4.0;
-                float shape = smin(r - currentR * verticalProfile, anvilShape, 0.92);
+                float anvilShape = smax(anvilSlab - anvil * mix(0.36, 0.3, photo), anvilVertical, mix(0.52, 0.36, photo)) + (1.0 - anvilLife) * 4.0;
+                float bodyTaper = mix(1.0, 0.58 + lowerShelf * 0.2 + towerColumn * 0.22 + crownSpread * 0.1, photo);
+                float shape = smin(r - currentR * verticalProfile * bodyTaper, anvilShape, mix(0.92, 0.62, photo));
                 float topDist = p.y - actualTop;
 
                 float baseWave =
@@ -348,7 +361,7 @@
                 );
                 shape += dissipating * lowerDowndraft * coreVoid * dryPocket * maxR * 0.62;
                 shape += dissipating * lowerDowndraft * (1.0 - mature * 0.35) * 0.18;
-                return smax(shape, verticalDist, 1.2);
+                return smax(shape, verticalDist, mix(1.2, 0.86, photo));
             }
 
             float getCell00(vec3 p, vec2 offset, float maxR, float phase, float maxH) {
@@ -455,15 +468,16 @@
                 layoutP.x /= widthStretch;
 
                 vec3 modelP = worldToModelSpace(layoutP);
-                float c1 = getCell01(modelP, vec2(0.0, 0.0), 3.2, 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
+                float photo = uPhotographicStyle;
+                float c1 = getCell01(modelP, vec2(0.0, 0.0), mix(3.2, 1.95, photo), 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
                 float macro = c1;
                 if (uSystemCount >= 1.5) {
-                    float c2 = getCell01(modelP, vec2(4.15, -0.95), 2.8, 2.0, 3.75, 0.82, 1.12, 0.28, 0.8);
-                    macro = smin(macro, c2, 1.35);
+                    float c2 = getCell01(modelP, vec2(3.75, -1.35), mix(2.8, 1.65, photo), 2.0, mix(3.75, 3.35, photo), 0.82, 1.12, 0.28, mix(0.8, 0.48, photo));
+                    macro = smin(macro, c2, mix(1.35, 0.92, photo));
                 }
                 if (uSystemCount >= 2.5) {
-                    float c3 = getCell01(modelP, vec2(-3.35, 1.45), 2.65, 4.0, 4.35, 1.26, 4.85, 0.1, 1.14);
-                    macro = smin(macro, c3, 1.45);
+                    float c3 = getCell01(modelP, vec2(-3.2, 1.55), mix(2.65, 1.75, photo), 4.0, 4.55, 1.26, 4.85, 0.1, mix(1.14, 0.74, photo));
+                    macro = smin(macro, c3, mix(1.45, 0.96, photo));
                 }
                 for (int i = 3; i < 10; i++) {
                     float fi = float(i);
@@ -485,7 +499,7 @@
                     float earlyDecay = hash(fi * 97.7 + uSeed * 0.006) * 0.34;
                     float anvilScale = mix(0.58, 1.12, hash(fi * 101.9 + uSeed * 0.008));
                     float cell = getCell01(modelP, offset, maxR, phase, maxH, speedScale, ageOffset, earlyDecay, anvilScale);
-                    macro = smin(macro, cell, 1.08);
+                    macro = smin(macro, cell, mix(1.08, 0.82, photo));
                 }
                 float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
                 float groundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
@@ -526,9 +540,11 @@
                         0.9,
                         noise(vec3(q.x * 0.18 - uTime * 0.015, q.z * 0.22 + uSeed * 0.05, q.y * 0.11))
                     );
-                    float carving = noise(q * 0.4 + uTime * 0.1) * 1.5;
+                    float photo = uPhotographicStyle;
+                    float carving = noise(q * 0.4 + uTime * 0.1) * mix(1.5, 1.28, photo);
                     float details = fbm(q * 1.2) * 1.0;
                     float microBillow = fbm(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(uSeed * 0.017, 1.9, uTime * 0.04));
+                    float broadBillow = fbm(vec3(q.x * 0.92, q.y * 1.24, q.z * 0.92) + vec3(uSeed * 0.023, 6.1, -uTime * 0.02));
                     vec2 iceAxis = windShearAxis(uSeed * 0.003 + 4.0);
                     float iceFiber = noise(vec3(
                         dot(q.xz, iceAxis) * 0.18 + uTime * 0.026,
@@ -538,13 +554,15 @@
                     float towerBand = smoothstep(0.12, 0.58, height01) * (1.0 - smoothstep(0.78, 1.02, height01));
                     float surfaceShell = smoothstep(-0.7, 0.16, macro) * (1.0 - smoothstep(0.18, 0.82, macro));
                     d += details - carving * 0.8;
-                    d += surfaceShell * towerBand * (microBillow - 0.46) * 0.42;
+                    d += surfaceShell * towerBand * (microBillow - 0.46) * mix(0.42, 0.74, photo);
+                    d += surfaceShell * (1.0 - anvilBand) * (broadBillow - 0.44) * mix(0.0, 0.42, photo);
+                    d -= surfaceShell * towerBand * smoothstep(0.58, 0.94, broadBillow) * mix(0.0, 0.18, photo);
                     d += mixedPhaseBand * surfaceShell * 0.14;
                     d += anvilBand * iceFactor * (iceFiber - 0.42) * 0.38;
                     d -= anvilBand * iceFactor * smoothstep(0.72, 0.98, iceFiber) * 0.12;
                     float edgeBand = smoothstep(-0.72, 0.34, macro);
                     float edgeCuts = noise(vec3(q.x * 0.82 + uSeed * 0.019, q.y * 0.92, q.z * 0.82 - uTime * 0.03));
-                    d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * 0.24;
+                    d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * mix(0.24, 0.38, photo);
                     float raggedFloor =
                         MODEL_LOCAL_BASE +
                         (noise(vec3(baseQ.xz * 0.58 + uSeed * 0.13, uSeed * 0.29)) - 0.5) * 0.68 +
@@ -646,11 +664,16 @@
                     rd = normalize(forward * fovScale + uv.x * right + uv.y * up);
                 }
 
-                vec3 lightDir = normalize(vec3(-0.8, 0.9, 0.4));
-                vec3 lightColor = vec3(1.0, 0.9, 0.85) * uSunIntensity;
-                vec3 ambientColor = vec3(0.08, 0.12, 0.22) * uAmbientIntensity;
-                vec3 bgDark = vec3(0.015, 0.025, 0.07) * uAmbientIntensity;
-                vec3 bgLight = vec3(0.075, 0.115, 0.24) * uAmbientIntensity;
+                vec3 daylightDir = normalize(vec3(-0.68, 0.82, 0.36));
+                vec3 goldenDir = normalize(vec3(-0.92, 0.34, 0.2));
+                vec3 backlitDir = normalize(vec3(0.18, 0.52, 0.86));
+                vec3 lightDir = normalize(mix(daylightDir, goldenDir, step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset))));
+                lightDir = normalize(mix(lightDir, backlitDir, step(1.5, uLightPreset)));
+                vec3 lightColor = mix(vec3(1.0, 0.9, 0.85), vec3(1.0, 0.78, 0.52), step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset)));
+                lightColor = mix(lightColor, vec3(0.95, 0.9, 1.0), step(1.5, uLightPreset)) * uSunIntensity;
+                vec3 ambientColor = mix(vec3(0.08, 0.12, 0.22), vec3(0.18, 0.24, 0.34), uPhotographicStyle) * uAmbientIntensity;
+                vec3 bgDark = mix(vec3(0.015, 0.025, 0.07), vec3(0.06, 0.15, 0.32), uSkyMode) * uAmbientIntensity;
+                vec3 bgLight = mix(vec3(0.075, 0.115, 0.24), vec3(0.28, 0.48, 0.78), uSkyMode) * uAmbientIntensity;
                 vec3 col = mix(bgDark, bgLight, clamp(uv.y + 0.5, 0.0, 1.0));
                 col = gridOverlay(col, ro, rd);
 
@@ -706,7 +729,7 @@
                                     shadow += mapCloudFromMacro(lPos, shadowMacro);
                                 }
                             }
-                            float mixedPhaseShadow = 1.0 + smoothstep(0.36, 0.7, height01) * (1.0 - smoothstep(0.78, 0.94, height01)) * 0.38;
+                            float mixedPhaseShadow = 1.0 + smoothstep(0.36, 0.7, height01) * (1.0 - smoothstep(0.78, 0.94, height01)) * mix(0.38, 0.64, uPhotographicStyle);
                             float transmittance = exp(-shadow * mix(0.86, 0.58, iceFactor) * mixedPhaseShadow);
                             float surfaceRelief = smoothstep(-0.72, 0.18, macro) * (1.0 - smoothstep(0.2, 0.92, macro));
                             float relief = fbm(vec3(p.x * 0.42, p.y * 0.58, p.z * 0.42) + uSeed * 0.021);
@@ -714,10 +737,12 @@
                             if (surfaceRelief > 0.025) {
                                 fineRelief = fbm(vec3(p.x * 0.9, p.y * 1.05, p.z * 0.9) + vec3(uSeed * 0.013, 4.1, uTime * 0.03));
                             }
-                            float reliefLight = mix(0.66, 1.34, smoothstep(0.26, 0.84, relief));
+                            float reliefLight = mix(mix(0.66, 0.52, uPhotographicStyle), mix(1.34, 1.58, uPhotographicStyle), smoothstep(0.26, 0.84, relief));
                             reliefLight *= mix(1.0, mix(0.72, 1.42, smoothstep(0.3, 0.82, fineRelief)), surfaceRelief);
                             vec3 phaseTint = mix(vec3(1.0, 0.95, 0.88), vec3(0.78, 0.9, 1.08), iceFactor);
+                            phaseTint = mix(phaseTint, mix(vec3(1.08, 0.99, 0.88), vec3(0.72, 0.86, 1.12), iceFactor), uPhotographicStyle);
                             vec3 lowerWaterDarkening = mix(vec3(0.78, 0.8, 0.86), vec3(1.0), smoothstep(0.16, 0.46, height01));
+                            lowerWaterDarkening = mix(lowerWaterDarkening, vec3(0.68, 0.72, 0.82), uPhotographicStyle * (1.0 - smoothstep(0.2, 0.62, height01)));
                             vec3 lighting = ambientColor * lowerWaterDarkening + lightColor * phaseTint * transmittance * phase * reliefLight;
                             float cloudOpacity = mix(1.0, 0.46, uShowGrid);
                             float alpha = (1.0 - exp(-density * stepSize * 12.8)) * cloudOpacity;
@@ -767,6 +792,8 @@
         const DEFAULT_TIME_SPEED = 1.5;
         const MIN_TIME_SPEED = 0.5;
         const DEFAULT_RENDER_SCALE = 0.72;
+        const DEFAULT_SUN_INTENSITY = 4.6;
+        const DEFAULT_AMBIENT_INTENSITY = 0.75;
         const AUTO_QUALITY_TARGET_FPS = 60;
         const AUTO_QUALITY_MIN_SCALE = 0.55;
         const AUTO_QUALITY_MAX_SCALE = 1.0;
@@ -834,6 +861,11 @@
 
         const query = new URLSearchParams(window.location.search);
         const captureMode = query.get('capture');
+        const normalizedStyle = (query.get('style') || '').toLowerCase();
+        const normalizedLight = (query.get('light') || query.get('lighting') || '').toLowerCase();
+        const normalizedSky = (query.get('sky') || '').toLowerCase();
+        const normalizedPreset = (query.get('preset') || query.get('capturePreset') || '').toLowerCase();
+        const presetSettings = resolveCapturePreset(normalizedPreset);
         let isOrthoMode = false;
         let isFullscreenDisplay = false;
         let windowedViewportClass = 'viewport-landscape';
@@ -849,19 +881,25 @@
         let systemCount = 3;
         let freezingLevel = 5.0;
         let windShear = 0.7;
+        let sunIntensity = DEFAULT_SUN_INTENSITY;
+        let ambientIntensity = DEFAULT_AMBIENT_INTENSITY;
+        let photographicStyle = normalizedStyle === 'photographic-cb' || Boolean(presetSettings?.photographicStyle);
+        let lightPreset = resolveLightPreset(normalizedLight || presetSettings?.light);
+        let skyMode = resolveSkyMode(normalizedSky || presetSettings?.sky, photographicStyle);
         let lastFrameTime = performance.now();
-        const seedParam = query.get('seed');
+        const seedParam = query.get('seed') ?? presetSettings?.seed;
         const querySeed = Number(seedParam);
         if (seedParam !== null && seedParam !== '' && Number.isFinite(querySeed)) {
             currentSeed = Math.floor(querySeed);
         } else if (captureMode === 'ortho-grid') {
             currentSeed = 6577;
         }
-        const timeParam = Number(query.get('time'));
-        if (query.get('time') !== null && Number.isFinite(timeParam)) {
+        const timeQuery = query.get('time') ?? presetSettings?.time;
+        const timeParam = Number(timeQuery);
+        if (timeQuery !== null && timeQuery !== undefined && Number.isFinite(timeParam)) {
             simulationTime = Math.max(0, timeParam);
         }
-        const systemCountQuery = query.get('systems') ?? query.get('systemCount');
+        const systemCountQuery = query.get('systems') ?? query.get('systemCount') ?? presetSettings?.systems;
         const systemCountParam = Number(systemCountQuery);
         if (systemCountQuery !== null && systemCountQuery !== '' && Number.isFinite(systemCountParam)) {
             systemCount = Math.max(1, Math.min(MAX_CONVECTIVE_CELLS, Math.round(systemCountParam)));
@@ -876,6 +914,29 @@
                 }
             }
             return fallback;
+        }
+
+        function resolveCapturePreset(name) {
+            const presets = {
+                'model-landscape': { seed: 574, time: 2.2, systems: 3, tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, ambient: 0.75, sky: 'workbench', light: 'daylight' },
+                'model-portrait': { seed: 574, time: 2.2, systems: 3, viewport: 'portrait', tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, ambient: 0.75, sky: 'workbench', light: 'daylight' },
+                'high-sun-daylight': { seed: 574, time: 2.2, systems: 3, tropopause: 13.5, freezingLevel: 4.4, windShear: 0.76, sun: 5.35, ambient: 0.68, sky: 'blue', light: 'daylight', photographicStyle: true },
+                'warm-low-angle': { seed: 574, time: 2.2, systems: 3, tropopause: 13, freezingLevel: 4.5, windShear: 0.84, sun: 5.0, ambient: 0.62, sky: 'blue', light: 'golden-side', photographicStyle: true },
+                'photographic-mature': { seed: 574, time: 2.2, systems: 3, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.82, sun: 5.2, ambient: 0.66, sky: 'blue', light: 'daylight', photographicStyle: true }
+            };
+            return presets[name] || null;
+        }
+
+        function resolveLightPreset(name) {
+            if (name === 'golden-side' || name === 'warm-low-angle') return 1;
+            if (name === 'backlit-edge' || name === 'backlit') return 2;
+            return 0;
+        }
+
+        function resolveSkyMode(name, forcePhotographicSky) {
+            if (name === 'workbench' || name === 'dark') return 0;
+            if (name === 'blue' || name === 'photographic-blue') return 1;
+            return forcePhotographicSky ? 1 : 0;
         }
 
         function applyInitialCameraQuery() {
@@ -919,7 +980,10 @@
                 uSunIntensity: { value: 4.6 },
                 uAmbientIntensity: { value: 0.75 },
                 uFreezingLevel: { value: freezingLevel },
-                uWindShear: { value: windShear }
+                uWindShear: { value: windShear },
+                uPhotographicStyle: { value: photographicStyle ? 1.0 : 0.0 },
+                uLightPreset: { value: lightPreset },
+                uSkyMode: { value: skyMode }
             }
         });
 
@@ -1200,7 +1264,7 @@
             btnCamMode.innerText = isOrthoMode ? t('button.orthographic') : t('button.perspective');
         }
 
-        const timeSpeedQuery = query.get('timeSpeed');
+        const timeSpeedQuery = query.get('timeSpeed') ?? presetSettings?.timeSpeed;
         const timeSpeedParam = Number(timeSpeedQuery);
         if (timeSpeedQuery !== null && timeSpeedQuery !== '' && Number.isFinite(timeSpeedParam)) {
             if (timeSpeedParam === 0) {
@@ -1212,7 +1276,7 @@
             sliderTime.value = String(timeSpeed);
         }
 
-        const qualityQuery = query.get('quality');
+        const qualityQuery = query.get('quality') ?? presetSettings?.quality;
         const qualityParam = Number(qualityQuery);
         if (qualityQuery !== null && qualityQuery !== '' && Number.isFinite(qualityParam)) {
             renderScale = Math.max(0.45, Math.min(1.0, qualityParam));
@@ -1227,18 +1291,44 @@
         }
         sliderSystems.value = String(systemCount);
 
-        const freezingQuery = query.get('freezingLevel') ?? query.get('freezing');
+        const tropoQuery = query.get('tropopause') ?? query.get('tropo') ?? presetSettings?.tropopause;
+        const tropoParam = Number(tropoQuery);
+        if (tropoQuery !== null && tropoQuery !== undefined && tropoQuery !== '' && Number.isFinite(tropoParam)) {
+            currentTropo = Math.max(8, Math.min(18, tropoParam));
+            sliderTropo.value = String(currentTropo);
+            material.uniforms.uTropopause.value = currentTropo;
+            recenterActiveCameraForCurrentTropo();
+        }
+
+        const freezingQuery = query.get('freezingLevel') ?? query.get('freezing') ?? presetSettings?.freezingLevel;
         const freezingParam = Number(freezingQuery);
-        if (freezingQuery !== null && freezingQuery !== '' && Number.isFinite(freezingParam)) {
+        if (freezingQuery !== null && freezingQuery !== undefined && freezingQuery !== '' && Number.isFinite(freezingParam)) {
             freezingLevel = Math.max(3, Math.min(6, freezingParam));
             sliderFreezing.value = String(freezingLevel);
         }
-        const shearQuery = query.get('windShear') ?? query.get('shear');
+        const shearQuery = query.get('windShear') ?? query.get('shear') ?? presetSettings?.windShear;
         const shearParam = Number(shearQuery);
-        if (shearQuery !== null && shearQuery !== '' && Number.isFinite(shearParam)) {
+        if (shearQuery !== null && shearQuery !== undefined && shearQuery !== '' && Number.isFinite(shearParam)) {
             windShear = Math.max(0, Math.min(1, shearParam));
             sliderShear.value = String(windShear);
         }
+        const sunQuery = query.get('sun') ?? presetSettings?.sun;
+        const sunParam = Number(sunQuery);
+        if (sunQuery !== null && sunQuery !== undefined && sunQuery !== '' && Number.isFinite(sunParam)) {
+            sunIntensity = Math.max(0, Math.min(8, sunParam));
+            sliderSun.value = String(sunIntensity);
+        }
+        const ambientQuery = query.get('ambient') ?? query.get('amb') ?? presetSettings?.ambient;
+        const ambientParam = Number(ambientQuery);
+        if (ambientQuery !== null && ambientQuery !== undefined && ambientQuery !== '' && Number.isFinite(ambientParam)) {
+            ambientIntensity = Math.max(0.1, Math.min(3, ambientParam));
+            sliderAmb.value = String(ambientIntensity);
+        }
+        material.uniforms.uSunIntensity.value = sunIntensity;
+        material.uniforms.uAmbientIntensity.value = ambientIntensity;
+        material.uniforms.uPhotographicStyle.value = photographicStyle ? 1.0 : 0.0;
+        material.uniforms.uLightPreset.value = lightPreset;
+        material.uniforms.uSkyMode.value = skyMode;
         if (query.get('controls') === '0') {
             uiBar.style.display = 'none';
         }
@@ -1484,11 +1574,13 @@
         });
 
         sliderSun.addEventListener('input', (event) => {
-            material.uniforms.uSunIntensity.value = parseFloat(event.target.value);
+            sunIntensity = parseFloat(event.target.value);
+            material.uniforms.uSunIntensity.value = sunIntensity;
         });
 
         sliderAmb.addEventListener('input', (event) => {
-            material.uniforms.uAmbientIntensity.value = parseFloat(event.target.value);
+            ambientIntensity = parseFloat(event.target.value);
+            material.uniforms.uAmbientIntensity.value = ambientIntensity;
         });
 
         sliderTime.addEventListener('input', (event) => {
@@ -1549,6 +1641,12 @@
         }
         if (query.get('ortho') === '1' || captureMode === 'ortho-grid') {
             setCameraMode(true);
+        }
+        const viewportQuery = (query.get('viewport') || presetSettings?.viewport || '').toLowerCase();
+        if (viewportQuery === 'portrait') {
+            setWindowedViewport('viewport-portrait', 'target.portrait');
+        } else if (viewportQuery === 'landscape') {
+            setWindowedViewport('viewport-landscape', 'target.landscape');
         }
 
         let lastTime = performance.now();

@@ -18,6 +18,7 @@
     "spike:raymarch": "node scripts/raymarch-density-spike.mjs",
     "spike:cml-lite": "node scripts/cml-lite-density-grid-spike.mjs",
     "report:3d-looks": "npm run build && node scripts/report-3d-looks.mjs",
+    "report:06-reference-match": "node scripts/report-06-reference-match.mjs",
     "tune:demo": "npm run build:core && node scripts/tune-demo-params.mjs",
     "format": "prettier --write .",
     "check": "tsc --noEmit",

@@ -1,3 +1,5 @@
+![Cumulonimbus Live HDR banner](assets/caief-banner.jpg)
+
 # Cumulonimbus Live HDR
 
 積雨雲視覺模型原型。現階段主線維護目標是 standalone 的 `06.html` 模型：以 Three.js shader/raymarch 做出具物理模擬外觀的雲體觀察狀態，但不宣稱是真實物理還原。

@@ -1,3 +1,5 @@
+![Cumulonimbus Live HDR banner](assets/caief-banner.jpg)
+
 # Cumulonimbus Live HDR
 
 積雨雲視覺模型原型。主線入口是 standalone 的 [06.html](06.html)，以 Three.js shader/raymarch 呈現可觀察、可調參的積雨雲體積近似。此專案重點是視覺一致性與直播/預覽工作流，不宣稱是真實大氣物理驗證模型。

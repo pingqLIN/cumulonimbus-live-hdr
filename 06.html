@@ -146,9 +146,15 @@
                 <label data-i18n="label.sun">Sun</label>
                 <input type="range" id="slider-sun" min="0" max="8" step="0.1" value="4.6">
             </div>
-            <div class="slider-group" title="Background atmosphere and cloud ambient light." data-i18n-title="title.ambient">
-                <label data-i18n="label.ambient">Ambient</label>
-                <input type="range" id="slider-amb" min="0.1" max="3" step="0.1" value="0.75">
+            <div class="slider-group" title="Sun elevation above the horizon." data-i18n-title="title.sunElevation">
+                <label data-i18n="label.sunElevation">Elev</label>
+                <input type="range" id="slider-sun-elevation" min="-6" max="82" step="1" value="35">
+                <span id="sun-elevation-readout" class="readout">35deg</span>
+            </div>
+            <div class="slider-group" title="Horizontal angle between the viewer and the sun." data-i18n-title="title.sunAngle">
+                <label data-i18n="label.sunAngle">Angle</label>
+                <input type="range" id="slider-sun-angle" min="-180" max="180" step="5" value="25">
+                <span id="sun-angle-readout" class="readout">25deg</span>
             </div>
         </div>
 
@@ -178,6 +184,8 @@
             uniform float uMaxSteps;
             uniform float uSunIntensity;
             uniform float uAmbientIntensity;
+            uniform float uSunElevation;
+            uniform float uSunViewerAngle;
             uniform float uFreezingLevel;
             uniform float uWindShear;
             uniform float uPhotographicStyle;
@@ -676,14 +684,29 @@
                     rd = normalize(forward * fovScale + uv.x * right + uv.y * up);
                 }
 
-                vec3 daylightDir = normalize(vec3(-0.68, 0.82, 0.36));
+                float sunElevationRad = radians(uSunElevation);
+                float sunViewerAngleRad = radians(uSunViewerAngle);
+                vec3 viewerForwardFlat = vec3(forward.x, 0.0, forward.z);
+                vec3 viewerForwardXZ = dot(viewerForwardFlat, viewerForwardFlat) < 0.0001
+                    ? vec3(0.0, 0.0, -1.0)
+                    : normalize(viewerForwardFlat);
+                vec3 viewerRightFlat = vec3(right.x, 0.0, right.z);
+                vec3 viewerRightXZ = dot(viewerRightFlat, viewerRightFlat) < 0.0001
+                    ? vec3(1.0, 0.0, 0.0)
+                    : normalize(viewerRightFlat);
+                vec3 sunAzimuthDir = normalize(viewerForwardXZ * cos(sunViewerAngleRad) + viewerRightXZ * sin(sunViewerAngleRad));
+                vec3 daylightDir = normalize(sunAzimuthDir * cos(sunElevationRad) + vec3(0.0, sin(sunElevationRad), 0.0));
                 vec3 goldenDir = normalize(vec3(-0.92, 0.34, 0.2));
                 vec3 backlitDir = normalize(vec3(0.18, 0.52, 0.86));
                 vec3 lightDir = normalize(mix(daylightDir, goldenDir, step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset))));
                 lightDir = normalize(mix(lightDir, backlitDir, step(1.5, uLightPreset)));
-                vec3 lightColor = mix(vec3(1.0, 0.9, 0.85), vec3(1.0, 0.78, 0.52), step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset)));
+                float sunHeight01 = smoothstep(-0.06, 0.88, sin(sunElevationRad));
+                vec3 lowSunLight = vec3(1.0, 0.5, 0.24);
+                vec3 highSunLight = vec3(1.0, 0.92, 0.82);
+                vec3 lightColor = mix(lowSunLight, highSunLight, sunHeight01);
+                lightColor = mix(lightColor, vec3(1.0, 0.78, 0.52), step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset)));
                 lightColor = mix(lightColor, vec3(0.95, 0.9, 1.0), step(1.5, uLightPreset)) * uSunIntensity;
-                vec3 ambientColor = mix(vec3(0.08, 0.12, 0.22), vec3(0.18, 0.24, 0.34), uPhotographicStyle) * uAmbientIntensity;
+                vec3 ambientColor = mix(vec3(0.065, 0.085, 0.16), vec3(0.18, 0.24, 0.34), max(uPhotographicStyle, sunHeight01 * 0.55)) * uAmbientIntensity;
                 float skyT = smoothstep(0.0, 1.0, clamp(uv.y + 0.5, 0.0, 1.0));
                 float screenY = clamp(gl_FragCoord.y / res.y, 0.0, 1.0);
                 vec3 localhostBottomSky = vec3(0.055, 0.078, 0.145);
@@ -692,12 +715,17 @@
                 vec3 clearSky = workbenchSky;
                 vec3 sunsetSky = mix(vec3(0.86, 0.42, 0.22), vec3(0.08, 0.12, 0.34), skyT) * uAmbientIntensity;
                 vec3 moonSky = mix(vec3(0.08, 0.11, 0.18), vec3(0.01, 0.018, 0.055), skyT) * uAmbientIntensity;
-                float viewSkyT = smoothstep(-0.18, 0.82, rd.y);
-                vec3 domeHorizonSky = vec3(0.062, 0.088, 0.155);
-                vec3 domeZenithSky = vec3(0.032, 0.052, 0.112);
-                float sunGlow = pow(max(0.0, dot(rd, lightDir)), 18.0) * 0.18;
+                float viewSkyT = smoothstep(mix(-0.32, -0.18, sunHeight01), mix(0.48, 0.82, sunHeight01), rd.y);
+                vec3 dawnHorizonSky = vec3(0.25, 0.11, 0.055);
+                vec3 noonHorizonSky = vec3(0.06, 0.09, 0.165);
+                vec3 dawnZenithSky = vec3(0.03, 0.035, 0.07);
+                vec3 noonZenithSky = vec3(0.03, 0.055, 0.125);
+                vec3 domeHorizonSky = mix(dawnHorizonSky, noonHorizonSky, sunHeight01);
+                vec3 domeZenithSky = mix(dawnZenithSky, noonZenithSky, sunHeight01);
+                float sunGlow = pow(max(0.0, dot(rd, lightDir)), mix(34.0, 18.0, sunHeight01)) * mix(0.48, 0.16, sunHeight01);
                 vec3 atmosphereSky = mix(domeHorizonSky, domeZenithSky, viewSkyT) * uAmbientIntensity;
-                atmosphereSky += vec3(1.0, 0.86, 0.56) * sunGlow * uSunIntensity * 0.08;
+                atmosphereSky *= mix(0.46, 1.0, sunHeight01);
+                atmosphereSky += mix(vec3(1.0, 0.42, 0.18), vec3(1.0, 0.86, 0.56), sunHeight01) * sunGlow * uSunIntensity * 0.08;
                 float clearMask = step(0.5, uSkyMode) * (1.0 - step(1.5, uSkyMode));
                 float sunsetMask = step(1.5, uSkyMode) * (1.0 - step(2.5, uSkyMode));
                 float moonMask = step(2.5, uSkyMode) * (1.0 - step(3.5, uSkyMode));
@@ -836,6 +864,8 @@
         const DEFAULT_RENDER_SCALE = 0.72;
         const DEFAULT_SUN_INTENSITY = 4.6;
         const DEFAULT_AMBIENT_INTENSITY = 0.75;
+        const DEFAULT_SUN_ELEVATION = 35;
+        const DEFAULT_SUN_VIEWER_ANGLE = 25;
         const AUTO_QUALITY_TARGET_FPS = 60;
         const AUTO_QUALITY_MIN_SCALE = 0.55;
         const AUTO_QUALITY_MAX_SCALE = 1.0;
@@ -924,7 +954,9 @@
         let freezingLevel = 5.0;
         let windShear = 0.7;
         let sunIntensity = DEFAULT_SUN_INTENSITY;
-        let ambientIntensity = DEFAULT_AMBIENT_INTENSITY;
+        const ambientIntensity = DEFAULT_AMBIENT_INTENSITY;
+        let sunElevation = DEFAULT_SUN_ELEVATION;
+        let sunViewerAngle = DEFAULT_SUN_VIEWER_ANGLE;
         let photographicStyle = normalizedStyle === 'photographic-cb' || Boolean(presetSettings?.photographicStyle);
         let lightPreset = resolveLightPreset(normalizedLight || presetSettings?.light);
         let skyMode = resolveSkyMode(normalizedSky || presetSettings?.sky, photographicStyle);
@@ -960,13 +992,13 @@
 
         function resolveCapturePreset(name) {
             const presets = {
-                'model-landscape': { seed: 574, time: 2.2, systems: 3, tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, ambient: 0.75, sky: 'workbench', light: 'daylight' },
-                'model-portrait': { seed: 574, time: 2.2, systems: 3, viewport: 'portrait', tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, ambient: 0.75, sky: 'workbench', light: 'daylight' },
-                'high-sun-daylight': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.4, windShear: 0.76, sun: 7.4, ambient: 0.5, sky: 'blue', light: 'daylight', photographicStyle: true },
-                'warm-low-angle': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13, freezingLevel: 4.5, windShear: 0.84, sun: 5.0, ambient: 0.62, sky: 'blue', light: 'golden-side', photographicStyle: true },
-                'photographic-mature': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.82, sun: 7.15, ambient: 0.5, sky: 'blue', light: 'daylight', photographicStyle: true },
-                'sunset-anvil': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.88, sun: 4.4, ambient: 0.48, sky: 'sunset', light: 'golden-side', photographicStyle: true },
-                'moonlight-night': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.2, windShear: 0.78, sun: 1.6, ambient: 0.32, sky: 'moonlight', light: 'backlit-edge', photographicStyle: true }
+                'model-landscape': { seed: 574, time: 2.2, systems: 3, tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, sky: 'workbench', light: 'daylight' },
+                'model-portrait': { seed: 574, time: 2.2, systems: 3, viewport: 'portrait', tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, sky: 'workbench', light: 'daylight' },
+                'high-sun-daylight': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.4, windShear: 0.76, sun: 7.4, sunElevation: 58, sunAngle: 20, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'warm-low-angle': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13, freezingLevel: 4.5, windShear: 0.84, sun: 5.0, sunElevation: 12, sunAngle: -35, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'photographic-mature': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.82, sun: 7.15, sunElevation: 42, sunAngle: 25, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'sunset-anvil': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.88, sun: 4.4, sunElevation: 5, sunAngle: -25, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'moonlight-night': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.2, windShear: 0.78, sun: 1.6, sunElevation: -4, sunAngle: 70, sky: 'moonlight', light: 'backlit-edge', photographicStyle: true }
             };
             return presets[name] || null;
         }
@@ -979,11 +1011,11 @@
 
         function resolveSkyMode(name, forcePhotographicSky) {
             if (name === 'workbench' || name === 'dark') return 0;
-            if (name === 'blue' || name === 'photographic-blue') return 1;
+            if (name === 'blue' || name === 'photographic-blue' || name === 'clear') return 4;
             if (name === 'sunset' || name === 'evening' || name === 'golden') return 2;
             if (name === 'moonlight' || name === 'night' || name === 'lunar') return 3;
             if (name === 'demo3' || name === 'atmosphere' || name === 'sky-dome' || name === 'skydome') return 4;
-            return forcePhotographicSky ? 1 : 0;
+            return 4;
         }
 
         function applyInitialCameraQuery() {
@@ -1026,6 +1058,8 @@
                 uMaxSteps: { value: 126.0 },
                 uSunIntensity: { value: 4.6 },
                 uAmbientIntensity: { value: 0.75 },
+                uSunElevation: { value: sunElevation },
+                uSunViewerAngle: { value: sunViewerAngle },
                 uFreezingLevel: { value: freezingLevel },
                 uWindShear: { value: windShear },
                 uPhotographicStyle: { value: photographicStyle ? 1.0 : 0.0 },
@@ -1139,7 +1173,10 @@
         const sliderShear = document.getElementById('slider-shear');
         const shearReadout = document.getElementById('shear-readout');
         const sliderSun = document.getElementById('slider-sun');
-        const sliderAmb = document.getElementById('slider-amb');
+        const sliderSunElevation = document.getElementById('slider-sun-elevation');
+        const sunElevationReadout = document.getElementById('sun-elevation-readout');
+        const sliderSunAngle = document.getElementById('slider-sun-angle');
+        const sunAngleReadout = document.getElementById('sun-angle-readout');
         const sliderTime = document.getElementById('slider-time');
         const timeReadout = document.getElementById('time-readout');
         const sliderQuality = document.getElementById('slider-quality');
@@ -1181,7 +1218,8 @@
                 'label.freezing': 'Freezing',
                 'label.shear': 'Shear',
                 'label.sun': 'Sun',
-                'label.ambient': 'Ambient',
+                'label.sunElevation': 'Elev',
+                'label.sunAngle': 'Angle',
                 'button.fullscreen': 'Fullscreen',
                 'button.exitFullscreen': 'Exit fullscreen',
                 'button.pause': 'Pause',
@@ -1206,7 +1244,8 @@
                 'title.freezing': 'Freezing level, controlling water-to-ice texture transition.',
                 'title.shear': 'Upper-level wind shear controlling anvil outflow asymmetry.',
                 'title.sun': 'Sunlight contribution to cloud scattering and highlights.',
-                'title.ambient': 'Background atmosphere and cloud ambient light.',
+                'title.sunElevation': 'Sun elevation above the horizon; low values create sunrise and sunset color.',
+                'title.sunAngle': 'Horizontal angle between the viewer direction and the sun.',
                 'title.fullscreenUnsupported': 'This browser does not support the Fullscreen API.'
             },
             'zh-TW': {
@@ -1234,7 +1273,8 @@
                 'label.freezing': '凍結',
                 'label.shear': '風切',
                 'label.sun': '日光',
-                'label.ambient': '背景',
+                'label.sunElevation': '仰角',
+                'label.sunAngle': '日角',
                 'button.fullscreen': '全螢幕',
                 'button.exitFullscreen': '離開全螢幕',
                 'button.pause': '暫停',
@@ -1259,7 +1299,8 @@
                 'title.freezing': '凍結高度，控制水滴到冰晶纖維質感的過渡高度。',
                 'title.shear': '高空風切，控制砧狀雲迎風/下風不對稱外流。',
                 'title.sun': '日光對雲體散射與高光的影響。',
-                'title.ambient': '背景空間與雲體環境光。',
+                'title.sunElevation': '太陽高於地平線的仰角；低角度會產生日出與日落色彩。',
+                'title.sunAngle': '觀者視線與太陽方位的水平正負夾角。',
                 'title.fullscreenUnsupported': '此瀏覽器不支援 Fullscreen API。'
             }
         };
@@ -1365,14 +1406,22 @@
             sunIntensity = Math.max(0, Math.min(8, sunParam));
             sliderSun.value = String(sunIntensity);
         }
-        const ambientQuery = query.get('ambient') ?? query.get('amb') ?? presetSettings?.ambient;
-        const ambientParam = Number(ambientQuery);
-        if (ambientQuery !== null && ambientQuery !== undefined && ambientQuery !== '' && Number.isFinite(ambientParam)) {
-            ambientIntensity = Math.max(0.1, Math.min(3, ambientParam));
-            sliderAmb.value = String(ambientIntensity);
+        const sunElevationQuery = query.get('sunElevation') ?? query.get('sunElev') ?? query.get('elevation') ?? presetSettings?.sunElevation;
+        const sunElevationParam = Number(sunElevationQuery);
+        if (sunElevationQuery !== null && sunElevationQuery !== undefined && sunElevationQuery !== '' && Number.isFinite(sunElevationParam)) {
+            sunElevation = Math.max(-6, Math.min(82, sunElevationParam));
+            sliderSunElevation.value = String(sunElevation);
+        }
+        const sunAngleQuery = query.get('sunAngle') ?? query.get('sunViewerAngle') ?? query.get('viewerSunAngle') ?? presetSettings?.sunAngle;
+        const sunAngleParam = Number(sunAngleQuery);
+        if (sunAngleQuery !== null && sunAngleQuery !== undefined && sunAngleQuery !== '' && Number.isFinite(sunAngleParam)) {
+            sunViewerAngle = Math.max(-180, Math.min(180, sunAngleParam));
+            sliderSunAngle.value = String(sunViewerAngle);
         }
         material.uniforms.uSunIntensity.value = sunIntensity;
         material.uniforms.uAmbientIntensity.value = ambientIntensity;
+        material.uniforms.uSunElevation.value = sunElevation;
+        material.uniforms.uSunViewerAngle.value = sunViewerAngle;
         material.uniforms.uPhotographicStyle.value = photographicStyle ? 1.0 : 0.0;
         material.uniforms.uLightPreset.value = lightPreset;
         material.uniforms.uSkyMode.value = skyMode;
@@ -1425,6 +1474,15 @@
         }
 
         updateScienceReadouts();
+
+        function updateSunPositionReadouts() {
+            material.uniforms.uSunElevation.value = sunElevation;
+            material.uniforms.uSunViewerAngle.value = sunViewerAngle;
+            sunElevationReadout.innerText = `${sunElevation.toFixed(0)}deg`;
+            sunAngleReadout.innerText = `${sunViewerAngle > 0 ? '+' : ''}${sunViewerAngle.toFixed(0)}deg`;
+        }
+
+        updateSunPositionReadouts();
 
         function setHudVisible(visible) {
             overlay.style.display = visible ? 'block' : 'none';
@@ -1624,9 +1682,14 @@
             material.uniforms.uSunIntensity.value = sunIntensity;
         });
 
-        sliderAmb.addEventListener('input', (event) => {
-            ambientIntensity = parseFloat(event.target.value);
-            material.uniforms.uAmbientIntensity.value = ambientIntensity;
+        sliderSunElevation.addEventListener('input', (event) => {
+            sunElevation = parseFloat(event.target.value);
+            updateSunPositionReadouts();
+        });
+
+        sliderSunAngle.addEventListener('input', (event) => {
+            sunViewerAngle = parseFloat(event.target.value);
+            updateSunPositionReadouts();
         });
 
         sliderTime.addEventListener('input', (event) => {

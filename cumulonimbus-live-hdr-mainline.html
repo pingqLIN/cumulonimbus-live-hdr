@@ -30,9 +30,25 @@
             --blue-signal: oklch(62% 0.13 232);
             --storm-shadow: oklch(45% 0.06 282);
             --danger: oklch(58% 0.13 28);
+            --stage-sky-fill: #48455b;
+            --stage-edge-top: var(--stage-sky-fill);
+            --stage-edge-right: var(--stage-sky-fill);
+            --stage-edge-bottom: var(--stage-sky-fill);
+            --stage-edge-left: var(--stage-sky-fill);
+            --stage-render-top: 0px;
+            --stage-render-right: 100vw;
+            --stage-render-bottom: 100vh;
+            --stage-render-left: 0px;
             --stage-shadow: 0 28px 80px oklch(46% 0.08 238 / 0.24);
         }
         * { box-sizing: border-box; }
+        html {
+            min-height: 100%;
+            background: var(--stage-sky-fill);
+        }
+        html[data-background="transparent"] {
+            background: transparent;
+        }
         body {
             position: relative;
             margin: 0;
@@ -46,14 +62,12 @@
             overflow: hidden;
             flex-direction: column;
             letter-spacing: 0;
-            background:
-                radial-gradient(circle at 12% 12%, oklch(99% 0.018 92 / 0.9), transparent 22rem),
-                radial-gradient(circle at 82% 18%, oklch(87% 0.085 232 / 0.52), transparent 31rem),
-                linear-gradient(180deg, var(--sky-50) 0%, var(--sky-100) 48%, oklch(89% 0.035 230) 100%);
+            background: var(--stage-sky-fill);
         }
         body::before,
         body::after {
             content: "";
+            display: none;
             position: fixed;
             inset: auto;
             pointer-events: none;
@@ -79,12 +93,119 @@
         }
         body.fullscreen-mode {
             padding: 0;
-            background: oklch(7% 0.012 245);
+            background: var(--stage-sky-fill);
             align-items: center;
         }
         body[data-controls-hidden="true"] {
             padding: 0;
-            background: oklch(7% 0.012 245);
+            background: var(--stage-sky-fill);
+        }
+        body[data-background="transparent"],
+        body[data-background="transparent"].fullscreen-mode,
+        body[data-background="transparent"][data-controls-hidden="true"] {
+            padding: 0;
+            background: transparent;
+        }
+        body[data-background="transparent"]::before,
+        body[data-background="transparent"]::after {
+            display: none;
+        }
+        body[data-viewport-mode="background"] {
+            padding: 0;
+            align-items: stretch;
+            justify-content: stretch;
+            background: var(--stage-sky-fill);
+        }
+        body[data-viewport-mode="background"]::before,
+        body[data-viewport-mode="background"]::after {
+            display: none;
+        }
+        #stage-edge-fill {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+            background: var(--stage-sky-fill);
+        }
+        html[data-background="transparent"] #stage-edge-fill {
+            display: none;
+        }
+        .stage-edge-fill__top,
+        .stage-edge-fill__top-left,
+        .stage-edge-fill__top-right,
+        .stage-edge-fill__right,
+        .stage-edge-fill__bottom,
+        .stage-edge-fill__bottom-left,
+        .stage-edge-fill__bottom-right,
+        .stage-edge-fill__left {
+            position: absolute;
+            display: block;
+            pointer-events: none;
+            image-rendering: auto;
+            filter: blur(10px);
+            transform: scale(1.035);
+            transform-origin: center;
+        }
+        .stage-edge-fill__top {
+            top: 0;
+            left: var(--stage-render-left);
+            width: calc(var(--stage-render-right) - var(--stage-render-left));
+            height: var(--stage-render-top);
+            background: var(--stage-edge-top);
+        }
+        .stage-edge-fill__top-left {
+            top: 0;
+            left: 0;
+            width: var(--stage-render-left);
+            height: var(--stage-render-top);
+            background: var(--stage-edge-top);
+        }
+        .stage-edge-fill__top-right {
+            top: 0;
+            right: 0;
+            width: calc(100vw - var(--stage-render-right));
+            height: var(--stage-render-top);
+            background: var(--stage-edge-top);
+        }
+        .stage-edge-fill__right {
+            top: var(--stage-render-top);
+            right: 0;
+            left: var(--stage-render-right);
+            width: calc(100vw - var(--stage-render-right));
+            height: calc(var(--stage-render-bottom) - var(--stage-render-top));
+            background: var(--stage-edge-right);
+        }
+        .stage-edge-fill__bottom {
+            left: var(--stage-render-left);
+            bottom: 0;
+            width: calc(var(--stage-render-right) - var(--stage-render-left));
+            height: calc(100vh - var(--stage-render-bottom));
+            background: var(--stage-edge-bottom);
+        }
+        .stage-edge-fill__bottom-left {
+            bottom: 0;
+            left: 0;
+            width: var(--stage-render-left);
+            height: calc(100vh - var(--stage-render-bottom));
+            background: var(--stage-edge-bottom);
+        }
+        .stage-edge-fill__bottom-right {
+            right: 0;
+            bottom: 0;
+            width: calc(100vw - var(--stage-render-right));
+            height: calc(100vh - var(--stage-render-bottom));
+            background: var(--stage-edge-bottom);
+        }
+        .stage-edge-fill__left {
+            top: var(--stage-render-top);
+            left: 0;
+            width: var(--stage-render-left);
+            height: calc(var(--stage-render-bottom) - var(--stage-render-top));
+            background: var(--stage-edge-left);
+        }
+        #stage-edge-fill canvas {
+            cursor: default;
         }
         #render-container,
         #ui-bar {
@@ -92,12 +213,10 @@
             z-index: 1;
         }
         #render-container {
-            background: oklch(9% 0.018 245);
-            border: 1px solid oklch(91% 0.026 232 / 0.84);
-            border-radius: 1.15rem;
-            box-shadow:
-                var(--stage-shadow),
-                inset 0 0 0 1px oklch(100% 0.006 235 / 0.56);
+            background: var(--stage-sky-fill);
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
             transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
             overflow: hidden;
         }
@@ -111,6 +230,7 @@
                 linear-gradient(180deg, oklch(100% 0.006 235 / 0.22), transparent 28%),
                 linear-gradient(90deg, oklch(68% 0.08 232 / 0.24), transparent 22%, transparent 72%, oklch(78% 0.09 78 / 0.18));
             mix-blend-mode: screen;
+            display: none;
         }
         .viewport-portrait { width: 360px; height: 640px; max-width: 95vw; max-height: 82vh; }
         .viewport-landscape { width: 900px; height: 506px; max-width: 95vw; max-height: 82vh; }
@@ -124,6 +244,32 @@
         body[data-controls-hidden="true"] .viewport-landscape {
             max-width: 100vw;
             max-height: 100vh;
+        }
+        body[data-background="transparent"] #render-container {
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        body[data-background="transparent"] #render-container::before {
+            display: none;
+        }
+        body[data-background="transparent"] .viewport-portrait,
+        body[data-background="transparent"] .viewport-landscape {
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        body[data-viewport-mode="background"] #render-container {
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            max-height: none;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        body[data-viewport-mode="background"] #render-container::before {
+            display: none;
         }
         canvas { display: block; width: 100%; height: 100%; outline: none; cursor: grab; }
         canvas:active { cursor: grabbing; }
@@ -332,6 +478,309 @@
         body.fullscreen-mode #ui-bar:hover,
         body.fullscreen-mode #ui-bar:focus-within { opacity: 1; }
         body.fullscreen-mode #overlay { padding: clamp(0.65rem, 1.2vw, 1rem); }
+        body[data-ui="tracing-paper"] {
+            --tp-paper: 252 249 244;
+            --tp-paper-cool: 246 242 236;
+            --tp-ink: 40 38 35;
+            --tp-line: rgb(var(--tp-ink) / 0.16);
+            --tp-line-heavy: rgb(var(--tp-ink) / 0.34);
+            --tp-text: rgb(var(--tp-ink) / 0.82);
+            --tp-text-soft: rgb(var(--tp-ink) / 0.56);
+            --tp-text-faint: rgb(var(--tp-ink) / 0.34);
+            --tp-font: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+            --tp-mono: var(--tp-font);
+            --tp-sans: var(--tp-font);
+            --tp-weight: 300;
+            --tp-panel-width: min(1180px, calc(100vw - 1.4rem));
+            --tp-panel-column: calc((var(--tp-panel-width) - 5px) / 6);
+            font-family: var(--tp-font);
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] #overlay {
+            position: fixed;
+            top: clamp(0.42rem, 1.1vw, 0.82rem);
+            left: calc((100vw - var(--tp-panel-width)) / 2);
+            transform: none;
+            width: calc((var(--tp-panel-column) * 2) + 1px);
+            min-width: min(22rem, calc(100vw - 2rem));
+            min-height: 6.25rem;
+            max-width: min(62vw, var(--tp-panel-width));
+            max-height: min(44vh, 24rem);
+            padding: 0.54rem 0.64rem 0.58rem;
+            overflow: auto;
+            resize: both;
+            pointer-events: auto;
+            color: var(--tp-text);
+            font-family: var(--tp-sans);
+            font-weight: var(--tp-weight);
+            background:
+                linear-gradient(rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                rgb(var(--tp-paper) / 0.46);
+            background-size: 96px 96px, 96px 96px, 12px 12px, 12px 12px, auto;
+            border: 1px solid rgb(var(--tp-ink) / 0.22);
+            border-radius: 0;
+            box-shadow:
+                inset 0 1px 0 rgb(255 255 255 / 0.58),
+                inset 0 -1px 0 rgb(145 129 113 / 0.12),
+                0 8px 22px rgb(0 0 0 / 0.10);
+            opacity: 0.82;
+            backdrop-filter: blur(10px) saturate(0.92) brightness(1.05);
+            -webkit-backdrop-filter: blur(10px) saturate(0.92) brightness(1.05);
+            cursor: move;
+            touch-action: none;
+        }
+        body[data-ui="tracing-paper"] .project-kicker {
+            width: fit-content;
+            padding: 0 0 0.18rem;
+            color: var(--tp-text-faint);
+            border: 0;
+            border-bottom: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            background: transparent;
+            font-family: var(--tp-mono);
+            font-size: 0.55rem;
+            font-weight: var(--tp-weight);
+            letter-spacing: 0.14em;
+            text-shadow: none;
+        }
+        body[data-ui="tracing-paper"] .project-title {
+            margin-top: 0.46rem;
+            color: var(--tp-text);
+            font-family: var(--tp-sans);
+            font-size: clamp(0.9rem, 1.1vw, 1.02rem);
+            font-weight: var(--tp-weight);
+            letter-spacing: 0;
+            text-shadow: none;
+        }
+        body[data-ui="tracing-paper"] .hud-text {
+            max-width: 100%;
+            color: var(--tp-text-soft);
+            font-family: var(--tp-mono);
+            font-size: 0.58rem;
+            font-weight: var(--tp-weight);
+            line-height: 1.52;
+            letter-spacing: 0.02em;
+            text-shadow: none;
+        }
+        body[data-ui="tracing-paper"] .hud-list {
+            margin-top: 0.46rem;
+        }
+        body[data-ui="tracing-paper"] #fps-counter {
+            margin-top: 0.62rem;
+            color: var(--tp-text-faint);
+            opacity: 1;
+        }
+        body[data-ui="tracing-paper"] #ui-bar {
+            position: fixed;
+            left: 50%;
+            bottom: max(0.85rem, env(safe-area-inset-bottom));
+            transform: translateX(-50%);
+            width: var(--tp-panel-width);
+            min-width: min(38rem, calc(100vw - 0.8rem));
+            min-height: 8.25rem;
+            max-width: calc(100vw - 0.8rem);
+            max-height: min(34vh, 18.5rem);
+            margin-top: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            grid-auto-rows: minmax(8.25rem, max-content);
+            gap: 1px;
+            align-items: stretch;
+            justify-content: stretch;
+            overflow: auto;
+            resize: both;
+            color: var(--tp-text);
+            font-family: var(--tp-sans);
+            font-weight: var(--tp-weight);
+            background:
+                linear-gradient(rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                rgb(var(--tp-paper) / 0.42);
+            background-size: 96px 96px, 96px 96px, 12px 12px, 12px 12px, auto;
+            border: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            box-shadow:
+                inset 0 1px 0 rgb(255 255 255 / 0.62),
+                inset 0 -1px 0 rgb(145 129 113 / 0.16),
+                0 18px 54px rgb(0 0 0 / 0.24);
+            backdrop-filter: blur(16px) saturate(0.95) brightness(1.04);
+            -webkit-backdrop-filter: blur(16px) saturate(0.95) brightness(1.04);
+            opacity: 0.42;
+            transition: opacity 0.18s ease;
+            z-index: 20;
+        }
+        body[data-ui="tracing-paper"] #ui-bar::before {
+            content: "DOCUMENT NO. CB-FS-001 // CUMULONIMBUS LIVE HDR // TRACING PAPER CONTROL";
+            position: sticky;
+            left: 0;
+            grid-column: 1 / -1;
+            padding: 0.36rem 0.55rem;
+            color: var(--tp-text-faint);
+            font-family: var(--tp-mono);
+            font-size: 0.58rem;
+            font-weight: var(--tp-weight);
+            letter-spacing: 0.14em;
+            border-bottom: 1px solid var(--tp-line-heavy);
+            background: rgb(var(--tp-paper-cool) / 0.32);
+            cursor: move;
+            user-select: none;
+        }
+        body[data-ui="tracing-paper"] #ui-bar:hover,
+        body[data-ui="tracing-paper"] #ui-bar:focus-within {
+            opacity: 1;
+        }
+        body[data-ui="tracing-paper"] .control-group {
+            min-width: 0;
+            width: auto;
+            min-height: 100%;
+            margin: 0;
+            padding: 0.55rem;
+            display: flex;
+            align-self: stretch;
+            align-items: flex-start;
+            align-content: flex-start;
+            gap: 0.42rem;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            background: rgb(255 255 255 / 0.34);
+        }
+        body[data-ui="tracing-paper"] .floating-panel--dragging {
+            cursor: grabbing !important;
+        }
+        body[data-ui="tracing-paper"].panel-dragging,
+        body[data-ui="tracing-paper"].panel-dragging * {
+            user-select: none;
+        }
+        body[data-ui="tracing-paper"] .control-group__label {
+            width: 100%;
+            margin-bottom: 0.14rem;
+            padding-bottom: 0.28rem;
+            color: var(--tp-text);
+            border-bottom: 1px solid var(--tp-line);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            font-weight: var(--tp-weight);
+            letter-spacing: 0.12em;
+        }
+        body[data-ui="tracing-paper"] button {
+            min-width: 2.65rem;
+            min-height: 1.75rem;
+            padding: 0.28rem 0.45rem;
+            color: var(--tp-text);
+            border: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            font-family: var(--tp-mono);
+            font-size: 0.61rem;
+            font-weight: var(--tp-weight);
+            letter-spacing: 0.05em;
+            text-shadow: none;
+        }
+        body[data-ui="tracing-paper"] button:hover,
+        body[data-ui="tracing-paper"] button.active,
+        body[data-ui="tracing-paper"] button.enabled {
+            color: rgb(255 255 255 / 0.96);
+            background: rgb(var(--tp-ink) / 0.9);
+            border-color: rgb(var(--tp-ink) / 0.9);
+            transform: none;
+        }
+        body[data-ui="tracing-paper"] .slider-group {
+            flex: 1 1 8.5rem;
+            display: grid;
+            grid-template-columns: 3.2rem minmax(4.5rem, 1fr) 2.55rem;
+            gap: 0.45rem;
+            min-height: 0;
+            padding: 0.18rem 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            color: var(--tp-text);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            white-space: nowrap;
+        }
+        body[data-ui="tracing-paper"] .slider-group label {
+            color: var(--tp-text-soft);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] .slider-group input[type=range] {
+            width: 100%;
+            height: 1px;
+            align-self: center;
+            background: var(--tp-text-faint);
+            box-shadow: 0 4px 7px rgb(28 26 23 / 0.16);
+            accent-color: rgb(var(--tp-ink) / 0.9);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        body[data-ui="tracing-paper"] .slider-group input[type=range]::-webkit-slider-thumb {
+            width: 8px;
+            height: 13px;
+            border-radius: 1px;
+            border: 0;
+            background: rgb(var(--tp-ink) / 0.92);
+            box-shadow:
+                0 5px 9px rgb(28 26 23 / 0.24),
+                0 1px 0 rgb(255 255 255 / 0.36);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        body[data-ui="tracing-paper"] .slider-group input[type=range]::-moz-range-thumb {
+            width: 8px;
+            height: 13px;
+            border-radius: 1px;
+            border: 0;
+            background: rgb(var(--tp-ink) / 0.92);
+            box-shadow:
+                0 5px 9px rgb(28 26 23 / 0.24),
+                0 1px 0 rgb(255 255 255 / 0.36);
+        }
+        body[data-ui="tracing-paper"] .readout {
+            min-width: 0;
+            color: var(--tp-text);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] .seed-input {
+            width: 4.25rem;
+            min-height: 1.75rem;
+            padding: 0.22rem 0.32rem;
+            color: var(--tp-text);
+            border: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            background: rgb(255 255 255 / 0.34);
+            font-family: var(--tp-mono);
+            font-size: 0.64rem;
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] #btn-random-seed {
+            color: var(--tp-text) !important;
+            border-color: var(--tp-line-heavy) !important;
+            background: transparent !important;
+        }
+        body[data-ui="tracing-paper"] .lang-switch {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1px;
+            background: var(--tp-line);
+        }
+        body[data-ui="tracing-paper"] .lang-switch button {
+            min-width: 0;
+            border-color: transparent;
+            background: rgb(255 255 255 / 0.28);
+        }
         body[data-controls-hidden="true"]::before,
         body[data-controls-hidden="true"]::after,
         body[data-controls-hidden="true"] #render-container::before {
@@ -355,10 +804,39 @@
             .viewport-landscape { max-height: 48vh; }
             .viewport-portrait { max-height: 58vh; }
             .hud-list { display: none; }
+            body[data-viewport-mode="background"] { align-items: stretch; justify-content: stretch; }
+            body[data-viewport-mode="background"] .viewport-landscape,
+            body[data-viewport-mode="background"] .viewport-portrait,
+            body[data-viewport-mode="background"] .viewport-fullscreen {
+                width: 100vw;
+                height: 100vh;
+                max-width: none;
+                max-height: none;
+            }
+            body[data-ui="tracing-paper"] #ui-bar {
+                width: calc(100vw - 0.8rem);
+                min-width: calc(100vw - 0.8rem);
+                max-height: 44vh;
+                grid-template-columns: 1fr;
+            }
+            body[data-ui="tracing-paper"] .control-group {
+                width: auto;
+            }
         }
     </style>
 </head>
 <body>
+    <div id="stage-edge-fill" aria-hidden="true">
+        <canvas class="stage-edge-fill__top"></canvas>
+        <canvas class="stage-edge-fill__top-left"></canvas>
+        <canvas class="stage-edge-fill__top-right"></canvas>
+        <canvas class="stage-edge-fill__right"></canvas>
+        <canvas class="stage-edge-fill__bottom"></canvas>
+        <canvas class="stage-edge-fill__bottom-left"></canvas>
+        <canvas class="stage-edge-fill__bottom-right"></canvas>
+        <canvas class="stage-edge-fill__left"></canvas>
+    </div>
+
     <div id="render-container" class="viewport-landscape">
         <div id="overlay">
             <div class="project-kicker" data-i18n="overlay.kicker">Operational volumetric study</div>
@@ -445,7 +923,7 @@
             </div>
             <div class="slider-group" title="Sun elevation above the horizon." data-i18n-title="title.sunElevation">
                 <label data-i18n="label.sunElevation">Elev</label>
-                <input type="range" id="slider-sun-elevation" min="-6" max="82" step="1" value="35">
+                <input type="range" id="slider-sun-elevation" min="-18" max="82" step="1" value="35">
                 <span id="sun-elevation-readout" class="readout">35deg</span>
             </div>
             <div class="slider-group" title="Horizontal angle between the viewer and the sun." data-i18n-title="title.sunAngle">
@@ -488,6 +966,7 @@
             uniform float uPhotographicStyle;
             uniform float uLightPreset;
             uniform float uSkyMode;
+            uniform float uTransparentBackground;
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
@@ -997,13 +1476,21 @@
                 vec3 backlitDir = normalize(vec3(0.18, 0.52, 0.86));
                 vec3 lightDir = normalize(mix(daylightDir, goldenDir, step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset))));
                 lightDir = normalize(mix(lightDir, backlitDir, step(1.5, uLightPreset)));
-                float sunHeight01 = smoothstep(-0.06, 0.88, sin(sunElevationRad));
-                vec3 lowSunLight = vec3(1.0, 0.5, 0.24);
-                vec3 highSunLight = vec3(1.0, 0.92, 0.82);
-                vec3 lightColor = mix(lowSunLight, highSunLight, sunHeight01);
-                lightColor = mix(lightColor, vec3(1.0, 0.78, 0.52), step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset)));
-                lightColor = mix(lightColor, vec3(0.95, 0.9, 1.0), step(1.5, uLightPreset)) * uSunIntensity;
-                vec3 ambientColor = mix(vec3(0.065, 0.085, 0.16), vec3(0.18, 0.24, 0.34), max(uPhotographicStyle, sunHeight01 * 0.55)) * uAmbientIntensity;
+                float sunSin = sin(sunElevationRad);
+                float sunHeight01 = smoothstep(-0.08, 0.70, sunSin);
+                float night01 = 1.0 - smoothstep(-0.26, -0.02, sunSin);
+                vec3 lowSunLight = mix(vec3(1.0, 0.16, 0.055), vec3(1.0, 0.54, 0.24), smoothstep(-0.08, 0.14, sunSin));
+                vec3 highSunLight = vec3(1.0, 0.93, 0.82);
+                vec3 solarLightColor = mix(lowSunLight, highSunLight, sunHeight01);
+                solarLightColor = mix(solarLightColor, vec3(1.0, 0.78, 0.52), step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset)));
+                solarLightColor = mix(solarLightColor, vec3(0.95, 0.9, 1.0), step(1.5, uLightPreset));
+                vec3 moonDir = normalize(vec3(-0.34, 0.55, 0.76));
+                lightDir = normalize(mix(lightDir, moonDir, night01 * 0.86));
+                vec3 moonLightColor = vec3(0.15, 0.20, 0.36) * night01 * mix(0.62, 0.82, uPhotographicStyle);
+                vec3 lightColor = solarLightColor * uSunIntensity * (1.0 - night01 * 0.74) + moonLightColor;
+                vec3 dayAmbient = mix(vec3(0.065, 0.085, 0.16), vec3(0.18, 0.24, 0.34), max(uPhotographicStyle, sunHeight01 * 0.55)) * uAmbientIntensity;
+                vec3 nightAmbient = vec3(0.025, 0.034, 0.072) * mix(0.82, 1.0, uPhotographicStyle);
+                vec3 ambientColor = mix(dayAmbient, nightAmbient, night01);
                 float skyT = smoothstep(0.0, 1.0, clamp(uv.y + 0.5, 0.0, 1.0));
                 float screenY = clamp(gl_FragCoord.y / res.y, 0.0, 1.0);
                 vec3 localhostBottomSky = vec3(0.055, 0.078, 0.145);
@@ -1012,17 +1499,30 @@
                 vec3 clearSky = workbenchSky;
                 vec3 sunsetSky = mix(vec3(0.86, 0.42, 0.22), vec3(0.08, 0.12, 0.34), skyT) * uAmbientIntensity;
                 vec3 moonSky = mix(vec3(0.08, 0.11, 0.18), vec3(0.01, 0.018, 0.055), skyT) * uAmbientIntensity;
-                float viewSkyT = smoothstep(mix(-0.32, -0.18, sunHeight01), mix(0.48, 0.82, sunHeight01), rd.y);
-                vec3 dawnHorizonSky = vec3(0.25, 0.11, 0.055);
-                vec3 noonHorizonSky = vec3(0.06, 0.09, 0.165);
-                vec3 dawnZenithSky = vec3(0.03, 0.035, 0.07);
-                vec3 noonZenithSky = vec3(0.03, 0.055, 0.125);
-                vec3 domeHorizonSky = mix(dawnHorizonSky, noonHorizonSky, sunHeight01);
-                vec3 domeZenithSky = mix(dawnZenithSky, noonZenithSky, sunHeight01);
-                float sunGlow = pow(max(0.0, dot(rd, lightDir)), mix(34.0, 18.0, sunHeight01)) * mix(0.48, 0.16, sunHeight01);
+                float viewSkyT = smoothstep(mix(-0.36, -0.22, sunHeight01), mix(0.34, 0.84, sunHeight01), rd.y);
+                vec3 nightHorizonSky = vec3(0.010, 0.012, 0.028);
+                vec3 nightZenithSky = vec3(0.002, 0.004, 0.015);
+                vec3 emberHorizonSky = vec3(0.56, 0.075, 0.032);
+                vec3 emberZenithSky = vec3(0.030, 0.026, 0.064);
+                vec3 duskHorizonSky = vec3(0.42, 0.19, 0.075);
+                vec3 duskZenithSky = vec3(0.026, 0.045, 0.105);
+                vec3 dayHorizonSky = vec3(0.070, 0.105, 0.190);
+                vec3 dayZenithSky = vec3(0.018, 0.080, 0.220);
+                float toEmber = smoothstep(-0.34, -0.10, sunSin);
+                float toDusk = smoothstep(-0.05, 0.15, sunSin);
+                float toDay = smoothstep(0.18, 0.44, sunSin);
+                vec3 domeHorizonSky = mix(nightHorizonSky, emberHorizonSky, toEmber);
+                domeHorizonSky = mix(domeHorizonSky, duskHorizonSky, toDusk);
+                domeHorizonSky = mix(domeHorizonSky, dayHorizonSky, toDay);
+                vec3 domeZenithSky = mix(nightZenithSky, emberZenithSky, toEmber);
+                domeZenithSky = mix(domeZenithSky, duskZenithSky, toDusk);
+                domeZenithSky = mix(domeZenithSky, dayZenithSky, toDay);
+                float glowGate = smoothstep(-0.32, -0.04, sunSin) * (1.0 - smoothstep(0.20, 0.55, sunSin));
+                float sunGlow = pow(max(0.0, dot(rd, daylightDir)), mix(18.0, 32.0, sunHeight01)) * mix(0.58, 0.14, sunHeight01) * glowGate;
                 vec3 atmosphereSky = mix(domeHorizonSky, domeZenithSky, viewSkyT) * uAmbientIntensity;
-                atmosphereSky *= mix(0.46, 1.0, sunHeight01);
-                atmosphereSky += mix(vec3(1.0, 0.42, 0.18), vec3(1.0, 0.86, 0.56), sunHeight01) * sunGlow * uSunIntensity * 0.08;
+                atmosphereSky *= mix(0.72, 1.0, sunHeight01);
+                atmosphereSky += mix(vec3(1.0, 0.12, 0.04), vec3(1.0, 0.56, 0.20), toDusk) * sunGlow * uSunIntensity * 0.10;
+                atmosphereSky += vec3(0.012, 0.018, 0.038) * night01;
                 float clearMask = step(0.5, uSkyMode) * (1.0 - step(1.5, uSkyMode));
                 float sunsetMask = step(1.5, uSkyMode) * (1.0 - step(2.5, uSkyMode));
                 float moonMask = step(2.5, uSkyMode) * (1.0 - step(3.5, uSkyMode));
@@ -1031,7 +1531,9 @@
                 col = mix(col, sunsetSky, sunsetMask);
                 col = mix(col, moonSky, moonMask);
                 col = mix(col, atmosphereSky, atmosphereMask);
-                col = gridOverlay(col, ro, rd);
+                if (uTransparentBackground < 0.5) {
+                    col = gridOverlay(col, ro, rd);
+                }
 
                 vec3 boxMin = vec3(-18.0, 0.0, -18.0);
                 vec3 boxMax = vec3(18.0, uTropopause + 1.5, 18.0);
@@ -1118,19 +1620,53 @@
                 }
 
                 col = mix(col, cloudCol, densityAcc);
+                col = mix(col, cloudCol, uTransparentBackground);
                 col = ACESFilm(col);
                 col = pow(col, vec3(1.0 / 2.2));
-                gl_FragColor = vec4(col, 1.0);
+                float finalAlpha = mix(1.0, densityAcc, uTransparentBackground);
+                gl_FragColor = vec4(col, finalAlpha);
             }
         `;
 
         const vertexShader = `void main() { gl_Position = vec4(position, 1.0); }`;
         const container = document.getElementById('render-container');
+        const edgeFill = document.getElementById('stage-edge-fill');
+        const edgeStripCanvases = {
+            top: edgeFill?.querySelector('.stage-edge-fill__top'),
+            topLeft: edgeFill?.querySelector('.stage-edge-fill__top-left'),
+            topRight: edgeFill?.querySelector('.stage-edge-fill__top-right'),
+            right: edgeFill?.querySelector('.stage-edge-fill__right'),
+            bottom: edgeFill?.querySelector('.stage-edge-fill__bottom'),
+            bottomLeft: edgeFill?.querySelector('.stage-edge-fill__bottom-left'),
+            bottomRight: edgeFill?.querySelector('.stage-edge-fill__bottom-right'),
+            left: edgeFill?.querySelector('.stage-edge-fill__left')
+        };
+        const query = new URLSearchParams(window.location.search);
+        const transparentBackground = readTransparentBackgroundQuery(query);
+        if (transparentBackground) {
+            document.documentElement.dataset.background = 'transparent';
+            document.body.dataset.background = 'transparent';
+        }
+        const normalizedUiMode = (query.get('ui') || 'tracing-paper').toLowerCase();
+        if (normalizedUiMode !== 'classic' && normalizedUiMode !== 'default') {
+            document.body.dataset.ui = 'tracing-paper';
+        }
+        const normalizedViewportMode = (query.get('viewport') || query.get('layout') || 'background').toLowerCase();
+        const fullBackgroundMode = normalizedViewportMode === 'background'
+            || normalizedViewportMode === 'full'
+            || normalizedViewportMode === 'fullscreen'
+            || normalizedViewportMode === 'fullscreen-background';
+        if (fullBackgroundMode) {
+            document.body.dataset.viewportMode = 'background';
+        }
         const renderer = new THREE.WebGLRenderer({
             antialias: false,
+            alpha: transparentBackground,
+            premultipliedAlpha: !transparentBackground,
             powerPreference: 'high-performance',
             preserveDrawingBuffer: true
         });
+        renderer.setClearColor(0x000000, transparentBackground ? 0 : 1);
         renderer.setPixelRatio(1);
         container.appendChild(renderer.domElement);
 
@@ -1228,7 +1764,6 @@
         controlsOrtho.target.copy(resetOrthoTarget());
         controlsOrtho.enabled = false;
 
-        const query = new URLSearchParams(window.location.search);
         const captureMode = query.get('capture');
         const normalizedStyle = (query.get('style') || '').toLowerCase();
         const normalizedLight = (query.get('light') || query.get('lighting') || '').toLowerCase();
@@ -1307,6 +1842,7 @@
         }
 
         function resolveSkyMode(name, forcePhotographicSky) {
+            if (name === 'transparent' || name === 'none' || name === 'alpha') return 0;
             if (name === 'workbench' || name === 'dark') return 0;
             if (name === 'blue' || name === 'photographic-blue' || name === 'clear') return 4;
             if (name === 'sunset' || name === 'evening' || name === 'golden') return 2;
@@ -1328,6 +1864,25 @@
             controlsOrtho.target.copy(nextTarget);
             controlsPersp.update();
             controlsOrtho.update();
+        }
+
+        function readTransparentBackgroundQuery(params) {
+            const transparentValue = params.get('transparent');
+            if (transparentValue !== null) {
+                const normalized = transparentValue.toLowerCase();
+                if (normalized === '' || normalized === '1' || normalized === 'true' || normalized === 'yes') return true;
+                if (normalized === '0' || normalized === 'false' || normalized === 'no') return false;
+            }
+
+            for (const name of ['background', 'bg']) {
+                const value = params.get(name);
+                if (value === null) continue;
+                const normalized = value.toLowerCase();
+                if (normalized === '0' || normalized === 'false' || normalized === 'none' || normalized === 'transparent' || normalized === 'alpha') return true;
+                if (normalized === '' || normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'default') return false;
+            }
+
+            return false;
         }
 
         applyInitialCameraQuery();
@@ -1361,7 +1916,8 @@
                 uWindShear: { value: windShear },
                 uPhotographicStyle: { value: photographicStyle ? 1.0 : 0.0 },
                 uLightPreset: { value: lightPreset },
-                uSkyMode: { value: skyMode }
+                uSkyMode: { value: skyMode },
+                uTransparentBackground: { value: transparentBackground ? 1.0 : 0.0 }
             }
         });
 
@@ -1377,7 +1933,7 @@
         }
 
         function computeEffectiveRenderScale(width, height) {
-            if (!isFullscreenDisplay) return renderScale;
+            if (!isFullscreenDisplay && windowedViewportClass !== 'viewport-fullscreen') return renderScale;
             return Math.min(renderScale, computeFullscreenRenderScaleCap(width, height));
         }
 
@@ -1454,6 +2010,172 @@
             }
         }
 
+        const EDGE_SAMPLE_THICKNESS = 1;
+        const EDGE_SAMPLE_INTERVAL_MS = 180;
+        let edgeSampleBuffer = new Uint8Array(0);
+        let lastEdgeSampleTime = -Infinity;
+        let edgeSamplingWarningShown = false;
+
+        function clampNumber(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function formatRgbColor(color) {
+            return `rgb(${color.r}, ${color.g}, ${color.b})`;
+        }
+
+        function averageColors(colors) {
+            const total = colors.reduce((sum, color) => {
+                sum.r += color.r;
+                sum.g += color.g;
+                sum.b += color.b;
+                return sum;
+            }, { r: 0, g: 0, b: 0 });
+            const count = Math.max(1, colors.length);
+            return {
+                r: Math.round(total.r / count),
+                g: Math.round(total.g / count),
+                b: Math.round(total.b / count)
+            };
+        }
+
+        function averageEdgePixels(gl, x, y, width, height) {
+            const pixelCount = width * height;
+            const byteCount = pixelCount * 4;
+            if (edgeSampleBuffer.length < byteCount) {
+                edgeSampleBuffer = new Uint8Array(byteCount);
+            }
+            const sample = edgeSampleBuffer.subarray(0, byteCount);
+            gl.readPixels(x, y, width, height, gl.RGBA, gl.UNSIGNED_BYTE, sample);
+
+            let r = 0;
+            let g = 0;
+            let b = 0;
+            let count = 0;
+            for (let i = 0; i < byteCount; i += 4) {
+                const alpha = sample[i + 3];
+                if (alpha === 0) continue;
+                r += sample[i];
+                g += sample[i + 1];
+                b += sample[i + 2];
+                count++;
+            }
+            if (count === 0) {
+                return { r: 0, g: 0, b: 0 };
+            }
+            return {
+                r: Math.round(r / count),
+                g: Math.round(g / count),
+                b: Math.round(b / count)
+            };
+        }
+
+        function copyEdgeStrip(targetCanvas, sourceCanvas, sourceX, sourceY, sourceWidth, sourceHeight) {
+            if (!(targetCanvas instanceof HTMLCanvasElement)) return;
+            if (sourceWidth < 1 || sourceHeight < 1) return;
+            if (targetCanvas.width !== sourceWidth || targetCanvas.height !== sourceHeight) {
+                targetCanvas.width = sourceWidth;
+                targetCanvas.height = sourceHeight;
+            }
+            const context = targetCanvas.getContext('2d', { alpha: false });
+            if (!context) return;
+            context.imageSmoothingEnabled = false;
+            context.clearRect(0, 0, sourceWidth, sourceHeight);
+            context.drawImage(
+                sourceCanvas,
+                sourceX,
+                sourceY,
+                sourceWidth,
+                sourceHeight,
+                0,
+                0,
+                sourceWidth,
+                sourceHeight
+            );
+        }
+
+        function copyEndpointEdgeStrip(targetCanvas, sourceCanvas, sourceX, sourceY, sourceHeight) {
+            if (!(targetCanvas instanceof HTMLCanvasElement)) return;
+            if (sourceHeight < 1) return;
+            if (targetCanvas.width !== 1 || targetCanvas.height !== sourceHeight) {
+                targetCanvas.width = 1;
+                targetCanvas.height = sourceHeight;
+            }
+            const context = targetCanvas.getContext('2d', { alpha: false });
+            if (!context) return;
+            context.imageSmoothingEnabled = false;
+            context.clearRect(0, 0, 1, sourceHeight);
+            context.drawImage(
+                sourceCanvas,
+                sourceX,
+                sourceY,
+                1,
+                sourceHeight,
+                0,
+                0,
+                1,
+                sourceHeight
+            );
+        }
+
+        function copyStageEdgeStrips(sourceCanvas, thickness) {
+            const width = sourceCanvas.width;
+            const height = sourceCanvas.height;
+            copyEdgeStrip(edgeStripCanvases.right, sourceCanvas, width - thickness, 0, thickness, height);
+            copyEdgeStrip(edgeStripCanvases.left, sourceCanvas, 0, 0, thickness, height);
+            copyEndpointEdgeStrip(edgeStripCanvases.topLeft, sourceCanvas, 0, 0, thickness);
+            copyEdgeStrip(edgeStripCanvases.top, sourceCanvas, 0, 0, width, thickness);
+            copyEndpointEdgeStrip(edgeStripCanvases.topRight, sourceCanvas, width - 1, 0, thickness);
+            copyEndpointEdgeStrip(edgeStripCanvases.bottomLeft, sourceCanvas, 0, height - thickness, thickness);
+            copyEdgeStrip(edgeStripCanvases.bottom, sourceCanvas, 0, height - thickness, width, thickness);
+            copyEndpointEdgeStrip(edgeStripCanvases.bottomRight, sourceCanvas, width - 1, height - thickness, thickness);
+        }
+
+        function updateStageEdgeGeometry() {
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+            const rect = container.getBoundingClientRect();
+            const rootStyle = document.documentElement.style;
+            rootStyle.setProperty('--stage-render-top', `${clampNumber(rect.top, 0, viewportHeight).toFixed(2)}px`);
+            rootStyle.setProperty('--stage-render-right', `${clampNumber(rect.right, 0, viewportWidth).toFixed(2)}px`);
+            rootStyle.setProperty('--stage-render-bottom', `${clampNumber(rect.bottom, 0, viewportHeight).toFixed(2)}px`);
+            rootStyle.setProperty('--stage-render-left', `${clampNumber(rect.left, 0, viewportWidth).toFixed(2)}px`);
+        }
+
+        function updateStageEdgeFill(time, force = false) {
+            if (transparentBackground || !edgeFill) return;
+            if (!force && time - lastEdgeSampleTime < EDGE_SAMPLE_INTERVAL_MS) return;
+            lastEdgeSampleTime = time;
+            updateStageEdgeGeometry();
+
+            const canvas = renderer.domElement;
+            const width = canvas.width;
+            const height = canvas.height;
+            if (width < 2 || height < 2) return;
+
+            const gl = renderer.getContext();
+            const thickness = Math.min(EDGE_SAMPLE_THICKNESS, width, height);
+            try {
+                copyStageEdgeStrips(canvas, thickness);
+                const bottom = averageEdgePixels(gl, 0, 0, width, thickness);
+                const top = averageEdgePixels(gl, 0, height - thickness, width, thickness);
+                const left = averageEdgePixels(gl, 0, 0, thickness, height);
+                const right = averageEdgePixels(gl, width - thickness, 0, thickness, height);
+                const centerFill = averageColors([top, right, bottom, left]);
+                const rootStyle = document.documentElement.style;
+                rootStyle.setProperty('--stage-edge-top', formatRgbColor(top));
+                rootStyle.setProperty('--stage-edge-right', formatRgbColor(right));
+                rootStyle.setProperty('--stage-edge-bottom', formatRgbColor(bottom));
+                rootStyle.setProperty('--stage-edge-left', formatRgbColor(left));
+                rootStyle.setProperty('--stage-sky-fill', formatRgbColor(centerFill));
+            } catch (error) {
+                if (!edgeSamplingWarningShown) {
+                    console.warn('Stage edge sampling is unavailable.', error);
+                    edgeSamplingWarningShown = true;
+                }
+            }
+        }
+
         const btnPortrait = document.getElementById('btn-portrait');
         const uiBar = document.getElementById('ui-bar');
         const btnLandscape = document.getElementById('btn-landscape');
@@ -1488,6 +2210,168 @@
         const inputSeed = document.getElementById('input-seed');
         const btnRandomSeed = document.getElementById('btn-random-seed');
         const tropoReadout = document.getElementById('tropo-readout');
+        const FLOATING_PANEL_STORAGE_KEY = 'cumulonimbus-live-hdr-floating-panels-v2';
+        const floatingPanelState = (() => {
+            try {
+                return JSON.parse(localStorage.getItem(FLOATING_PANEL_STORAGE_KEY) || '{}');
+            } catch (error) {
+                return {};
+            }
+        })();
+
+        function saveFloatingPanelState() {
+            try {
+                localStorage.setItem(FLOATING_PANEL_STORAGE_KEY, JSON.stringify(floatingPanelState));
+            } catch (error) {
+                console.warn('Unable to persist floating panel state.', error);
+            }
+        }
+
+        function clampFloatingPanelRect(rect) {
+            const visibleHandle = 56;
+            const width = Math.min(rect.width, window.innerWidth);
+            const height = Math.min(rect.height, window.innerHeight);
+            const minLeft = Math.min(0, visibleHandle - width);
+            const maxLeft = Math.max(0, window.innerWidth - visibleHandle);
+            const minTop = 0;
+            const maxTop = Math.max(0, window.innerHeight - visibleHandle);
+            return {
+                left: Math.max(minLeft, Math.min(maxLeft, rect.left)),
+                top: Math.max(minTop, Math.min(maxTop, rect.top)),
+                width,
+                height
+            };
+        }
+
+        function applyFloatingPanelRect(panel, rect) {
+            const nextRect = clampFloatingPanelRect(rect);
+            panel.style.position = 'fixed';
+            panel.style.left = `${nextRect.left}px`;
+            panel.style.top = `${nextRect.top}px`;
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+            panel.style.width = `${nextRect.width}px`;
+            panel.style.height = `${nextRect.height}px`;
+            panel.style.transform = 'none';
+            return nextRect;
+        }
+
+        function persistFloatingPanel(panelKey, panel) {
+            if (!panel || panel.getClientRects().length === 0) return;
+            const rect = panel.getBoundingClientRect();
+            floatingPanelState[panelKey] = {
+                left: Math.round(rect.left),
+                top: Math.round(rect.top),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height)
+            };
+            saveFloatingPanelState();
+        }
+
+        function setupFloatingPanel(panel, panelKey, options = {}) {
+            if (!panel) return;
+            const { headerOnly = false } = options;
+            const stored = floatingPanelState[panelKey];
+            if (stored && Number.isFinite(stored.left) && Number.isFinite(stored.top)) {
+                requestAnimationFrame(() => {
+                    applyFloatingPanelRect(panel, stored);
+                    panel.dataset.floatingCustomized = 'true';
+                });
+            }
+
+            let dragging = false;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+            const saveAfterNativeResize = () => {
+                window.removeEventListener('pointerup', saveAfterNativeResize);
+                requestAnimationFrame(() => persistFloatingPanel(panelKey, panel));
+            };
+
+            panel.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) return;
+                const targetElement = event.target instanceof Element ? event.target : event.target?.parentElement;
+                const interactive = targetElement?.closest('button, input, textarea, select, a, label, [role="button"]');
+                if (interactive) {
+                    event.stopPropagation();
+                    return;
+                }
+
+                const rect = panel.getBoundingClientRect();
+                const localX = event.clientX - rect.left;
+                const localY = event.clientY - rect.top;
+                const resizeZone = localX >= rect.width - 18 && localY >= rect.height - 18;
+                if (resizeZone) {
+                    panel.dataset.floatingCustomized = 'true';
+                    event.stopPropagation();
+                    window.addEventListener('pointerup', saveAfterNativeResize, { once: true });
+                    return;
+                }
+                if (headerOnly && localY > 30) {
+                    event.stopPropagation();
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                const currentRect = panel.getBoundingClientRect();
+                applyFloatingPanelRect(panel, {
+                    left: currentRect.left,
+                    top: currentRect.top,
+                    width: currentRect.width,
+                    height: currentRect.height
+                });
+                dragOffsetX = event.clientX - currentRect.left;
+                dragOffsetY = event.clientY - currentRect.top;
+                dragging = true;
+                panel.dataset.floatingCustomized = 'true';
+                panel.classList.add('floating-panel--dragging');
+                document.body.classList.add('panel-dragging');
+            });
+
+            window.addEventListener('pointermove', (event) => {
+                if (!dragging) return;
+                event.preventDefault();
+                applyFloatingPanelRect(panel, {
+                    left: event.clientX - dragOffsetX,
+                    top: event.clientY - dragOffsetY,
+                    width: panel.getBoundingClientRect().width,
+                    height: panel.getBoundingClientRect().height
+                });
+            });
+
+            window.addEventListener('pointerup', () => {
+                if (!dragging) return;
+                dragging = false;
+                panel.classList.remove('floating-panel--dragging');
+                document.body.classList.remove('panel-dragging');
+                persistFloatingPanel(panelKey, panel);
+            });
+
+            if (window.ResizeObserver) {
+                const observer = new ResizeObserver(() => {
+                    if (dragging || panel.dataset.floatingCustomized !== 'true') return;
+                    requestAnimationFrame(() => persistFloatingPanel(panelKey, panel));
+                });
+                observer.observe(panel);
+            }
+        }
+
+        setupFloatingPanel(overlay, 'overlay');
+        setupFloatingPanel(uiBar, 'uiBar', { headerOnly: true });
+        window.addEventListener('resize', () => {
+            for (const [panelKey, panel] of [['overlay', overlay], ['uiBar', uiBar]]) {
+                if (panel?.dataset.floatingCustomized !== 'true') continue;
+                const rect = panel.getBoundingClientRect();
+                const nextRect = applyFloatingPanelRect(panel, rect);
+                floatingPanelState[panelKey] = {
+                    left: Math.round(nextRect.left),
+                    top: Math.round(nextRect.top),
+                    width: Math.round(nextRect.width),
+                    height: Math.round(nextRect.height)
+                };
+            }
+            saveFloatingPanelState();
+        });
 
         const TRANSLATIONS = {
             en: {
@@ -1541,7 +2425,7 @@
                 'title.freezing': 'Freezing level, controlling water-to-ice texture transition.',
                 'title.shear': 'Upper-level wind shear controlling anvil outflow asymmetry.',
                 'title.sun': 'Sunlight contribution to cloud scattering and highlights.',
-                'title.sunElevation': 'Sun elevation above the horizon; low values create sunrise and sunset color.',
+                'title.sunElevation': 'Sun elevation above the horizon; below-zero values move from sunset red into night color.',
                 'title.sunAngle': 'Horizontal angle between the viewer direction and the sun.',
                 'title.fullscreenUnsupported': 'This browser does not support the Fullscreen API.'
             },
@@ -1596,7 +2480,7 @@
                 'title.freezing': '凍結高度，控制水滴到冰晶纖維質感的過渡高度。',
                 'title.shear': '高空風切，控制砧狀雲迎風/下風不對稱外流。',
                 'title.sun': '日光對雲體散射與高光的影響。',
-                'title.sunElevation': '太陽高於地平線的仰角；低角度會產生日出與日落色彩。',
+                'title.sunElevation': '太陽高於地平線的仰角；低於地平線時會由夕陽紅壓縮過渡到夜色。',
                 'title.sunAngle': '觀者視線與太陽方位的水平正負夾角。',
                 'title.fullscreenUnsupported': '此瀏覽器不支援 Fullscreen API。'
             }
@@ -1706,7 +2590,7 @@
         const sunElevationQuery = query.get('sunElevation') ?? query.get('sunElev') ?? query.get('elevation') ?? presetSettings?.sunElevation;
         const sunElevationParam = Number(sunElevationQuery);
         if (sunElevationQuery !== null && sunElevationQuery !== undefined && sunElevationQuery !== '' && Number.isFinite(sunElevationParam)) {
-            sunElevation = Math.max(-6, Math.min(82, sunElevationParam));
+            sunElevation = Math.max(-18, Math.min(82, sunElevationParam));
             sliderSunElevation.value = String(sunElevation);
         }
         const sunAngleQuery = query.get('sunAngle') ?? query.get('sunViewerAngle') ?? query.get('viewerSunAngle') ?? presetSettings?.sunAngle;
@@ -1804,6 +2688,11 @@
             let nextLabel;
             if (isFullscreenDisplay) {
                 nextLabel = t('target.fullscreen', {
+                    width: container.clientWidth,
+                    height: container.clientHeight
+                });
+            } else if (windowedTargetKey === 'target.fullscreen') {
+                nextLabel = t(windowedTargetKey, {
                     width: container.clientWidth,
                     height: container.clientHeight
                 });
@@ -2054,6 +2943,8 @@
             setWindowedViewport('viewport-portrait', 'target.portrait');
         } else if (viewportQuery === 'landscape') {
             setWindowedViewport('viewport-landscape', 'target.landscape');
+        } else if (fullBackgroundMode) {
+            setWindowedViewport('viewport-fullscreen', 'target.fullscreen');
         }
 
         let lastTime = performance.now();
@@ -2102,6 +2993,7 @@
                 material.uniforms.uOrthoSize.value = orthoFrustumSize / orthoCamera.zoom;
             }
             renderer.render(scene, fullscreenCam);
+            updateStageEdgeFill(time);
             frames++;
             if (deltaMs > 0) {
                 fpsAccumulator += 1000 / deltaMs;

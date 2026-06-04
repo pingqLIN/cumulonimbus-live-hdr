@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cumulonimbus Live HDR Fullscreen Background</title>
+  <meta name="description" content="Fullscreen background entry for the Cumulonimbus Live HDR mainline renderer with tracing-paper controls." />
+</head>
+<body>
+  <script>
+    const target = new URL("cumulonimbus-live-hdr-mainline.html", window.location.href);
+    const incoming = new URLSearchParams(window.location.search);
+    const defaults = new URLSearchParams({
+      background: "1",
+      sky: "atmosphere",
+      controls: "1",
+      hud: "1",
+      grid: "0",
+      autoQuality: "1",
+      quality: "0.72",
+      timeSpeed: "1",
+      viewport: "background",
+      ui: "tracing-paper"
+    });
+
+    for (const [key, value] of defaults) {
+      target.searchParams.set(key, incoming.get(key) ?? value);
+    }
+    for (const [key, value] of incoming) {
+      target.searchParams.set(key, value);
+    }
+    target.hash = window.location.hash;
+    window.location.replace(target);
+  </script>
+  <noscript>
+    <a href="cumulonimbus-live-hdr-mainline.html?background=1&amp;sky=atmosphere&amp;controls=1&amp;hud=1&amp;grid=0&amp;autoQuality=1&amp;quality=0.72&amp;timeSpeed=1&amp;viewport=background&amp;ui=tracing-paper">
+      Open fullscreen Cumulonimbus Live HDR background
+    </a>
+  </noscript>
+</body>
+</html>

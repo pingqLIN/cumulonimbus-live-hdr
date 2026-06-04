@@ -19,6 +19,22 @@ npm run test:browser
 file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-mainline.html
 ```
 
+無背景合成版本：
+
+```text
+file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-transparent.html
+```
+
+此入口會導到同一份主線 renderer，並預設使用 `background=0`、`sky=transparent`、`controls=0`、`hud=0`、`grid=0`，方便疊到其他網頁、OBS 場景或影片圖層上。
+
+全螢幕背景版本：
+
+```text
+file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-fullscreen.html
+```
+
+此入口會以 `background=1`、`sky=transparent`、`controls=0`、`hud=1`、`grid=0`、`autoQuality=1`、`quality=0.72`、`timeSpeed=1`、`viewport=background`、`ui=tracing-paper` 啟動。`viewport=background` 會移除原本雲與天空畫面的外框，讓 render canvas 填滿整個瀏覽器視窗。
+
 ## 目前主線
 
 [`cumulonimbus-live-hdr-mainline.html`](cumulonimbus-live-hdr-mainline.html) 是目前的單一 source of truth。它提供 seed、time、quality、tropopause、freezing level、wind shear、sun、ambient、grid、orthographic/perspective 與 HUD 控制。

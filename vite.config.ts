@@ -8,11 +8,14 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: "index.html",
-        model: "cumulonimbus-live-hdr-mainline.html"
+        model: "cumulonimbus-live-hdr-mainline.html",
+        fullscreen: "cumulonimbus-live-hdr-fullscreen.html",
+        transparent: "cumulonimbus-live-hdr-transparent.html"
       }
     }
   },
   server: {
+    allowedHosts: [".trycloudflare.com", ".lhr.life"],
     port: 5173,
     strictPort: false
   }

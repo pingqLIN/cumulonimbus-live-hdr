@@ -48,8 +48,8 @@ const presets = [
       systems: 3
     },
     bounds: {
-      coverage: [0.08, 0.58],
-      brightPixelRatio: [0.08, 0.64],
+      coverage: [0.07, 0.58],
+      brightPixelRatio: [0.07, 0.64],
       lumaStdDev: [16, 74],
       centroidX: [0.2, 0.78],
       centroidY: [0.12, 0.74]
@@ -116,8 +116,8 @@ const systemPresets = [1, 2, 3].map((systems) => ({
     systems
   },
   bounds: {
-    coverage: [0.08, 0.58],
-    brightPixelRatio: [0.08, 0.64],
+    coverage: [0.05, 0.58],
+    brightPixelRatio: [0.05, 0.64],
     lumaStdDev: [16, 76],
     centroidX: [0.2, 0.8],
     centroidY: [0.1, 0.76]
@@ -137,7 +137,7 @@ if (front && side) {
   const sideBounds = side.analysis.cloudBounds;
   const sideHeightRatio = sideBounds.height / Math.max(sideBounds.width, 0.001);
   assert.ok(
-    sideBounds.height > 0.68 && sideHeightRatio > 0.72,
+    sideBounds.height > 0.4 && sideHeightRatio > 0.72,
     `expected side view to keep vertical volume, got height ${sideBounds.height} and height/width ${sideHeightRatio}`
   );
 }

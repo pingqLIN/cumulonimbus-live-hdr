@@ -14,10 +14,10 @@ const waitMs = readIntegerArg(args, "waitMs", 7000);
 const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(60000, waitMs + 20000));
 const outputPath = resolve(
   projectRoot,
-  args.out ?? join("outputs", "analysis", "06-html-smoke.png")
+  args.out ?? join("outputs", "analysis", "mainline-html-smoke.png")
 );
-const browserProfileDir = mkdtempSync(join(tmpdir(), "cumulonimbus-06-headless-"));
-const url = pathToFileURL(join(projectRoot, "06.html"));
+const browserProfileDir = mkdtempSync(join(tmpdir(), "cumulonimbus-mainline-headless-"));
+const url = pathToFileURL(join(projectRoot, "cumulonimbus-live-hdr-mainline.html"));
 url.searchParams.set("seed", args.seed ?? "574");
 url.searchParams.set("time", args.time ?? "2.2");
 url.searchParams.set("timeSpeed", "0");
@@ -95,7 +95,7 @@ try {
 
   if (result.status !== 0) {
     throw new Error(
-      `06.html smoke screenshot failed with exit code ${result.status}.\n${result.stderr || result.stdout}`
+      `Mainline smoke screenshot failed with exit code ${result.status}.\n${result.stderr || result.stdout}`
     );
   }
 } finally {
@@ -112,11 +112,11 @@ assert.equal(png.width, width);
 assert.equal(png.height, height);
 assert.equal(analysis.width, width);
 assert.equal(analysis.height, height);
-assert.ok(analysis.maxLuma > 42, `expected visible 06.html highlights, got ${analysis.maxLuma}`);
-assert.ok(analysis.lumaStdDev > 4, `expected non-flat 06.html output, got ${analysis.lumaStdDev}`);
+assert.ok(analysis.maxLuma > 42, `expected visible mainline highlights, got ${analysis.maxLuma}`);
+assert.ok(analysis.lumaStdDev > 4, `expected non-flat mainline output, got ${analysis.lumaStdDev}`);
 assert.ok(
   analysis.cloudBounds.coverage > 0.01,
-  `expected visible 06.html cloud coverage, got ${analysis.cloudBounds.coverage}`
+  `expected visible mainline cloud coverage, got ${analysis.cloudBounds.coverage}`
 );
 
 console.log(

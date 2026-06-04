@@ -1,12 +1,8 @@
 node_modules/
 dist/
-outputs/
-outputs/frames/
-outputs/metrics/
-outputs/*.mp4
-outputs/*.mov
-outputs/*.webm
-outputs/*.png
+outputs/*
+!outputs/demo/
+!outputs/demo/**
 *.log
 .env
 .worktrees/

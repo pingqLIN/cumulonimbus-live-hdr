@@ -8,7 +8,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: "index.html",
-        model: "06.html"
+        model: "cumulonimbus-live-hdr-mainline.html"
       }
     }
   },

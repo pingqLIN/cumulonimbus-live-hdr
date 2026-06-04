@@ -172,7 +172,7 @@ console.log(JSON.stringify({ ok: true, summaryPath, presets: results, systemPres
 
 function runPreset(preset) {
   const args = [join(projectRoot, "scripts", "smoke-06-html.mjs"), "--browserTimeoutMs", "60000"];
-  const presetArgs = { controls: 0, ...preset.args };
+  const presetArgs = { controls: 0, sky: "workbench", ...preset.args };
   for (const [key, value] of Object.entries(presetArgs)) {
     args.push(`--${key}`, String(value));
   }

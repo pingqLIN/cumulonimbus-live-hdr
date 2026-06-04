@@ -493,7 +493,14 @@
             --tp-weight: 300;
             --tp-panel-width: min(1180px, calc(100vw - 1.4rem));
             --tp-panel-column: calc((var(--tp-panel-width) - 5px) / 6);
+            --tp-panel-min-width: 64rem;
+            --tp-panel-header-height: 1.35rem;
+            --tp-control-min-width: 10.75rem;
+            --tp-control-min-height: 13.25rem;
+            --tp-overlay-min-width: 24rem;
+            --tp-overlay-min-height: 7.15rem;
             font-family: var(--tp-font);
+            font-size: 17px;
             font-weight: var(--tp-weight);
         }
         body[data-ui="tracing-paper"] #overlay {
@@ -501,14 +508,14 @@
             top: clamp(0.42rem, 1.1vw, 0.82rem);
             left: calc((100vw - var(--tp-panel-width)) / 2);
             transform: none;
-            width: calc((var(--tp-panel-column) * 2) + 1px);
-            min-width: min(22rem, calc(100vw - 2rem));
-            min-height: 6.25rem;
+            width: min(max(var(--tp-overlay-min-width), calc((var(--tp-panel-column) * 2) + 1px)), calc(100vw - 2rem));
+            min-width: min(var(--tp-overlay-min-width), calc(100vw - 2rem));
+            min-height: var(--tp-overlay-min-height);
             max-width: min(62vw, var(--tp-panel-width));
-            max-height: min(44vh, 24rem);
+            max-height: none;
             padding: 0.54rem 0.64rem 0.58rem;
-            overflow: auto;
-            resize: both;
+            overflow: visible;
+            resize: none;
             pointer-events: auto;
             color: var(--tp-text);
             font-family: var(--tp-sans);
@@ -579,20 +586,21 @@
             bottom: max(0.85rem, env(safe-area-inset-bottom));
             transform: translateX(-50%);
             width: var(--tp-panel-width);
-            min-width: min(38rem, calc(100vw - 0.8rem));
-            min-height: 8.25rem;
+            min-width: min(var(--tp-panel-min-width), calc(100vw - 0.8rem));
+            min-height: calc(var(--tp-panel-header-height) + var(--tp-control-min-height));
             max-width: calc(100vw - 0.8rem);
-            max-height: min(34vh, 18.5rem);
+            max-height: none;
             margin-top: 0;
             padding: 0;
             display: grid;
             grid-template-columns: repeat(6, minmax(0, 1fr));
-            grid-auto-rows: minmax(8.25rem, max-content);
+            grid-template-rows: auto minmax(var(--tp-control-min-height), max-content);
+            grid-auto-rows: minmax(var(--tp-control-min-height), max-content);
             gap: 1px;
             align-items: stretch;
             justify-content: stretch;
-            overflow: auto;
-            resize: both;
+            overflow: visible;
+            resize: none;
             color: var(--tp-text);
             font-family: var(--tp-sans);
             font-weight: var(--tp-weight);
@@ -620,11 +628,13 @@
             position: sticky;
             left: 0;
             grid-column: 1 / -1;
-            padding: 0.36rem 0.55rem;
+            min-height: var(--tp-panel-header-height);
+            padding: 0.22rem 0.55rem;
             color: var(--tp-text-faint);
             font-family: var(--tp-mono);
             font-size: 0.58rem;
             font-weight: var(--tp-weight);
+            line-height: 1.15;
             letter-spacing: 0.14em;
             border-bottom: 1px solid var(--tp-line-heavy);
             background: rgb(var(--tp-paper-cool) / 0.32);
@@ -636,16 +646,17 @@
             opacity: 1;
         }
         body[data-ui="tracing-paper"] .control-group {
-            min-width: 0;
+            min-width: var(--tp-control-min-width);
             width: auto;
-            min-height: 100%;
+            min-height: var(--tp-control-min-height);
             margin: 0;
-            padding: 0.55rem;
+            padding: 0.52rem;
             display: flex;
             align-self: stretch;
             align-items: flex-start;
             align-content: flex-start;
-            gap: 0.42rem;
+            gap: 0.38rem;
+            overflow: visible;
             border: 0;
             border-radius: 0;
             box-shadow: none;
@@ -695,9 +706,9 @@
         body[data-ui="tracing-paper"] .slider-group {
             flex: 1 1 8.5rem;
             display: grid;
-            grid-template-columns: 3.2rem minmax(4.5rem, 1fr) 2.55rem;
-            gap: 0.45rem;
-            min-height: 0;
+            grid-template-columns: minmax(3.1rem, 3.6rem) minmax(4.25rem, 1fr) minmax(2.55rem, auto);
+            gap: 0.4rem;
+            min-height: 1.65rem;
             padding: 0.18rem 0;
             border: 0;
             border-radius: 0;
@@ -814,13 +825,22 @@
                 max-height: none;
             }
             body[data-ui="tracing-paper"] #ui-bar {
+                --tp-control-min-height: 11.75rem;
                 width: calc(100vw - 0.8rem);
                 min-width: calc(100vw - 0.8rem);
-                max-height: 44vh;
-                grid-template-columns: 1fr;
+                max-height: none;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
             body[data-ui="tracing-paper"] .control-group {
                 width: auto;
+            }
+            body[data-ui="tracing-paper"] .slider-group {
+                flex-basis: 100%;
+            }
+        }
+        @media (max-width: 520px) {
+            body[data-ui="tracing-paper"] #ui-bar {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -2210,7 +2230,7 @@
         const inputSeed = document.getElementById('input-seed');
         const btnRandomSeed = document.getElementById('btn-random-seed');
         const tropoReadout = document.getElementById('tropo-readout');
-        const FLOATING_PANEL_STORAGE_KEY = 'cumulonimbus-live-hdr-floating-panels-v2';
+        const FLOATING_PANEL_STORAGE_KEY = 'cumulonimbus-live-hdr-floating-panels-v3';
         const floatingPanelState = (() => {
             try {
                 return JSON.parse(localStorage.getItem(FLOATING_PANEL_STORAGE_KEY) || '{}');
@@ -2228,13 +2248,13 @@
         }
 
         function clampFloatingPanelRect(rect) {
-            const visibleHandle = 56;
+            const viewportPadding = 12;
             const width = Math.min(rect.width, window.innerWidth);
             const height = Math.min(rect.height, window.innerHeight);
-            const minLeft = Math.min(0, visibleHandle - width);
-            const maxLeft = Math.max(0, window.innerWidth - visibleHandle);
-            const minTop = 0;
-            const maxTop = Math.max(0, window.innerHeight - visibleHandle);
+            const minLeft = viewportPadding;
+            const maxLeft = Math.max(viewportPadding, window.innerWidth - width - viewportPadding);
+            const minTop = viewportPadding;
+            const maxTop = Math.max(viewportPadding, window.innerHeight - height - viewportPadding);
             return {
                 left: Math.max(minLeft, Math.min(maxLeft, rect.left)),
                 top: Math.max(minTop, Math.min(maxTop, rect.top)),
@@ -2300,7 +2320,8 @@
                 const localX = event.clientX - rect.left;
                 const localY = event.clientY - rect.top;
                 const resizeZone = localX >= rect.width - 18 && localY >= rect.height - 18;
-                if (resizeZone) {
+                const canNativeResize = getComputedStyle(panel).resize !== 'none';
+                if (canNativeResize && resizeZone) {
                     panel.dataset.floatingCustomized = 'true';
                     event.stopPropagation();
                     window.addEventListener('pointerup', saveAfterNativeResize, { once: true });

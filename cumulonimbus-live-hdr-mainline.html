@@ -1705,7 +1705,9 @@
                     }
                 }
 
-                col = mix(col, cloudCol, densityAcc);
+                vec3 alphaCompositedCloud = col * (1.0 - densityAcc) + cloudCol;
+                float lowSunEdgeBlend = 1.0 - smoothstep(0.35, 1.65, uSunIntensity);
+                col = mix(mix(col, cloudCol, densityAcc), alphaCompositedCloud, lowSunEdgeBlend);
                 col = mix(col, cloudCol, uTransparentBackground);
                 float sunForward = dot(rd, daylightDir);
                 vec3 sdrColor = pow(ACESFilm(col), vec3(1.0 / 2.2));

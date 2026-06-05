@@ -496,7 +496,7 @@
             --tp-panel-min-width: 64rem;
             --tp-panel-header-height: 1.35rem;
             --tp-control-min-width: 10.75rem;
-            --tp-control-min-height: 13.25rem;
+            --tp-control-min-height: 15rem;
             --tp-overlay-min-width: 24rem;
             --tp-overlay-min-height: 7.15rem;
             font-family: var(--tp-font);
@@ -662,6 +662,28 @@
             box-shadow: none;
             background: rgb(255 255 255 / 0.34);
         }
+        body[data-ui="tracing-paper"] .control-group--atmosphere-wide {
+            grid-column: span 2;
+        }
+        body[data-ui="tracing-paper"] .control-group--atmosphere-wide .slider-group {
+            flex-basis: 100%;
+            grid-template-columns: minmax(3.25rem, 4rem) minmax(7.5rem, 1fr) minmax(3rem, auto);
+        }
+        body[data-ui="tracing-paper"] .framing-controls {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1px;
+            background: var(--tp-line);
+        }
+        body[data-ui="tracing-paper"] .framing-controls button {
+            min-width: 0;
+            border-color: transparent;
+            background: rgb(255 255 255 / 0.22);
+        }
+        body[data-ui="tracing-paper"] .framing-controls #btn-reset-cam {
+            grid-column: 1 / -1;
+        }
         body[data-ui="tracing-paper"] .floating-panel--dragging {
             cursor: grabbing !important;
         }
@@ -825,7 +847,7 @@
                 max-height: none;
             }
             body[data-ui="tracing-paper"] #ui-bar {
-                --tp-control-min-height: 11.75rem;
+                --tp-control-min-height: 13rem;
                 width: calc(100vw - 0.8rem);
                 min-width: calc(100vw - 0.8rem);
                 max-height: none;
@@ -841,6 +863,9 @@
         @media (max-width: 520px) {
             body[data-ui="tracing-paper"] #ui-bar {
                 grid-template-columns: 1fr;
+            }
+            body[data-ui="tracing-paper"] .control-group--atmosphere-wide {
+                grid-column: auto;
             }
         }
     </style>
@@ -873,7 +898,7 @@
     </div>
 
     <div id="ui-bar">
-        <div class="control-group" aria-label="Project display">
+        <div class="control-group control-group--display" aria-label="Project display">
             <span class="control-group__label" data-i18n="group.display">Display</span>
             <button id="btn-landscape" class="active">16:9</button>
             <button id="btn-portrait">9:16</button>
@@ -882,6 +907,11 @@
             <div class="lang-switch" role="group" aria-label="Language">
                 <button id="btn-lang-zh" type="button" data-lang-option="zh-TW">繁</button>
                 <button id="btn-lang-en" type="button" data-lang-option="en">EN</button>
+            </div>
+            <div class="framing-controls" aria-label="Framing controls">
+                <button id="btn-grid" class="btn-toggle" data-i18n="button.grid">Scale ruler</button>
+                <button id="btn-cam-mode" class="btn-toggle camera" data-i18n="button.perspective">Perspective</button>
+                <button id="btn-reset-cam" class="btn-action" data-i18n="button.recenter">Recenter</button>
             </div>
         </div>
 
@@ -920,7 +950,7 @@
             <button id="btn-auto-quality" class="btn-toggle quality-auto" title="Automatically adjusts internal render scale and raymarch steps by average FPS." data-i18n="button.autoQuality" data-i18n-title="title.autoQuality">Auto power</button>
         </div>
 
-        <div class="control-group" aria-label="Atmospheric parameters">
+        <div class="control-group control-group--atmosphere-wide" aria-label="Atmospheric parameters">
             <span class="control-group__label" data-i18n="group.atmosphere">Atmosphere</span>
             <div class="slider-group accent-red" title="Tropopause height in kilometers." data-i18n-title="title.tropo">
                 <label data-i18n="label.tropo">Top</label>
@@ -951,13 +981,6 @@
                 <input type="range" id="slider-sun-angle" min="-180" max="180" step="5" value="25">
                 <span id="sun-angle-readout" class="readout">25deg</span>
             </div>
-        </div>
-
-        <div class="control-group" aria-label="Framing controls">
-            <span class="control-group__label" data-i18n="group.framing">Framing</span>
-            <button id="btn-grid" class="btn-toggle" data-i18n="button.grid">Scale ruler</button>
-            <button id="btn-cam-mode" class="btn-toggle camera" data-i18n="button.perspective">Perspective</button>
-            <button id="btn-reset-cam" class="btn-action" data-i18n="button.recenter">Recenter</button>
         </div>
     </div>
 

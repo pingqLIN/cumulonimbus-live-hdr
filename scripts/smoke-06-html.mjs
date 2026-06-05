@@ -64,7 +64,10 @@ for (const key of [
   "freezing",
   "windShear",
   "shear",
-  "autoQuality"
+  "autoQuality",
+  "hdr",
+  "hdr10",
+  "hdrMode"
 ]) {
   if (args[key] !== undefined && args[key] !== "") {
     url.searchParams.set(key, args[key]);

@@ -948,6 +948,7 @@
                 <span id="quality-readout" class="readout">0.72x</span>
             </div>
             <button id="btn-auto-quality" class="btn-toggle quality-auto" title="Automatically adjusts internal render scale and raymarch steps by average FPS." data-i18n="button.autoQuality" data-i18n-title="title.autoQuality">Auto power</button>
+            <button id="btn-hdr10" class="btn-toggle hdr10" title="HDR10 reference preview using ST 2084 / PQ response and a 1000 nit mastering target." data-i18n="button.hdr10" data-i18n-title="title.hdr10">HDR10</button>
         </div>
 
         <div class="control-group control-group--atmosphere-wide" aria-label="Atmospheric parameters">
@@ -1010,6 +1011,8 @@
             uniform float uLightPreset;
             uniform float uSkyMode;
             uniform float uTransparentBackground;
+            uniform float uHdr10Mode;
+            uniform float uHdrReferencePeakNits;
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
@@ -1435,6 +1438,46 @@
                 return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
             }
 
+            vec3 nitsToPq(vec3 nits) {
+                const float m1 = 2610.0 / 16384.0;
+                const float m2 = 2523.0 / 32.0;
+                const float c1 = 3424.0 / 4096.0;
+                const float c2 = 2413.0 / 128.0;
+                const float c3 = 2392.0 / 128.0;
+                vec3 normalized = clamp(nits / 10000.0, 0.0, 1.0);
+                vec3 powered = pow(normalized, vec3(m1));
+                return clamp(pow((c1 + c2 * powered) / (1.0 + c3 * powered), vec3(m2)), 0.0, 1.0);
+            }
+
+            float sceneLinearToDisplayNits(float value, float highlightPeakNits) {
+                const float diffuseWhiteNits = 203.0;
+                float linear = max(0.0, value);
+                if (linear <= 1.0) {
+                    return linear * diffuseWhiteNits;
+                }
+                float highlight = 1.0 - exp(-(linear - 1.0) * 1.15);
+                return diffuseWhiteNits + highlight * (max(diffuseWhiteNits, highlightPeakNits) - diffuseWhiteNits);
+            }
+
+            vec3 hdr10ReferencePreview(vec3 sceneLinear, float densityAcc, float sunHeight01, float sunForward) {
+                const float clearSkyLowNits = 1000.0;
+                const float clearSkyHighNits = 20000.0;
+                const float sunlitCloudNits = 12000.0;
+                float naturalSkyNits = mix(clearSkyLowNits, clearSkyHighNits, sunHeight01);
+                float cloudForwardScatter = smoothstep(0.12, 0.92, sunForward);
+                float naturalCloudNits = mix(650.0, sunlitCloudNits, sunHeight01) * mix(0.76, 1.22, cloudForwardScatter);
+                float naturalSceneNits = mix(naturalSkyNits, naturalCloudNits, densityAcc);
+                float highlightPeakNits = 203.0 + (uHdrReferencePeakNits - 203.0) * (1.0 - exp(-naturalSceneNits / 7200.0));
+                vec3 mappedNits = vec3(
+                    sceneLinearToDisplayNits(sceneLinear.r, highlightPeakNits),
+                    sceneLinearToDisplayNits(sceneLinear.g, highlightPeakNits),
+                    sceneLinearToDisplayNits(sceneLinear.b, highlightPeakNits)
+                );
+                vec3 pqCode = nitsToPq(mappedNits);
+                vec3 daylightBalance = mix(vec3(0.92, 0.96, 1.04), vec3(1.06, 1.02, 0.94), sunHeight01 * (0.35 + cloudForwardScatter * 0.45));
+                return clamp(pow(pqCode, vec3(1.0 / 1.18)) * daylightBalance, 0.0, 1.0);
+            }
+
             vec3 gridOverlay(vec3 col, vec3 ro, vec3 rd) {
                 if (uShowGrid < 0.5) return col;
 
@@ -1664,8 +1707,10 @@
 
                 col = mix(col, cloudCol, densityAcc);
                 col = mix(col, cloudCol, uTransparentBackground);
-                col = ACESFilm(col);
-                col = pow(col, vec3(1.0 / 2.2));
+                float sunForward = dot(rd, daylightDir);
+                vec3 sdrColor = pow(ACESFilm(col), vec3(1.0 / 2.2));
+                vec3 hdr10Color = hdr10ReferencePreview(col, densityAcc, sunHeight01, sunForward);
+                col = mix(sdrColor, hdr10Color, uHdr10Mode);
                 float finalAlpha = mix(1.0, densityAcc, uTransparentBackground);
                 gl_FragColor = vec4(col, finalAlpha);
             }
@@ -1748,6 +1793,7 @@
         const MAX_CONVECTIVE_CELLS = 10;
         const FULLSCREEN_RENDER_PIXEL_BUDGET = 1920 * 1080;
         const FULLSCREEN_MIN_EFFECTIVE_SCALE = 0.42;
+        const HDR10_REFERENCE_PEAK_NITS = 1000;
 
         function heightAtCloudRatio(ratio) {
             return MODEL_BASE_KM + (currentTropo - MODEL_BASE_KM) * ratio;
@@ -1835,6 +1881,7 @@
         let photographicStyle = normalizedStyle === 'photographic-cb' || Boolean(presetSettings?.photographicStyle);
         let lightPreset = resolveLightPreset(normalizedLight || presetSettings?.light);
         let skyMode = resolveSkyMode(normalizedSky || presetSettings?.sky, photographicStyle);
+        let hdr10Mode = readBooleanQuery(query, ['hdr10', 'hdr', 'hdrMode'], false);
         let lastFrameTime = performance.now();
         const seedParam = query.get('seed') ?? presetSettings?.seed;
         const querySeed = Number(seedParam);
@@ -1928,6 +1975,17 @@
             return false;
         }
 
+        function readBooleanQuery(params, names, fallback = false) {
+            for (const name of names) {
+                const value = params.get(name);
+                if (value === null) continue;
+                const normalized = value.toLowerCase();
+                if (normalized === '' || normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
+                if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === 'sdr') return false;
+            }
+            return fallback;
+        }
+
         applyInitialCameraQuery();
 
         const material = new THREE.ShaderMaterial({
@@ -1960,7 +2018,9 @@
                 uPhotographicStyle: { value: photographicStyle ? 1.0 : 0.0 },
                 uLightPreset: { value: lightPreset },
                 uSkyMode: { value: skyMode },
-                uTransparentBackground: { value: transparentBackground ? 1.0 : 0.0 }
+                uTransparentBackground: { value: transparentBackground ? 1.0 : 0.0 },
+                uHdr10Mode: { value: hdr10Mode ? 1.0 : 0.0 },
+                uHdrReferencePeakNits: { value: HDR10_REFERENCE_PEAK_NITS }
             }
         });
 
@@ -2244,6 +2304,7 @@
         const sliderQuality = document.getElementById('slider-quality');
         const qualityReadout = document.getElementById('quality-readout');
         const btnAutoQuality = document.getElementById('btn-auto-quality');
+        const btnHdr10 = document.getElementById('btn-hdr10');
         const sliderSystems = document.getElementById('slider-systems');
         const systemsReadout = document.getElementById('systems-readout');
         const btnTimeToggle = document.getElementById('btn-time-toggle');
@@ -2456,6 +2517,7 @@
                 'button.recenter': 'Recenter',
                 'button.autoQuality': 'Auto power',
                 'button.manualQuality': 'Manual power',
+                'button.hdr10': 'HDR10',
                 'button.hud': 'HUD',
                 'button.hudOff': 'HUD off',
                 'hud.timePaused': 'paused',
@@ -2465,6 +2527,7 @@
                 'title.time': 'Control the lifecycle speed of the cloud field.',
                 'title.quality': 'Internal render scale; lower values reduce raymarch pixel load and improve FPS.',
                 'title.autoQuality': 'Automatically adjusts internal render scale and raymarch steps by average FPS.',
+                'title.hdr10': 'HDR10 reference preview using ST 2084 / PQ response, 203 nit diffuse white, and a 1000 nit mastering target.',
                 'title.tropo': 'Tropopause height in kilometers.',
                 'title.freezing': 'Freezing level, controlling water-to-ice texture transition.',
                 'title.shear': 'Upper-level wind shear controlling anvil outflow asymmetry.',
@@ -2511,6 +2574,7 @@
                 'button.recenter': '回復中心',
                 'button.autoQuality': '自動算力',
                 'button.manualQuality': '手動算力',
+                'button.hdr10': 'HDR10',
                 'button.hud': 'HUD',
                 'button.hudOff': 'HUD OFF',
                 'hud.timePaused': '暫停',
@@ -2520,6 +2584,7 @@
                 'title.time': '控制雲系生命週期速度。',
                 'title.quality': '內部渲染解析倍率；降低會減少 raymarch 像素負載並提高 FPS。',
                 'title.autoQuality': '依平均 FPS 自動微調內部渲染解析與 raymarch 步數。',
+                'title.hdr10': 'HDR10 參考預覽：使用 ST 2084 / PQ、203 nit diffuse white 與 1000 nit mastering target。',
                 'title.tropo': '對流層頂高度，單位 km。',
                 'title.freezing': '凍結高度，控制水滴到冰晶纖維質感的過渡高度。',
                 'title.shear': '高空風切，控制砧狀雲迎風/下風不對稱外流。',
@@ -2572,6 +2637,7 @@
             btnLangEn.classList.toggle('active', currentLanguage === 'en');
             updateViewportLabel();
             updateAutoQualityButton();
+            updateHdr10Button();
             updateTimeReadout();
             setHudVisible(overlay.style.display !== 'none');
             btnCamMode.innerText = isOrthoMode ? t('button.orthographic') : t('button.perspective');
@@ -2676,6 +2742,15 @@
         }
 
         updateAutoQualityButton();
+
+        function updateHdr10Button() {
+            material.uniforms.uHdr10Mode.value = hdr10Mode ? 1.0 : 0.0;
+            btnHdr10.classList.toggle('enabled', hdr10Mode);
+            btnHdr10.setAttribute('aria-pressed', hdr10Mode ? 'true' : 'false');
+            document.body.dataset.hdr10 = hdr10Mode ? 'enabled' : 'disabled';
+        }
+
+        updateHdr10Button();
 
         function updateTimeReadout() {
             timeReadout.innerText = `${timeSpeed.toFixed(timeSpeed % 1 === 0 ? 0 : 2)}x`;
@@ -2944,6 +3019,11 @@
             updateAutoQualityButton();
         });
 
+        btnHdr10.addEventListener('click', () => {
+            hdr10Mode = !hdr10Mode;
+            updateHdr10Button();
+        });
+
         sliderSystems.addEventListener('input', (event) => {
             systemCount = Math.max(1, Math.min(MAX_CONVECTIVE_CELLS, Math.round(parseFloat(event.target.value))));
             event.target.value = String(systemCount);
@@ -3051,7 +3131,8 @@
                 renderer.getDrawingBufferSize(drawingBufferSize);
                 const bufferStr = `${drawingBufferSize.x}x${drawingBufferSize.y}`;
                 const fsCapStr = isFullscreenDisplay ? ` | FS cap: ${computeFullscreenRenderScaleCap(container.clientWidth, container.clientHeight).toFixed(2)}x` : '';
-                fpsEl.innerHTML = `FPS: ${frames} | AVG: ${avgFps.toFixed(0)} | RES: ${renderScale.toFixed(2)}x eff ${effectiveRenderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''} | BUF: ${bufferStr}${fsCapStr} | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'} | Tropo: ${currentTropo}km | Freeze: ${freezingLevel.toFixed(1)}km | Shear: ${windShear.toFixed(2)} | Time: ${timePaused ? t('hud.timePaused') : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
+                const hdrStr = hdr10Mode ? ` | HDR10 PQ ${HDR10_REFERENCE_PEAK_NITS}nit` : '';
+                fpsEl.innerHTML = `FPS: ${frames} | AVG: ${avgFps.toFixed(0)} | RES: ${renderScale.toFixed(2)}x eff ${effectiveRenderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''} | BUF: ${bufferStr}${fsCapStr} | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'}${hdrStr} | Tropo: ${currentTropo}km | Freeze: ${freezingLevel.toFixed(1)}km | Shear: ${windShear.toFixed(2)} | Time: ${timePaused ? t('hud.timePaused') : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
                 frames = 0;
                 fpsAccumulator = 0;
                 fpsSamples = 0;

@@ -97,6 +97,9 @@ const captures = [
       hud: 0,
       grid: 0,
       ortho: 0,
+      cameraYawDegrees: 0,
+      cameraPitchDegrees: 0,
+      cameraDistance: 30,
       systems: 3,
       preset: "high-sun-daylight",
       style: "photographic-cb"

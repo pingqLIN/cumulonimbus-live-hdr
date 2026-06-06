@@ -42,6 +42,9 @@ const captures = [
       hud: 0,
       grid: 0,
       ortho: 0,
+      cameraYawDegrees: 0,
+      cameraPitchDegrees: 0,
+      cameraDistance: 34,
       systems: 3,
       preset: "photographic-mature",
       style: "photographic-cb"

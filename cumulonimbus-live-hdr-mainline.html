@@ -2246,6 +2246,7 @@
         const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
         scene.add(plane);
         const drawingBufferSize = new THREE.Vector2();
+        let mobileWideViewActive = useMobileWideView();
 
         function computeFullscreenRenderScaleCap(width, height) {
             const cssPixels = Math.max(1, width * height);
@@ -2264,6 +2265,23 @@
             orthoCamera.top = orthoFrustumSize / 2;
             orthoCamera.bottom = -orthoFrustumSize / 2;
             orthoCamera.updateProjectionMatrix();
+        }
+
+        function syncMobileWideViewFrame() {
+            const nextMobileWideViewActive = useMobileWideView();
+            if (nextMobileWideViewActive === mobileWideViewActive) return;
+            mobileWideViewActive = nextMobileWideViewActive;
+            updateOrthoFrameForCurrentTropo();
+            if (isOrthoMode) {
+                controlsOrtho.update();
+            }
+            resizeCanvasToDisplaySize();
+        }
+
+        if (mobileWideViewQuery.addEventListener) {
+            mobileWideViewQuery.addEventListener('change', syncMobileWideViewFrame);
+        } else if (mobileWideViewQuery.addListener) {
+            mobileWideViewQuery.addListener(syncMobileWideViewFrame);
         }
 
         function resetActiveCamera() {

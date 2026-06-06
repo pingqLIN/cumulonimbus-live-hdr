@@ -108,8 +108,9 @@ try {
     );
   }
 } finally {
+  await delay(600);
   try {
-    rmSync(browserProfileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    rmSync(browserProfileDir, { recursive: true, force: true, maxRetries: 12, retryDelay: 300 });
   } catch (error) {
     cleanupWarning = error instanceof Error ? error.message : String(error);
   }
@@ -179,4 +180,8 @@ function readPngHeader(path) {
     width: buffer.readUInt32BE(16),
     height: buffer.readUInt32BE(20)
   };
+}
+
+function delay(ms) {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }

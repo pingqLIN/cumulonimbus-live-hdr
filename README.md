@@ -59,7 +59,7 @@ file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-fullscreen.html
 
 It starts from the mainline renderer with `background=1`, `sky=transparent`, `controls=0`, `hud=1`, `grid=0`, `autoQuality=1`, `quality=0.72`, `timeSpeed=1`, `viewport=background`, and `ui=tracing-paper`. The `viewport=background` mode removes the original render frame and expands the cloud/sky canvas to the full browser viewport.
 
-`test:06` 會以 headless browser 開啟同一個 file URL，確認主線畫面能渲染出非空雲體。
+`test:06` 會以 headless browser 開啟同一個 file URL，確認主線畫面能渲染出非空雲體，也會檢查手機 tracing-paper 控制台的貼底幾何、44px 觸控目標與手機 wide-view 預設。
 
 `capture:field-still` launches a local browser-backed CPU field preview capture and writes `outputs/cumulonimbus-field-still.png` unless `--out` is provided.
 

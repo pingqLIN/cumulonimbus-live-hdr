@@ -81,6 +81,9 @@ const captures = [
       grid: 0,
       ortho: 0,
       viewport: "portrait",
+      cameraYawDegrees: 0,
+      cameraPitchDegrees: 0,
+      cameraDistance: 30,
       systems: 3,
       preset: "photographic-mature",
       style: "photographic-cb"

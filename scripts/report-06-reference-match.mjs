@@ -63,7 +63,7 @@ const captures = [
       ortho: 0,
       cameraYawDegrees: 90,
       cameraPitchDegrees: 24,
-      cameraDistance: 42,
+      cameraDistance: 30,
       systems: 3,
       preset: "warm-low-angle",
       style: "photographic-cb"

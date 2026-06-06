@@ -138,6 +138,14 @@ const rankedCandidates = [...results].sort((left, right) => {
   if (right.score === null) return -1;
   return left.score.total - right.score.total;
 });
+const rankedCandidateSummaries = rankedCandidates.map((result) => ({
+  name: result.name,
+  archetype: result.archetype,
+  outputPath: result.outputPath,
+  referencePath: result.referencePath,
+  totalScore: result.score?.total ?? null,
+  largestGaps: result.gaps.slice(0, 4)
+}));
 
 const report = {
   ok: true,
@@ -148,14 +156,8 @@ const report = {
   referenceAvailable: referenceAnalyses.length > 0,
   outputDir,
   captures: results,
-  rankedCandidates: rankedCandidates.map((result) => ({
-    name: result.name,
-    archetype: result.archetype,
-    outputPath: result.outputPath,
-    referencePath: result.referencePath,
-    totalScore: result.score?.total ?? null,
-    largestGaps: result.gaps.slice(0, 4)
-  }))
+  scoreSummary: summarizeScores(rankedCandidateSummaries),
+  rankedCandidates: rankedCandidateSummaries
 };
 
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
@@ -194,6 +196,38 @@ function scoreAgainstReference(referenceAnalysis, candidateAnalysis) {
   return {
     total: Number(total.toFixed(6)),
     components: gaps
+  };
+}
+
+function summarizeScores(rankedCandidateSummaries) {
+  const scored = rankedCandidateSummaries.filter((candidate) => candidate.totalScore !== null);
+  if (scored.length === 0) {
+    return {
+      best: null,
+      worst: null,
+      averageScore: null,
+      residualFocus: []
+    };
+  }
+  const total = scored.reduce((sum, candidate) => sum + candidate.totalScore, 0);
+  return {
+    best: {
+      name: scored[0].name,
+      archetype: scored[0].archetype,
+      totalScore: scored[0].totalScore
+    },
+    worst: {
+      name: scored[scored.length - 1].name,
+      archetype: scored[scored.length - 1].archetype,
+      totalScore: scored[scored.length - 1].totalScore
+    },
+    averageScore: Number((total / scored.length).toFixed(6)),
+    residualFocus: scored.map((candidate) => ({
+      name: candidate.name,
+      archetype: candidate.archetype,
+      topMetric: candidate.largestGaps[0]?.metric ?? null,
+      weightedDelta: candidate.largestGaps[0]?.weightedDelta ?? null
+    }))
   };
 }
 

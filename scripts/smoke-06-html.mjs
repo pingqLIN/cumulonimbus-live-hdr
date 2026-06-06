@@ -75,6 +75,7 @@ for (const key of [
 }
 
 mkdirSync(dirname(outputPath), { recursive: true });
+rmSync(outputPath, { force: true });
 
 let result = null;
 let cleanupWarning = null;

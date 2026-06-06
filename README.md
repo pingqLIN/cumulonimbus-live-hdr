@@ -219,6 +219,7 @@ npm run spike:raymarch -- --width 180 --height 320 --steps 56
 - `captureFrames=<正整數>`：只給 browser-backed smoke/capture 使用；渲染到指定幀數後暫停，避免 headless screenshot 等待無止境動畫。
 - `freezingLevel=<3..6>` 或 `freezing=<3..6>`：調整水滴到冰晶纖維質感的高度過渡，單位 km。
 - `windShear=<0..1>` 或 `shear=<0..1>`：調整砧狀雲迎風/下風不對稱外流強度。
+- `ambient=<0.2..1.2>` 或 `amb=<0.2..1.2>`：調整主線 shader 的環境光強度，可用於固定 photographic capture preset 的亮度基準。
 - `--source ui`：給 `capture:3d-still`/smoke 腳本使用；不加 `live=1` 或 `capture=1`，保留完整控制面板以檢查 UI。
 - `preset=billow` 或 `cloudPreset=billow`：使用 demo-like 積雨雲起手樣態；目前會自動走 CPU preview，避免 WebGPU preview 與 CPU 模型不同步。
 - `view=3d` 或 `model=3d-billow`：使用 Three.js InstancedMesh 3D bubble model，保留相同參數控制語意。

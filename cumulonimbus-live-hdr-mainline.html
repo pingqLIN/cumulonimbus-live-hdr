@@ -2093,7 +2093,7 @@
         let freezingLevel = 5.0;
         let windShear = 0.7;
         let sunIntensity = DEFAULT_SUN_INTENSITY;
-        const ambientIntensity = DEFAULT_AMBIENT_INTENSITY;
+        let ambientIntensity = DEFAULT_AMBIENT_INTENSITY;
         let sunElevation = DEFAULT_SUN_ELEVATION;
         let sunViewerAngle = DEFAULT_SUN_VIEWER_ANGLE;
         let photographicStyle = normalizedStyle === 'photographic-cb' || Boolean(presetSettings?.photographicStyle);
@@ -2134,11 +2134,11 @@
             const presets = {
                 'model-landscape': { seed: 574, time: 2.2, systems: 3, tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, sky: 'workbench', light: 'daylight' },
                 'model-portrait': { seed: 574, time: 2.2, systems: 3, viewport: 'portrait', tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, sky: 'workbench', light: 'daylight' },
-                'high-sun-daylight': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.4, windShear: 0.76, sun: 7.4, sunElevation: 58, sunAngle: 20, sky: 'demo3', light: 'daylight', photographicStyle: true },
-                'warm-low-angle': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13, freezingLevel: 4.5, windShear: 0.84, sun: 5.0, sunElevation: 12, sunAngle: -35, sky: 'demo3', light: 'daylight', photographicStyle: true },
-                'photographic-mature': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.82, sun: 7.15, sunElevation: 42, sunAngle: 25, sky: 'demo3', light: 'daylight', photographicStyle: true },
-                'sunset-anvil': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.88, sun: 4.4, sunElevation: 5, sunAngle: -25, sky: 'demo3', light: 'daylight', photographicStyle: true },
-                'moonlight-night': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.2, windShear: 0.78, sun: 1.6, sunElevation: -4, sunAngle: 70, sky: 'moonlight', light: 'backlit-edge', photographicStyle: true }
+                'high-sun-daylight': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.4, windShear: 0.76, sun: 7.4, ambient: 0.55, sunElevation: 58, sunAngle: 20, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'warm-low-angle': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13, freezingLevel: 4.5, windShear: 0.84, sun: 5.0, ambient: 0.48, sunElevation: 12, sunAngle: -35, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'photographic-mature': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.82, sun: 7.15, ambient: 0.52, sunElevation: 42, sunAngle: 25, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'sunset-anvil': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.88, sun: 4.4, ambient: 0.46, sunElevation: 5, sunAngle: -25, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'moonlight-night': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.2, windShear: 0.78, sun: 1.6, ambient: 0.5, sunElevation: -4, sunAngle: 70, sky: 'moonlight', light: 'backlit-edge', photographicStyle: true }
             };
             return presets[name] || null;
         }
@@ -2932,6 +2932,11 @@
         if (sunQuery !== null && sunQuery !== undefined && sunQuery !== '' && Number.isFinite(sunParam)) {
             sunIntensity = Math.max(0, Math.min(8, sunParam));
             sliderSun.value = String(sunIntensity);
+        }
+        const ambientQuery = query.get('ambient') ?? query.get('amb') ?? presetSettings?.ambient;
+        const ambientParam = Number(ambientQuery);
+        if (ambientQuery !== null && ambientQuery !== undefined && ambientQuery !== '' && Number.isFinite(ambientParam)) {
+            ambientIntensity = Math.max(0.2, Math.min(1.2, ambientParam));
         }
         const sunElevationQuery = query.get('sunElevation') ?? query.get('sunElev') ?? query.get('elevation') ?? presetSettings?.sunElevation;
         const sunElevationParam = Number(sunElevationQuery);

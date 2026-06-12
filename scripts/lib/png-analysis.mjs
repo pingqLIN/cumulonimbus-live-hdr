@@ -40,6 +40,11 @@ export function analyzePng(path, options = {}) {
   const lumaStdDev = Math.sqrt(Math.max(0, variance));
   const cloudThreshold = lumaThreshold ?? Math.max(32, averageLuma + lumaStdDev * 0.28);
   const cloudBounds = measureBounds(lumaValues, png.width, png.height, cloudThreshold);
+  const averageRed = redSum / pixelCount;
+  const averageGreen = greenSum / pixelCount;
+  const averageBlue = blueSum / pixelCount;
+  const averageLumaSafe = Math.max(1, averageLuma);
+  const warmCoolBalance = roundMetric((averageRed - averageBlue) / averageLumaSafe, 3);
 
   return {
     width: png.width,
@@ -51,10 +56,11 @@ export function analyzePng(path, options = {}) {
     brightPixelRatio: roundMetric(brightPixels / pixelCount, 6),
     cloudThreshold: roundMetric(cloudThreshold),
     averageRgb: {
-      red: roundMetric(redSum / pixelCount),
-      green: roundMetric(greenSum / pixelCount),
-      blue: roundMetric(blueSum / pixelCount)
+      red: roundMetric(averageRed),
+      green: roundMetric(averageGreen),
+      blue: roundMetric(averageBlue)
     },
+    warmCoolBalance,
     edgeDetailDensity: measureEdgeDetail(lumaValues, png.width, png.height, cloudThreshold),
     morphology: measureMorphology(cloudBounds),
     cloudBounds

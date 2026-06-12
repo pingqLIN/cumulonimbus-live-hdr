@@ -241,9 +241,15 @@ function rankGaps(referenceAnalysis, candidateAnalysis) {
     ["bottomPosition", referenceAnalysis.morphology.bottomPosition, candidateAnalysis.morphology.bottomPosition, 1.5],
     ["brightPixelRatio", referenceAnalysis.brightPixelRatio, candidateAnalysis.brightPixelRatio, 2.0],
     ["lumaStdDev", referenceAnalysis.lumaStdDev, candidateAnalysis.lumaStdDev, 0.018],
+    [
+      "warmCoolBalance",
+      referenceAnalysis.warmCoolBalance,
+      candidateAnalysis.warmCoolBalance,
+      0.84
+    ],
     ["edgeDetailDensity", referenceAnalysis.edgeDetailDensity.ratio, candidateAnalysis.edgeDetailDensity.ratio, 1.6],
-    ["averageBlue", referenceAnalysis.averageRgb.blue, candidateAnalysis.averageRgb.blue, 0.008],
-    ["averageRed", referenceAnalysis.averageRgb.red, candidateAnalysis.averageRgb.red, 0.006]
+    ["averageBlue", referenceAnalysis.averageRgb.blue, candidateAnalysis.averageRgb.blue, 0.004],
+    ["averageRed", referenceAnalysis.averageRgb.red, candidateAnalysis.averageRgb.red, 0.004]
   ];
 
   return metrics

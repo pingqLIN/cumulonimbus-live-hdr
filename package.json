@@ -12,6 +12,7 @@
     "render:quick": "npm run build:core && node scripts/render-test-video.mjs --quick",
     "render:test": "npm run build:core && node scripts/render-test-video.mjs",
     "render:demo-loop": "npm run build:core && node scripts/render-demo-loop.mjs",
+    "colab:render": "node scripts/colab-runner.mjs",
     "live:url": "node scripts/print-live-url.mjs",
     "capture:field-still": "npm run build && node scripts/capture-3d-still.mjs --view field --renderer cpu --simPreset low",
     "capture:3d-still": "npm run build && node scripts/capture-3d-still.mjs",

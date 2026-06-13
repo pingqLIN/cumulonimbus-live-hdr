@@ -450,8 +450,29 @@
             font-weight: 760;
             font-variant-numeric: tabular-nums;
         }
-        .lang-switch { display: flex; align-items: center; gap: 0.25rem; }
-        .lang-switch button { min-width: 2.35rem; }
+        .select-group {
+            display: grid;
+            grid-template-columns: minmax(4.2rem, auto) minmax(6rem, 1fr);
+            align-items: center;
+            gap: 0.42rem;
+            min-height: 2.1rem;
+            padding: 0.32rem 0.54rem;
+            border: 1px solid oklch(80% 0.035 232 / 0.56);
+            border-radius: 0.62rem;
+            background: oklch(98% 0.01 235 / 0.72);
+            color: var(--cloud-muted);
+            font-size: 0.74rem;
+        }
+        .select-group span { color: var(--cloud-ink); font-weight: 650; }
+        .select-group select {
+            width: 100%;
+            min-width: 0;
+            color: var(--cloud-ink);
+            border: 1px solid oklch(75% 0.04 232 / 0.72);
+            border-radius: 0.5rem;
+            background: oklch(100% 0.006 235 / 0.76);
+            font: inherit;
+        }
         #btn-random-seed {
             padding: 2px 8px !important;
             color: oklch(25% 0.04 245);
@@ -497,8 +518,8 @@
             --tp-panel-header-height: 1.35rem;
             --tp-control-min-width: 10.75rem;
             --tp-control-min-height: 15rem;
-            --tp-overlay-min-width: 24rem;
-            --tp-overlay-min-height: 7.15rem;
+            --tp-overlay-min-width: 22rem;
+            --tp-overlay-min-height: 8.35rem;
             font-family: var(--tp-font);
             font-size: 17px;
             font-weight: var(--tp-weight);
@@ -508,13 +529,13 @@
             top: clamp(0.42rem, 1.1vw, 0.82rem);
             left: calc((100vw - var(--tp-panel-width)) / 2);
             transform: none;
-            width: min(max(var(--tp-overlay-min-width), calc((var(--tp-panel-column) * 2) + 1px)), calc(100vw - 2rem));
+            width: min(max(var(--tp-overlay-min-width), calc((var(--tp-panel-column) * 1.8) + 1px)), calc(100vw - 2rem));
             min-width: min(var(--tp-overlay-min-width), calc(100vw - 2rem));
             min-height: var(--tp-overlay-min-height);
             max-width: min(62vw, var(--tp-panel-width));
             max-height: none;
-            padding: 0.54rem 0.64rem 0.58rem;
-            overflow: visible;
+            padding: 0.72rem 0.86rem 0.78rem;
+            overflow: hidden;
             resize: none;
             pointer-events: auto;
             color: var(--tp-text);
@@ -533,11 +554,33 @@
                 inset 0 1px 0 rgb(255 255 255 / 0.58),
                 inset 0 -1px 0 rgb(145 129 113 / 0.12),
                 0 8px 22px rgb(0 0 0 / 0.10);
-            opacity: 0.82;
+            opacity: 0.72;
             backdrop-filter: blur(10px) saturate(0.92) brightness(1.05);
             -webkit-backdrop-filter: blur(10px) saturate(0.92) brightness(1.05);
             cursor: move;
             touch-action: none;
+        }
+        body[data-ui="tracing-paper"] .hud-close-button {
+            position: absolute;
+            top: 0.42rem;
+            right: 0.46rem;
+            min-width: 1.45rem;
+            min-height: 1.25rem;
+            padding: 0 0.26rem;
+            border-color: transparent;
+            background: rgb(255 255 255 / 0.24);
+            color: var(--tp-text-faint);
+            font-family: var(--tp-mono);
+            font-size: 0.66rem;
+            line-height: 1;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        body[data-ui="tracing-paper"] .hud-close-button:hover,
+        body[data-ui="tracing-paper"] .hud-close-button:focus-visible {
+            color: rgb(255 255 255 / 0.96);
+            border-color: rgb(var(--tp-ink) / 0.9);
+            background: rgb(var(--tp-ink) / 0.9);
         }
         body[data-ui="tracing-paper"] .project-kicker {
             width: fit-content;
@@ -554,10 +597,10 @@
             text-shadow: none;
         }
         body[data-ui="tracing-paper"] .project-title {
-            margin-top: 0.46rem;
+            margin-top: 0.36rem;
             color: var(--tp-text);
             font-family: var(--tp-sans);
-            font-size: clamp(0.9rem, 1.1vw, 1.02rem);
+            font-size: clamp(0.78rem, 0.92vw, 0.9rem);
             font-weight: var(--tp-weight);
             letter-spacing: 0;
             text-shadow: none;
@@ -573,10 +616,24 @@
             text-shadow: none;
         }
         body[data-ui="tracing-paper"] .hud-list {
-            margin-top: 0.46rem;
+            margin-top: 0.34rem;
+            width: 100%;
+            box-sizing: border-box;
+            padding-right: 1.25rem;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-break: anywhere;
+        }
+        body[data-ui="tracing-paper"] .hud-list span {
+            display: block;
+            max-width: 100%;
+        }
+        body[data-ui="tracing-paper"] .hud-list br {
+            display: none;
         }
         body[data-ui="tracing-paper"] #fps-counter {
-            margin-top: 0.62rem;
+            margin-top: 0.44rem;
             color: var(--tp-text-faint);
             opacity: 1;
         }
@@ -681,6 +738,13 @@
             border-color: transparent;
             background: rgb(255 255 255 / 0.22);
         }
+        body[data-ui="tracing-paper"] .framing-controls .btn-toggle.enabled,
+        body[data-ui="tracing-paper"] .framing-controls .btn-toggle.camera.ortho {
+            color: var(--tp-text) !important;
+            border-color: rgba(40, 38, 35, 0.76) !important;
+            background: rgba(246, 242, 236, 0.42) !important;
+            box-shadow: inset 0 0 0 1px rgba(40, 38, 35, 0.18) !important;
+        }
         body[data-ui="tracing-paper"] .framing-controls #btn-reset-cam {
             grid-column: 1 / -1;
         }
@@ -719,10 +783,15 @@
         }
         body[data-ui="tracing-paper"] button:hover,
         body[data-ui="tracing-paper"] button.active,
-        body[data-ui="tracing-paper"] button.enabled {
-            color: rgb(255 255 255 / 0.96);
-            background: rgb(var(--tp-ink) / 0.9);
-            border-color: rgb(var(--tp-ink) / 0.9);
+        body[data-ui="tracing-paper"] button.enabled,
+        body[data-ui="tracing-paper"] .btn-toggle.enabled,
+        body[data-ui="tracing-paper"] .btn-toggle.camera.ortho,
+        body[data-ui="tracing-paper"] .btn-toggle.fullscreen.enabled,
+        body[data-ui="tracing-paper"] .btn-toggle.quality-auto {
+            color: var(--tp-text) !important;
+            background: rgba(246, 242, 236, 0.42) !important;
+            border-color: rgba(40, 38, 35, 0.76) !important;
+            box-shadow: inset 0 0 0 1px rgba(40, 38, 35, 0.18) !important;
             transform: none;
         }
         body[data-ui="tracing-paper"] .slider-group {
@@ -747,37 +816,73 @@
             font-size: 0.62rem;
             font-weight: var(--tp-weight);
         }
+        body[data-ui="tracing-paper"] .slider-label {
+            min-width: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.28rem;
+            color: var(--tp-text-soft);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] .link-chip {
+            width: 0.72rem;
+            min-width: 0.72rem;
+            height: 0.72rem;
+            min-height: 0.72rem;
+            padding: 0;
+            border: 1px solid rgb(var(--tp-ink) / 0.38);
+            background: rgb(var(--tp-ink) / 0.78);
+            color: transparent;
+            box-shadow: 0 2px 4px rgb(28 26 23 / 0.16);
+            cursor: pointer;
+        }
+        body[data-ui="tracing-paper"] .link-chip:not(.enabled) {
+            background: transparent;
+            box-shadow: none;
+        }
         body[data-ui="tracing-paper"] .slider-group input[type=range] {
             width: 100%;
-            height: 1px;
+            height: 1.18rem;
             align-self: center;
-            background: var(--tp-text-faint);
-            box-shadow: 0 4px 7px rgb(28 26 23 / 0.16);
+            background: transparent;
+            filter: drop-shadow(0 4px 3px rgb(28 26 23 / 0.22));
+            box-shadow: none;
             accent-color: rgb(var(--tp-ink) / 0.9);
             -webkit-appearance: none;
             appearance: none;
         }
+        body[data-ui="tracing-paper"] .slider-group input[type=range]::-webkit-slider-runnable-track {
+            height: 0.36rem;
+            border: 1px solid rgb(var(--tp-ink) / 0.14);
+            border-radius: 0;
+            background: rgb(var(--tp-ink) / 0.25);
+        }
+        body[data-ui="tracing-paper"] .slider-group input[type=range]::-moz-range-track {
+            height: 0.36rem;
+            border: 1px solid rgb(var(--tp-ink) / 0.14);
+            border-radius: 0;
+            background: rgb(var(--tp-ink) / 0.25);
+        }
         body[data-ui="tracing-paper"] .slider-group input[type=range]::-webkit-slider-thumb {
-            width: 8px;
-            height: 13px;
-            border-radius: 1px;
-            border: 0;
-            background: rgb(var(--tp-ink) / 0.92);
-            box-shadow:
-                0 5px 9px rgb(28 26 23 / 0.24),
-                0 1px 0 rgb(255 255 255 / 0.36);
+            width: 0.68rem;
+            height: 1.18rem;
+            margin-top: -0.47rem;
+            border-radius: 0;
+            border: 1px solid rgb(var(--tp-ink) / 0.7);
+            background: rgb(var(--tp-ink) / 0.76);
+            box-shadow: 0 4px 8px rgb(28 26 23 / 0.22);
             -webkit-appearance: none;
             appearance: none;
         }
         body[data-ui="tracing-paper"] .slider-group input[type=range]::-moz-range-thumb {
-            width: 8px;
-            height: 13px;
-            border-radius: 1px;
-            border: 0;
-            background: rgb(var(--tp-ink) / 0.92);
-            box-shadow:
-                0 5px 9px rgb(28 26 23 / 0.24),
-                0 1px 0 rgb(255 255 255 / 0.36);
+            width: 0.68rem;
+            height: 1.18rem;
+            border-radius: 0;
+            border: 1px solid rgb(var(--tp-ink) / 0.7);
+            background: rgb(var(--tp-ink) / 0.76);
+            box-shadow: 0 4px 8px rgb(28 26 23 / 0.22);
         }
         body[data-ui="tracing-paper"] .readout {
             min-width: 0;
@@ -803,16 +908,323 @@
             border-color: var(--tp-line-heavy) !important;
             background: transparent !important;
         }
-        body[data-ui="tracing-paper"] .lang-switch {
+        body[data-ui="tracing-paper"] .select-group {
+            min-height: 1.85rem;
+            padding: 0.22rem 0.34rem;
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: minmax(3.1rem, 0.72fr) minmax(5.2rem, 1fr);
+            gap: 0.4rem;
+            border: 0;
+            border-radius: 0;
+            background: rgb(255 255 255 / 0.2);
+            box-shadow: inset 0 0 0 1px rgb(var(--tp-ink) / 0.09);
+            color: var(--tp-text-soft);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] .tp-select {
+            min-width: 0;
+            width: 100%;
+            min-height: 1.42rem;
+            padding: 0 1.4rem 0 0.36rem;
+            color: var(--tp-text);
+            border: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            background: rgb(var(--tp-paper) / 0.46);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            font-weight: var(--tp-weight);
+            outline: none;
+        }
+        body[data-ui="tracing-paper"] #ui-bar {
+            position: fixed;
+            inset: 0;
+            left: 0;
+            bottom: auto;
+            transform: none;
+            width: auto;
+            min-width: 0;
+            min-height: 0;
+            max-width: none;
+            max-height: none;
+            padding: 0;
+            display: block;
+            overflow: visible;
+            pointer-events: none;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            opacity: 1;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+        body[data-ui="tracing-paper"] #ui-bar::before {
+            display: none;
+        }
+        body[data-ui="tracing-paper"] .control-panel[hidden],
+        body[data-ui="tracing-paper"] .panel-restore-dock[hidden],
+        body[data-ui="tracing-paper"] .panel-restore-dock button[hidden] {
+            display: none !important;
+        }
+        body[data-ui="tracing-paper"] .control-panel {
+            position: fixed;
+            width: clamp(20rem, 28vw, 31rem);
+            min-width: min(19rem, calc(100vw - 1.4rem));
+            max-width: calc(100vw - 1.4rem);
+            min-height: 9rem;
+            max-height: calc(100dvh - 1.4rem);
+            display: grid;
+            grid-template-rows: auto 1fr;
+            overflow: hidden;
+            pointer-events: auto;
+            color: var(--tp-text);
+            font-family: var(--tp-sans);
+            font-weight: var(--tp-weight);
+            background:
+                linear-gradient(rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                rgb(var(--tp-paper) / 0.54);
+            background-size: 96px 96px, 96px 96px, 12px 12px, 12px 12px, auto;
+            border: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            box-shadow:
+                inset 0 1px 0 rgb(255 255 255 / 0.62),
+                inset 0 -1px 0 rgb(145 129 113 / 0.16),
+                0 16px 42px rgb(0 0 0 / 0.18);
+            opacity: 0.72;
+            resize: both;
+            backdrop-filter: blur(14px) saturate(0.92) brightness(1.05);
+            -webkit-backdrop-filter: blur(14px) saturate(0.92) brightness(1.05);
+            transition: opacity 0.18s ease, box-shadow 0.18s ease;
+            z-index: 22;
+        }
+        body[data-ui="tracing-paper"] .control-panel:hover,
+        body[data-ui="tracing-paper"] .control-panel:focus-within {
+            opacity: 1;
+            box-shadow:
+                inset 0 1px 0 rgb(255 255 255 / 0.68),
+                inset 0 -1px 0 rgb(145 129 113 / 0.18),
+                0 18px 50px rgb(0 0 0 / 0.22);
+        }
+        body[data-ui="tracing-paper"] .control-panel--main {
+            left: max(1rem, calc(50vw - 51rem));
+            bottom: max(0.82rem, env(safe-area-inset-bottom));
+            width: clamp(34rem, 42vw, 39rem);
+            min-width: min(34rem, calc(100vw - 1.4rem));
+            min-height: 17.5rem;
+            resize: none;
+        }
+        body[data-ui="tracing-paper"] .control-panel--cloud {
+            left: 50%;
+            top: clamp(4.2rem, 6.8vh, 5.2rem);
+            bottom: auto;
+            width: clamp(42rem, 54vw, 50rem);
+            min-width: min(42rem, calc(100vw - 1.4rem));
+            min-height: 19.5rem;
+            transform: translateX(-50%);
+        }
+        body[data-ui="tracing-paper"] .control-panel--atmosphere {
+            right: max(1rem, calc(50vw - 51rem));
+            bottom: max(0.82rem, env(safe-area-inset-bottom));
+            width: clamp(23rem, 27vw, 25rem);
+            min-width: min(23rem, calc(100vw - 1.4rem));
+            min-height: 15.2rem;
+        }
+        body[data-ui="tracing-paper"] .control-panel__chrome {
+            min-height: var(--tp-panel-header-height);
+            padding: 0.22rem 0.42rem 0.22rem 0.55rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            color: var(--tp-text-faint);
+            border-bottom: 1px solid var(--tp-line-heavy);
+            background: rgb(var(--tp-paper-cool) / 0.32);
+            cursor: move;
+            user-select: none;
+            touch-action: none;
+        }
+        body[data-ui="tracing-paper"] .control-panel__title {
+            overflow: hidden;
+            font-family: var(--tp-mono);
+            font-size: 0.58rem;
+            font-weight: var(--tp-weight);
+            line-height: 1.15;
+            letter-spacing: 0.14em;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        body[data-ui="tracing-paper"] .control-panel__actions {
+            display: flex;
+            align-items: center;
             gap: 1px;
             background: var(--tp-line);
         }
-        body[data-ui="tracing-paper"] .lang-switch button {
-            min-width: 0;
+        body[data-ui="tracing-paper"] .panel-button {
+            min-width: 1.55rem;
+            min-height: 1.18rem;
+            padding: 0 0.28rem;
             border-color: transparent;
             background: rgb(255 255 255 / 0.28);
+            font-size: 0.66rem;
+            line-height: 1;
+        }
+        body[data-ui="tracing-paper"] .control-panel__body {
+            min-height: 0;
+            padding: 0.46rem;
+            display: grid;
+            gap: 1px;
+            overflow: auto;
+            background: transparent;
+            scrollbar-width: thin;
+            scrollbar-color: rgb(var(--tp-paper-cool) / 0.78) rgb(var(--tp-paper) / 0.52);
+        }
+        body[data-ui="tracing-paper"] .control-panel__body::-webkit-scrollbar,
+        body[data-ui="tracing-paper"] .control-group::-webkit-scrollbar {
+            width: 1.28rem;
+            height: 1.28rem;
+        }
+        body[data-ui="tracing-paper"] .control-panel__body::-webkit-scrollbar-track,
+        body[data-ui="tracing-paper"] .control-group::-webkit-scrollbar-track {
+            border: 1px solid rgb(var(--tp-ink) / 0.18);
+            background: rgb(var(--tp-paper) / 0.52);
+        }
+        body[data-ui="tracing-paper"] .control-panel__body::-webkit-scrollbar-thumb,
+        body[data-ui="tracing-paper"] .control-group::-webkit-scrollbar-thumb {
+            border: 0.36rem solid transparent;
+            background: rgb(var(--tp-paper-cool) / 0.78);
+            background-clip: padding-box;
+            box-shadow: inset 0 0 0 1px rgb(var(--tp-ink) / 0.18);
+        }
+        body[data-ui="tracing-paper"] .control-panel__body::-webkit-scrollbar-corner,
+        body[data-ui="tracing-paper"] .control-group::-webkit-scrollbar-corner,
+        body[data-ui="tracing-paper"] .control-panel::-webkit-resizer {
+            background:
+                linear-gradient(135deg, transparent 0 42%, rgb(var(--tp-ink) / 0.26) 42% 48%, transparent 48% 58%, rgb(var(--tp-ink) / 0.2) 58% 64%, transparent 64%),
+                rgb(var(--tp-paper) / 0.52);
+        }
+        body[data-ui="tracing-paper"] .control-panel--main .control-panel__body {
+            grid-template-columns: minmax(9.5rem, 0.9fr) minmax(10.5rem, 1fr) minmax(9.5rem, 0.9fr);
+        }
+        body[data-ui="tracing-paper"] .control-panel--cloud .control-panel__body {
+            grid-template-columns: minmax(12.2rem, 0.98fr) minmax(12.6rem, 1fr) minmax(11.5rem, 0.94fr);
+        }
+        body[data-ui="tracing-paper"] .control-panel--atmosphere .control-panel__body {
+            grid-template-columns: minmax(0, 1fr);
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group,
+        body[data-ui="tracing-paper"] .control-panel .control-group--atmosphere-wide {
+            min-width: 0;
+            width: auto;
+            min-height: 7rem;
+            padding: 0.46rem;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            align-items: start;
+            gap: 0.38rem;
+            overflow: visible;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group--display {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            min-height: 8.4rem;
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group--framing {
+            grid-template-columns: minmax(0, 1fr);
+            min-height: 12.2rem;
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group--time {
+            min-height: 11.2rem;
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group--storm,
+        body[data-ui="tracing-paper"] .control-panel .control-group--render {
+            min-height: 8.2rem;
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group--cloud-structure {
+            grid-column: auto;
+            grid-template-columns: minmax(0, 1fr);
+            min-height: 8.2rem;
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group--atmosphere {
+            grid-template-columns: minmax(0, 1fr);
+            position: relative;
+            min-height: 11.8rem;
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group__label,
+        body[data-ui="tracing-paper"] .control-panel .select-group,
+        body[data-ui="tracing-paper"] .control-panel .framing-controls {
+            grid-column: 1 / -1;
+        }
+        body[data-ui="tracing-paper"] .control-panel .slider-group {
+            min-width: 0;
+            grid-template-columns: minmax(3.2rem, 0.72fr) minmax(4.4rem, 1fr) minmax(2.55rem, auto);
+            white-space: normal;
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group--cloud-structure .slider-group,
+        body[data-ui="tracing-paper"] .control-panel .control-group--atmosphere .slider-group {
+            grid-template-columns: minmax(3.2rem, 0.58fr) minmax(3.8rem, 1fr) minmax(2.3rem, auto);
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group--atmosphere[data-sun-elevation-linked="true"] .slider-group--sun::after {
+            content: "";
+            position: absolute;
+            left: 0.54rem;
+            top: calc(100% - 0.08rem);
+            width: 2.2rem;
+            height: 1.58rem;
+            border-left: 1px dashed rgb(var(--tp-ink) / 0.42);
+            border-bottom: 1px dashed rgb(var(--tp-ink) / 0.42);
+            border-bottom-left-radius: 1.15rem;
+            pointer-events: none;
+        }
+        body[data-ui="tracing-paper"] .control-panel .control-group--atmosphere[data-sun-elevation-linked="true"] .slider-group--sun,
+        body[data-ui="tracing-paper"] .control-panel .control-group--atmosphere[data-sun-elevation-linked="true"] .slider-group--elevation {
+            position: relative;
+        }
+        body[data-ui="tracing-paper"] .sync-status {
+            grid-column: 1 / -1;
+            min-height: 1.55rem;
+            padding: 0.28rem 0.46rem;
+            border: 1px solid rgb(var(--tp-ink) / 0.18);
+            color: rgb(var(--tp-ink) / 0.86);
+            background: rgb(var(--tp-paper) / 0.32);
+            font-size: 0.68rem;
+            line-height: 1.25;
+            white-space: normal;
+        }
+        body[data-ui="tracing-paper"] .sync-status[hidden] {
+            display: none;
+        }
+        body[data-ui="tracing-paper"] .control-panel[data-panel-collapsed="true"] {
+            width: min(18.5rem, calc(100vw - 1.4rem)) !important;
+            height: auto !important;
+            resize: none;
+        }
+        body[data-ui="tracing-paper"] .control-panel[data-panel-collapsed="true"] .control-panel__body {
+            display: none;
+        }
+        body[data-ui="tracing-paper"] .panel-restore-dock {
+            position: fixed;
+            right: max(0.7rem, env(safe-area-inset-right));
+            top: max(0.7rem, env(safe-area-inset-top));
+            display: flex;
+            align-items: center;
+            gap: 1px;
+            pointer-events: auto;
+            background: var(--tp-line);
+            border: 1px solid var(--tp-line-heavy);
+            box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
+            z-index: 26;
+        }
+        body[data-ui="tracing-paper"] .panel-restore-dock button {
+            min-height: 1.8rem;
+            border-color: transparent;
+            background: rgb(var(--tp-paper) / 0.62);
         }
         body[data-controls-hidden="true"]::before,
         body[data-controls-hidden="true"]::after,
@@ -903,6 +1315,62 @@
                 backdrop-filter: blur(16px) saturate(0.95) brightness(1.04);
                 -webkit-backdrop-filter: blur(16px) saturate(0.95) brightness(1.04);
             }
+            body[data-ui="tracing-paper"] .control-panel {
+                position: relative !important;
+                inset: auto !important;
+                right: auto !important;
+                bottom: auto !important;
+                transform: none !important;
+                width: auto !important;
+                min-width: 0;
+                max-width: none;
+                height: 100% !important;
+                min-height: 0;
+                max-height: none;
+                display: grid;
+                grid-template-rows: auto minmax(0, 1fr);
+                overflow: hidden;
+                resize: none;
+                opacity: 1;
+                scroll-snap-align: center;
+                box-shadow: none;
+            }
+            body[data-ui="tracing-paper"] .control-panel__chrome {
+                min-height: 1.55rem;
+                padding: 0.36rem 0.52rem 0.28rem;
+                cursor: default;
+                pointer-events: none;
+            }
+            body[data-ui="tracing-paper"] .control-panel__title {
+                font-size: 0.56rem;
+            }
+            body[data-ui="tracing-paper"] .control-panel__actions {
+                width: 0;
+                display: flex;
+                overflow: hidden;
+                visibility: hidden;
+            }
+            body[data-ui="tracing-paper"] .panel-button {
+                min-height: 44px;
+            }
+            body[data-ui="tracing-paper"] .control-panel__body {
+                min-height: 0;
+                padding: 0.46rem;
+                display: grid;
+                grid-auto-flow: column;
+                grid-auto-columns: minmax(15rem, 82vw);
+                grid-template-columns: none;
+                grid-template-rows: 1fr;
+                gap: 0.38rem;
+                overflow-x: auto;
+                overflow-y: hidden;
+                scroll-snap-type: inline mandatory;
+                scrollbar-width: none;
+                background: transparent;
+            }
+            body[data-ui="tracing-paper"] .control-panel__body::-webkit-scrollbar {
+                display: none;
+            }
             body[data-ui="tracing-paper"] #ui-bar::-webkit-scrollbar {
                 display: none;
             }
@@ -946,7 +1414,7 @@
                 scroll-snap-align: center;
                 touch-action: pan-y;
                 color: var(--tp-text);
-                background: rgb(255 255 255 / 0.34);
+                background: transparent;
                 border: 1px solid var(--tp-line);
                 border-radius: 0;
                 box-shadow: none;
@@ -977,18 +1445,29 @@
             }
             body[data-ui="tracing-paper"] button:hover,
             body[data-ui="tracing-paper"] button.active,
-            body[data-ui="tracing-paper"] button.enabled {
-                color: rgb(255 255 255 / 0.96);
-                border-color: rgb(var(--tp-ink) / 0.9);
-                background: rgb(var(--tp-ink) / 0.9);
+            body[data-ui="tracing-paper"] button.enabled,
+            body[data-ui="tracing-paper"] .btn-toggle.enabled,
+            body[data-ui="tracing-paper"] .btn-toggle.camera.ortho,
+            body[data-ui="tracing-paper"] .btn-toggle.fullscreen.enabled,
+            body[data-ui="tracing-paper"] .btn-toggle.quality-auto {
+                color: var(--tp-text) !important;
+                border-color: rgba(40, 38, 35, 0.76) !important;
+                background: rgba(246, 242, 236, 0.42) !important;
+                box-shadow: inset 0 0 0 1px rgba(40, 38, 35, 0.18) !important;
             }
-            body[data-ui="tracing-paper"] .lang-switch,
+            body[data-ui="tracing-paper"] .select-group,
             body[data-ui="tracing-paper"] .framing-controls {
                 grid-column: 1 / -1;
                 gap: 0.32rem;
                 background: transparent;
             }
-            body[data-ui="tracing-paper"] .lang-switch button,
+            body[data-ui="tracing-paper"] .tp-select {
+                min-height: 44px;
+                padding: 0.42rem 0.52rem;
+                border-color: var(--tp-line-heavy);
+                background: rgb(255 255 255 / 0.24);
+                font-size: 0.68rem;
+            }
             body[data-ui="tracing-paper"] .framing-controls button {
                 border-color: transparent;
                 background: rgb(255 255 255 / 0.24);
@@ -1008,31 +1487,57 @@
                 grid-template-columns: minmax(4.2rem, 0.72fr) minmax(0, 1fr) minmax(2.8rem, auto);
             }
             body[data-ui="tracing-paper"] .slider-group label,
+            body[data-ui="tracing-paper"] .slider-label,
             body[data-ui="tracing-paper"] .readout {
                 color: var(--tp-text-soft);
                 font-size: 0.66rem;
             }
+            body[data-ui="tracing-paper"] .link-chip {
+                position: relative;
+                width: 44px;
+                min-width: 44px;
+                height: 44px;
+                min-height: 44px;
+                border-color: transparent;
+                background: transparent;
+                box-shadow: none;
+            }
+            body[data-ui="tracing-paper"] .link-chip::before {
+                content: "";
+                position: absolute;
+                inset: 50% auto auto 50%;
+                width: 1rem;
+                height: 1rem;
+                transform: translate(-50%, -50%);
+                border: 1px solid rgb(var(--tp-ink) / 0.38);
+                background: transparent;
+            }
+            body[data-ui="tracing-paper"] .link-chip.enabled::before {
+                background: rgb(var(--tp-ink) / 0.78);
+            }
             body[data-ui="tracing-paper"] .slider-group input[type=range] {
                 min-height: 44px;
                 height: 44px;
-                background:
-                    linear-gradient(transparent calc(50% - 1px), var(--tp-text-faint) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
-                border-radius: 999px;
+                background: transparent;
+                border-radius: 0;
                 box-shadow: none;
             }
             body[data-ui="tracing-paper"] .slider-group input[type=range]::-webkit-slider-thumb {
-                width: 1.35rem;
-                height: 1.35rem;
-                border: 1px solid rgb(var(--tp-ink) / 0.9);
+                width: 1.15rem;
+                height: 1.72rem;
+                border: 1px solid rgb(var(--tp-ink) / 0.78);
                 border-radius: 0;
-                background: rgb(var(--tp-ink) / 0.9);
+                margin-top: -0.68rem;
+                background: rgb(var(--tp-ink) / 0.78);
+                box-shadow: 0 3px 7px rgb(28 26 23 / 0.16);
             }
             body[data-ui="tracing-paper"] .slider-group input[type=range]::-moz-range-thumb {
-                width: 1.35rem;
-                height: 1.35rem;
-                border: 1px solid rgb(var(--tp-ink) / 0.9);
+                width: 1.15rem;
+                height: 1.72rem;
+                border: 1px solid rgb(var(--tp-ink) / 0.78);
                 border-radius: 0;
-                background: rgb(var(--tp-ink) / 0.9);
+                background: rgb(var(--tp-ink) / 0.78);
+                box-shadow: 0 3px 7px rgb(28 26 23 / 0.16);
             }
             body[data-ui="tracing-paper"] #btn-random-seed {
                 min-height: 44px;
@@ -1084,6 +1589,7 @@
 
     <div id="render-container" class="viewport-landscape">
         <div id="overlay">
+            <button id="btn-hud-close" class="hud-close-button" type="button" data-i18n-title="title.closeHud" title="Close HUD">x</button>
             <div class="project-kicker" data-i18n="overlay.kicker">Operational volumetric study</div>
             <div class="project-title" data-i18n="overlay.title">Cumulonimbus Live HDR Observatory</div>
             <div class="hud-text" id="target-label">Target: 16:9 Broadcast</div>
@@ -1097,92 +1603,162 @@
         </div>
     </div>
 
-    <div id="ui-bar">
-        <div class="control-group control-group--display" aria-label="Project display">
-            <span class="control-group__label" data-i18n="group.display">Display</span>
-            <button id="btn-landscape" class="active">16:9</button>
-            <button id="btn-portrait">9:16</button>
-            <button id="btn-fullscreen" class="btn-toggle fullscreen" title="Browser fullscreen display; high-resolution screens cap the internal render buffer for performance." data-i18n="button.fullscreen" data-i18n-title="title.fullscreen">Fullscreen</button>
-            <button id="btn-hud" class="btn-toggle">HUD</button>
-            <div class="lang-switch" role="group" aria-label="Language">
-                <button id="btn-lang-zh" type="button" data-lang-option="zh-TW">繁</button>
-                <button id="btn-lang-en" type="button" data-lang-option="en">EN</button>
+    <div id="ui-bar" aria-label="Control panels">
+        <section id="panel-main" class="control-panel control-panel--main" data-panel-key="mainPanel" aria-label="Main display, framing, and time panel">
+            <div class="control-panel__chrome">
+                <span class="control-panel__title" data-i18n="panel.main">MAIN PANEL // DISPLAY + FRAMING + TIME</span>
+                <div class="control-panel__actions">
+                    <button type="button" class="panel-button" data-panel-minimize="mainPanel" data-i18n-title="title.minimizePanel" title="Minimize this panel">-</button>
+                </div>
             </div>
-            <div class="framing-controls" aria-label="Framing controls">
-                <button id="btn-grid" class="btn-toggle" data-i18n="button.grid">Scale ruler</button>
-                <button id="btn-cam-mode" class="btn-toggle camera" data-i18n="button.perspective">Perspective</button>
-                <button id="btn-reset-cam" class="btn-action" data-i18n="button.recenter">Recenter</button>
-            </div>
-        </div>
+            <div class="control-panel__body">
+                <div class="control-group control-group--display" aria-label="Project display">
+                    <span class="control-group__label" data-i18n="group.display">Display</span>
+                    <button id="btn-landscape" class="active">16:9</button>
+                    <button id="btn-portrait">9:16</button>
+                    <button id="btn-fullscreen" class="btn-toggle fullscreen" title="Browser fullscreen display; high-resolution screens cap the internal render buffer for performance." data-i18n="button.fullscreen" data-i18n-title="title.fullscreen">Fullscreen</button>
+                    <button id="btn-toggle-other-panels" class="btn-toggle" data-i18n-title="title.toggleOtherPanels" title="Show or hide cloud and atmosphere panels.">Panels</button>
+                    <label class="select-group lang-select" aria-label="Language">
+                        <span data-i18n="label.language">Language</span>
+                        <select id="select-language" class="tp-select">
+                            <option value="zh-TW" data-i18n="option.languageZh">Traditional Chinese</option>
+                            <option value="en" data-i18n="option.languageEn">English</option>
+                        </select>
+                    </label>
+                </div>
 
-        <div class="control-group" aria-label="Storm seed and convective cells">
-            <span class="control-group__label" data-i18n="group.storm">Storm</span>
-            <div class="slider-group">
-                <label data-i18n="label.seed">Seed</label>
-            <input type="number" id="input-seed" class="seed-input">
-                <button id="btn-random-seed" title="Random seed" data-i18n-title="title.randomSeed" style="padding: 2px 6px; background: rgba(127, 199, 160, 0.24); border-color: rgba(127, 199, 160, 0.62);">↻</button>
-            </div>
-            <div class="slider-group" title="Set the number of active convective cells." data-i18n-title="title.cells">
-                <label data-i18n="label.cells">Convective cells</label>
-                <input type="range" id="slider-systems" min="1" max="10" step="1" value="3">
-                <span id="systems-readout" class="readout">3</span>
-            </div>
-        </div>
+                <div class="control-group control-group--framing" aria-label="Framing and surface controls">
+                    <span class="control-group__label" data-i18n="group.framing">Framing</span>
+                    <div class="framing-controls" aria-label="Framing controls">
+                        <button id="btn-grid" class="btn-toggle" data-i18n="button.grid">Scale ruler</button>
+                        <button id="btn-cam-mode" class="btn-toggle camera" data-i18n="button.perspective">Perspective</button>
+                        <button id="btn-reset-cam" class="btn-action" data-i18n="button.recenter">Recenter</button>
+                    </div>
+                    <label class="select-group surface-select" aria-label="Surface mode">
+                        <span data-i18n="label.surface">Surface</span>
+                        <select id="select-surface" class="tp-select">
+                            <option value="none" data-i18n="option.surfaceNone">None</option>
+                            <option value="ocean" data-i18n="option.surfaceOcean">Ocean</option>
+                            <option value="hills" data-i18n="option.surfaceHills">Grassland hills</option>
+                        </select>
+                    </label>
+                </div>
 
-        <div class="control-group" aria-label="Time controls">
-            <span class="control-group__label" data-i18n="group.time">Time</span>
-            <div class="slider-group" title="Control the lifecycle speed of the cloud field." data-i18n-title="title.time">
-                <label data-i18n="label.time">Speed</label>
-                <input type="range" id="slider-time" min="0.5" max="5" step="0.25" value="1.5">
-                <span id="time-readout" class="readout">1.5x</span>
+                <div class="control-group control-group--time" aria-label="Time controls">
+                    <span class="control-group__label" data-i18n="group.time">Time</span>
+                    <div class="slider-group" title="Control the lifecycle speed of the cloud field." data-i18n-title="title.time">
+                        <label data-i18n="label.time">Speed</label>
+                        <input type="range" id="slider-time" min="0.5" max="5" step="0.25" value="1.5">
+                        <span id="time-readout" class="readout">1.5x</span>
+                    </div>
+                    <button id="btn-time-toggle" class="btn-toggle" data-i18n="button.pause">Pause</button>
+                    <button id="btn-sync-system-time" class="btn-toggle" data-i18n="button.syncSystemTime" data-i18n-title="title.syncSystemTime" title="Synchronize cloud time and sun geometry with the current local time.">System time</button>
+                    <button id="btn-sync-location" class="btn-toggle" data-i18n="button.syncLocation" data-i18n-title="title.syncLocation" title="Use detected latitude for solar elevation.">Sync location</button>
+                    <button id="btn-time-reset" class="btn-toggle" data-i18n="button.resetTime">Reset time</button>
+                    <div id="sync-status" class="sync-status" role="status" aria-live="polite" hidden></div>
+                </div>
             </div>
-            <button id="btn-time-toggle" class="btn-toggle" data-i18n="button.pause">Pause</button>
-            <button id="btn-time-reset" class="btn-toggle" data-i18n="button.resetTime">Reset time</button>
-        </div>
+        </section>
 
-        <div class="control-group" aria-label="Render performance">
-            <span class="control-group__label" data-i18n="group.render">Render</span>
-            <div class="slider-group" title="Internal render scale; lower values reduce raymarch pixel load and improve FPS." data-i18n-title="title.quality">
-                <label data-i18n="label.quality">Power</label>
-                <input type="range" id="slider-quality" min="0.45" max="1" step="0.01" value="0.72">
-                <span id="quality-readout" class="readout">0.72x</span>
+        <section id="panel-cloud" class="control-panel control-panel--cloud" data-panel-key="cloudPanel" aria-label="Cloud body panel">
+            <div class="control-panel__chrome">
+                <span class="control-panel__title" data-i18n="panel.cloud">CLOUD BODY // SYSTEM + POWER + STRUCTURE</span>
+                <div class="control-panel__actions">
+                    <button type="button" class="panel-button" data-panel-close="cloudPanel" data-i18n-title="title.closePanel" title="Close this panel">x</button>
+                </div>
             </div>
-            <button id="btn-auto-quality" class="btn-toggle quality-auto" title="Automatically adjusts internal render scale and raymarch steps by average FPS." data-i18n="button.autoQuality" data-i18n-title="title.autoQuality">Auto power</button>
-            <button id="btn-hdr10" class="btn-toggle hdr10" title="HDR10 reference preview using ST 2084 / PQ response and a 1000 nit mastering target." data-i18n="button.hdr10" data-i18n-title="title.hdr10">HDR10</button>
-        </div>
+            <div class="control-panel__body">
+                <div class="control-group control-group--storm" aria-label="Storm seed and convective cells">
+                    <span class="control-group__label" data-i18n="group.storm">Storm</span>
+                    <div class="slider-group">
+                        <label data-i18n="label.seed">Seed</label>
+                        <input type="number" id="input-seed" class="seed-input">
+                        <button id="btn-random-seed" title="Random seed" data-i18n-title="title.randomSeed" style="padding: 2px 6px; background: rgba(127, 199, 160, 0.24); border-color: rgba(127, 199, 160, 0.62);">↻</button>
+                    </div>
+                    <div class="slider-group" title="Set the number of active convective cells." data-i18n-title="title.cells">
+                        <label data-i18n="label.cells">Convective cells</label>
+                        <input type="range" id="slider-systems" min="1" max="10" step="1" value="3">
+                        <span id="systems-readout" class="readout">3</span>
+                    </div>
+                </div>
 
-        <div class="control-group control-group--atmosphere-wide" aria-label="Atmospheric parameters">
-            <span class="control-group__label" data-i18n="group.atmosphere">Atmosphere</span>
-            <div class="slider-group accent-red" title="Tropopause height in kilometers." data-i18n-title="title.tropo">
-                <label data-i18n="label.tropo">Top</label>
-                <input type="range" id="slider-tropo" min="8" max="18" step="0.5" value="12">
-                <span id="tropo-readout" class="readout">12km</span>
+                <div class="control-group control-group--render" aria-label="Render performance">
+                    <span class="control-group__label" data-i18n="group.render">Render</span>
+                    <div class="slider-group" title="Internal render scale; lower values reduce raymarch pixel load and improve FPS." data-i18n-title="title.quality">
+                        <label data-i18n="label.quality">Power</label>
+                        <input type="range" id="slider-quality" min="0.45" max="1" step="0.01" value="0.72">
+                        <span id="quality-readout" class="readout">0.72x</span>
+                    </div>
+                    <button id="btn-auto-quality" class="btn-toggle quality-auto" title="Automatically adjusts internal render scale and raymarch steps by average FPS." data-i18n="button.autoQuality" data-i18n-title="title.autoQuality">Auto power</button>
+                    <button id="btn-hdr10" class="btn-toggle hdr10" title="HDR10 reference preview using ST 2084 / PQ response and a 1000 nit mastering target." data-i18n="button.hdr10" data-i18n-title="title.hdr10">HDR10</button>
+                </div>
+
+                <div class="control-group control-group--cloud-structure" aria-label="Cloud structure parameters">
+                    <span class="control-group__label" data-i18n="group.cloudStructure">Cloud structure</span>
+                    <div class="slider-group accent-red" title="Tropopause height in kilometers." data-i18n-title="title.tropo">
+                        <label data-i18n="label.tropo">Top</label>
+                        <input type="range" id="slider-tropo" min="8" max="18" step="0.5" value="12">
+                        <span id="tropo-readout" class="readout">12km</span>
+                    </div>
+                    <div class="slider-group" title="Freezing level, controlling water-to-ice texture transition." data-i18n-title="title.freezing">
+                        <label data-i18n="label.freezing">Freezing</label>
+                        <input type="range" id="slider-freezing" min="3" max="6" step="0.25" value="5">
+                        <span id="freezing-readout" class="readout">5km</span>
+                    </div>
+                    <div class="slider-group" title="Upper-level wind shear controlling anvil outflow asymmetry." data-i18n-title="title.shear">
+                        <label data-i18n="label.shear">Shear</label>
+                        <input type="range" id="slider-shear" min="0" max="1" step="0.05" value="0.7">
+                        <span id="shear-readout" class="readout">0.70</span>
+                    </div>
+                </div>
             </div>
-            <div class="slider-group" title="Freezing level, controlling water-to-ice texture transition." data-i18n-title="title.freezing">
-                <label data-i18n="label.freezing">Freezing</label>
-                <input type="range" id="slider-freezing" min="3" max="6" step="0.25" value="5">
-                <span id="freezing-readout" class="readout">5km</span>
+        </section>
+
+        <section id="panel-atmosphere" class="control-panel control-panel--atmosphere" data-panel-key="atmospherePanel" aria-label="Atmosphere panel">
+            <div class="control-panel__chrome">
+                <span class="control-panel__title" data-i18n="panel.atmosphere">ATMOSPHERE // SUN GEOMETRY</span>
+                <div class="control-panel__actions">
+                    <button type="button" class="panel-button" data-panel-close="atmospherePanel" data-i18n-title="title.closePanel" title="Close this panel">x</button>
+                </div>
             </div>
-            <div class="slider-group" title="Upper-level wind shear controlling anvil outflow asymmetry." data-i18n-title="title.shear">
-                <label data-i18n="label.shear">Shear</label>
-                <input type="range" id="slider-shear" min="0" max="1" step="0.05" value="0.7">
-                <span id="shear-readout" class="readout">0.70</span>
+            <div class="control-panel__body">
+                <div class="control-group control-group--atmosphere" aria-label="Atmospheric parameters">
+                    <span class="control-group__label" data-i18n="group.atmosphere">Atmosphere</span>
+                    <div class="slider-group slider-group--sun" title="Sunlight contribution to cloud scattering and highlights." data-i18n-title="title.sun">
+                        <span class="slider-label">
+                            <span data-i18n="label.sun">Sun</span>
+                            <button id="btn-link-sun-elevation" class="link-chip enabled" type="button" data-i18n-title="title.unlinkSunElevation" title="Unlink sun intensity from elevation."> </button>
+                        </span>
+                        <input type="range" id="slider-sun" min="0" max="8" step="0.1" value="4.6">
+                        <span id="sun-readout" class="readout">4.6</span>
+                    </div>
+                    <div class="slider-group slider-group--elevation" title="Sun elevation above the horizon." data-i18n-title="title.sunElevation">
+                        <span class="slider-label">
+                            <span data-i18n="label.sunElevation">Elev</span>
+                            <button id="btn-link-elevation-sun" class="link-chip enabled" type="button" data-i18n-title="title.unlinkSunElevation" title="Unlink sun intensity from elevation."> </button>
+                        </span>
+                        <input type="range" id="slider-sun-elevation" min="-18" max="82" step="1" value="35">
+                        <span id="sun-elevation-readout" class="readout">35deg</span>
+                    </div>
+                    <div class="slider-group slider-group--ambient" title="Ambient skylight contribution." data-i18n-title="title.ambient">
+                        <label data-i18n="label.ambient">Ambient</label>
+                        <input type="range" id="slider-ambient" min="0.2" max="1.2" step="0.05" value="0.75">
+                        <span id="ambient-readout" class="readout">0.75</span>
+                    </div>
+                    <div class="slider-group slider-group--angle" title="Horizontal angle between the viewer and the sun." data-i18n-title="title.sunAngle">
+                        <label data-i18n="label.sunAngle">Angle</label>
+                        <input type="range" id="slider-sun-angle" min="-180" max="180" step="5" value="25">
+                        <span id="sun-angle-readout" class="readout">25deg</span>
+                    </div>
+                </div>
             </div>
-            <div class="slider-group" title="Sunlight contribution to cloud scattering and highlights." data-i18n-title="title.sun">
-                <label data-i18n="label.sun">Sun</label>
-                <input type="range" id="slider-sun" min="0" max="8" step="0.1" value="4.6">
-            </div>
-            <div class="slider-group" title="Sun elevation above the horizon." data-i18n-title="title.sunElevation">
-                <label data-i18n="label.sunElevation">Elev</label>
-                <input type="range" id="slider-sun-elevation" min="-18" max="82" step="1" value="35">
-                <span id="sun-elevation-readout" class="readout">35deg</span>
-            </div>
-            <div class="slider-group" title="Horizontal angle between the viewer and the sun." data-i18n-title="title.sunAngle">
-                <label data-i18n="label.sunAngle">Angle</label>
-                <input type="range" id="slider-sun-angle" min="-180" max="180" step="5" value="25">
-                <span id="sun-angle-readout" class="readout">25deg</span>
-            </div>
-        </div>
+        </section>
+    </div>
+
+    <div id="panel-restore-dock" class="panel-restore-dock" hidden aria-label="Closed panels">
+        <button type="button" data-hud-restore hidden data-i18n="panel.restoreHud">HUD</button>
+        <button type="button" data-panel-restore="cloudPanel" hidden data-i18n="panel.restoreCloud">Cloud</button>
+        <button type="button" data-panel-restore="atmospherePanel" hidden data-i18n="panel.restoreAtmosphere">Atmosphere</button>
     </div>
 
     <script>
@@ -1194,6 +1770,8 @@
             uniform float uAspect;
             uniform float uTropopause;
             uniform float uShowGrid;
+            uniform float uSurfaceVisible;
+            uniform float uSurfaceMode;
             uniform float uSeed;
             uniform float uSystemCount;
             uniform float uIsOrtho;
@@ -1309,6 +1887,13 @@
                 return smoothstep(uFreezingLevel, uTropopause, heightKm);
             }
 
+            float convectiveSpokePattern(vec2 local, float height01, float phase, float frequency) {
+                float angle = atan(local.y, local.x);
+                float spoke = pow(max(0.0, sin(angle * frequency + height01 * 5.2 + phase)), 2.4);
+                float gate = smoothstep(-0.24, 0.72, sin(angle * (frequency * 0.43 + 1.7) + phase * 1.31 + uSeed * 0.004));
+                return spoke * gate;
+            }
+
             float getCell01(
                 vec3 p,
                 vec2 offset,
@@ -1363,13 +1948,29 @@
                     * smoothstep(-maxR * 0.95, maxR * 3.25, downwind)
                     * (1.0 - smoothstep(anvilLength * 0.78, anvilLength * 1.18, downwind));
                 float anvil = anvilLife * anvilMask * maxR * mix(1.48, 1.56, photo) * anvilScale * anvilPlume;
-                float anvilSlab = max(abs(crosswind) - anvilWidth, max(-downwind - maxR * 0.95, downwind - anvilLength));
+                float anvilFingerWave = pow(max(0.0, sin(downwind * 1.55 + phase * 2.1)), 2.0)
+                    * smoothstep(0.3, 0.92, noise(vec3(downwind * 0.38, crosswind * 0.42, phase + uSeed * 0.015)));
+                float anvilEdgeBand = smoothstep(anvilWidth * 0.42, anvilWidth * 1.08, crosswind)
+                    * (1.0 - smoothstep(anvilLength * 0.88, anvilLength * 1.18, abs(downwind)));
+                float anvilEdgeFinger = anvilLife * anvilMask * anvilFingerWave * anvilEdgeBand * maxR * mix(0.24, 0.52, photo);
+                float anvilSlab = max(abs(crosswind) - anvilWidth - anvilEdgeFinger, max(-downwind - maxR * 0.95, downwind - anvilLength));
                 float anvilThickness = mix(0.12, mix(0.68, 0.42, photo), anvilMask) * (0.4 + anvilLife * 0.6);
                 float anvilVertical = abs(p.y - actualTop) - anvilThickness;
                 float anvilShape = smax(anvilSlab - anvil * mix(0.36, 0.3, photo), anvilVertical, mix(0.52, 0.36, photo)) + (1.0 - anvilLife) * 4.0;
                 float bodyTaper = mix(1.0, 0.58 + lowerShelf * 0.2 + towerColumn * 0.22 + crownSpread * 0.1, photo);
-                float shape = smin(r - currentR * verticalProfile * bodyTaper, anvilShape, mix(0.92, 0.62, photo));
-                float topDist = p.y - actualTop;
+                float towerBranchBand = smoothstep(0.22, 0.48, h) * (1.0 - smoothstep(0.8, 0.96, h)) * mature;
+                float crownLobeBand = smoothstep(0.48, 0.72, h) * (1.0 - smoothstep(0.96, 1.0, h)) * mature;
+                float branchSpoke = convectiveSpokePattern(baseLocal, h, phase + cycleAngle * 0.18, mix(5.0, 7.0, photo));
+                float crownSpoke = convectiveSpokePattern(baseLocal, h, phase + 2.6 + cycleAngle * 0.12, mix(7.0, 9.0, photo));
+                float fingerBulge = currentR * towerBranchBand * branchSpoke * mix(0.2, 0.46, photo);
+                float cauliflowerBulge = currentR * crownLobeBand * crownSpoke * mix(0.3, 0.68, photo);
+                float branchTaper = smoothstep(currentR * 0.18, currentR * 0.95, r);
+                float bodyRadius = currentR * verticalProfile * bodyTaper
+                    + fingerBulge * branchTaper
+                    + cauliflowerBulge * smoothstep(currentR * 0.12, currentR * 0.82, r);
+                float shape = smin(r - bodyRadius, anvilShape, mix(0.92, 0.62, photo));
+                float topFingerLift = maxR * crownLobeBand * crownSpoke * mix(0.24, 0.56, photo);
+                float topDist = p.y - (actualTop + topFingerLift);
 
                 float baseWave =
                     (noise(vec3(baseLocal * 0.26 + phase, uSeed * 0.17)) - 0.5) * 0.46 +
@@ -1595,12 +2196,27 @@
                     ));
                     float towerBand = smoothstep(0.12, 0.58, height01) * (1.0 - smoothstep(0.78, 1.02, height01));
                     float surfaceShell = smoothstep(-0.7, 0.16, macro) * (1.0 - smoothstep(0.18, 0.82, macro));
+                    float branchBand = smoothstep(0.22, 0.48, height01) * (1.0 - smoothstep(0.84, 0.98, height01));
+                    float crownBand = smoothstep(0.48, 0.72, height01) * (1.0 - smoothstep(0.96, 1.0, height01));
+                    float branchSpoke = convectiveSpokePattern(baseQ.xz, height01, uSeed * 0.006 + uTime * 0.08, mix(5.0, 7.5, photo));
+                    float crownSpoke = convectiveSpokePattern(baseQ.xz, height01, uSeed * 0.009 + 2.4 + uTime * 0.05, mix(7.0, 9.5, photo));
+                    float spokeCore = branchBand * branchSpoke + crownBand * crownSpoke;
+                    float spokeCut = smoothstep(
+                        0.46,
+                        0.88,
+                        noise(vec3(baseQ.xz * 0.72 + vec2(4.1, -2.8), baseQ.y * 0.68 + uSeed * 0.027))
+                    );
+                    float horizontalFiber = pow(max(0.0, sin(dot(q.xz, iceAxis) * 0.7 + q.y * 0.36 + uSeed * 0.004)), 2.0);
                     d += details - carving * 0.8;
                     d += surfaceShell * towerBand * (microBillow - 0.46) * mix(0.42, 0.74, photo);
-                    d += surfaceShell * (1.0 - anvilBand) * (broadBillow - 0.44) * mix(0.0, 0.42, photo);
+                    d += surfaceShell * (1.0 - anvilBand) * (broadBillow - 0.44) * mix(0.0, 0.34, photo);
+                    d += surfaceShell * spokeCore * mix(0.12, 0.34, photo);
+                    d -= surfaceShell * branchBand * (1.0 - branchSpoke) * spokeCut * mix(0.08, 0.24, photo);
+                    d += surfaceShell * crownBand * crownSpoke * (microBillow - 0.38) * mix(0.08, 0.3, photo);
                     d -= surfaceShell * towerBand * smoothstep(0.58, 0.94, broadBillow) * mix(0.0, 0.18, photo);
                     d += mixedPhaseBand * surfaceShell * 0.14;
-                    d += anvilBand * iceFactor * (iceFiber - 0.42) * 0.38;
+                    d += anvilBand * iceFactor * (iceFiber - 0.42) * 0.34;
+                    d += anvilBand * iceFactor * surfaceShell * (horizontalFiber - 0.36) * mix(0.08, 0.22, photo);
                     d -= anvilBand * iceFactor * smoothstep(0.72, 0.98, iceFiber) * 0.12;
                     float edgeBand = smoothstep(-0.72, 0.34, macro);
                     float edgeCuts = noise(vec3(q.x * 0.82 + uSeed * 0.019, q.y * 0.92, q.z * 0.82 - uTime * 0.03));
@@ -1676,6 +2292,100 @@
                 vec3 pqCode = nitsToPq(mappedNits);
                 vec3 daylightBalance = mix(vec3(0.92, 0.96, 1.04), vec3(1.06, 1.02, 0.94), sunHeight01 * (0.35 + cloudForwardScatter * 0.45));
                 return clamp(pow(pqCode, vec3(1.0 / 1.18)) * daylightBalance, 0.0, 1.0);
+            }
+
+            float oceanSurfaceHeight(vec2 p) {
+                vec2 d1 = normalize(vec2(0.92, 0.38));
+                vec2 d2 = normalize(vec2(-0.24, 0.97));
+                float wave =
+                    sin(dot(p, d1) * 1.45 + uTime * 0.2) * 0.28 +
+                    sin(dot(p, d2) * 2.35 - uTime * 0.16) * 0.14;
+                float softRipple =
+                    sin((p.x * 0.92 + p.y * 0.74) + sin(dot(p, d1) * 0.95) * 0.56 + uTime * 0.12) * 0.04;
+                return wave + softRipple;
+            }
+
+            float hillsSurfaceHeight(vec2 p) {
+                float broad =
+                    sin(p.x * 0.2 + p.y * 0.12 + 1.6) * 0.82 +
+                    sin(p.x * -0.16 + p.y * 0.24 - 0.8) * 0.58;
+                float rounded = smoothstep(-0.76, 1.08, broad);
+                float knolls = smoothstep(0.25, 0.95, fbm(vec3(p * 0.18 + vec2(6.0, -3.0), uSeed * 0.006))) * 0.42;
+                return rounded * 2.18 + knolls;
+            }
+
+            float surfaceHeight(vec2 p) {
+                return uSurfaceMode < 0.5 ? oceanSurfaceHeight(p) : hillsSurfaceHeight(p);
+            }
+
+            vec3 surfaceNormal(vec2 p) {
+                float e = uSurfaceMode < 0.5 ? 0.1 : 0.18;
+                float h = surfaceHeight(p);
+                float hx = surfaceHeight(p + vec2(e, 0.0));
+                float hz = surfaceHeight(p + vec2(0.0, e));
+                float yScale = uSurfaceMode < 0.5 ? 1.12 : 0.76;
+                return normalize(vec3((h - hx) * 1.16, e * yScale, (h - hz) * 1.16));
+            }
+
+            float toonStep(float value, float steps) {
+                return floor(clamp(value, 0.0, 0.999) * steps) / max(steps - 1.0, 1.0);
+            }
+
+            vec3 surfaceOverlay(vec3 col, vec3 ro, vec3 rd, vec3 lightDir) {
+                if (uSurfaceVisible < 0.5) return col;
+
+                if (abs(rd.y) > 0.001) {
+                    float tG = (0.0 - ro.y) / rd.y;
+                    if (tG > 0.0 && tG < 180.0) {
+                        vec3 pG = ro + rd * tG;
+                        float radius = length(pG.xz);
+                        if (radius <= 18.0) {
+                            float disk = 1.0 - smoothstep(17.1, 18.0, radius);
+                            float edge = (1.0 - smoothstep(17.25, 18.0, radius)) * smoothstep(15.6, 17.25, radius);
+                            vec2 p = pG.xz;
+                            vec3 n = surfaceNormal(p);
+                            float diffuse = clamp(dot(n, lightDir) * 0.5 + 0.5, 0.0, 1.0);
+                            float rim = pow(clamp(1.0 - dot(n, -rd), 0.0, 1.0), 2.0);
+                            vec3 surfaceCol;
+
+                            if (uSurfaceMode < 0.5) {
+                                float h = oceanSurfaceHeight(p);
+                                float waveBand = toonStep(smoothstep(-0.28, 0.42, h), 3.0);
+                                float lightBand = toonStep(diffuse, 4.0);
+                                float crest = smoothstep(0.32, 0.46, h) * smoothstep(0.48, 0.82, diffuse);
+                                float spec = pow(max(0.0, dot(reflect(-lightDir, n), -rd)), 38.0) * clamp(uSunIntensity / 5.4, 0.0, 1.2);
+                                vec3 waterDark = vec3(0.01, 0.085, 0.13);
+                                vec3 waterMid = vec3(0.015, 0.17, 0.22);
+                                vec3 waterLit = vec3(0.045, 0.29, 0.32);
+                                surfaceCol = mix(waterDark, waterMid, waveBand * 0.74);
+                                surfaceCol = mix(surfaceCol, waterLit, max(lightBand * 0.42, crest * 0.34));
+                                surfaceCol *= 0.58 + lightBand * 0.5;
+                                surfaceCol += vec3(0.16, 0.36, 0.38) * rim * 0.16;
+                                surfaceCol += vec3(0.55, 0.82, 0.84) * (spec * 0.72 + crest * 0.08);
+                                surfaceCol = mix(surfaceCol, vec3(0.018, 0.12, 0.15), edge * 0.26);
+                            } else {
+                                float h = hillsSurfaceHeight(p);
+                                float slope = clamp(1.0 - n.y, 0.0, 1.0);
+                                float heightBand = toonStep(smoothstep(0.12, 2.42, h), 4.0);
+                                float lightBand = toonStep(diffuse, 4.0);
+                                float shadow = smoothstep(0.18, 0.54, slope) * (1.0 - smoothstep(0.38, 0.7, diffuse));
+                                vec3 grassShadow = vec3(0.035, 0.12, 0.045);
+                                vec3 grassBase = vec3(0.09, 0.24, 0.075);
+                                vec3 grassTop = vec3(0.23, 0.39, 0.12);
+                                vec3 sunPatch = vec3(0.38, 0.46, 0.18);
+                                surfaceCol = mix(grassBase, grassTop, heightBand * 0.68);
+                                surfaceCol = mix(grassShadow, surfaceCol, 0.56 + lightBand * 0.44);
+                                surfaceCol = mix(surfaceCol, sunPatch, lightBand * smoothstep(0.34, 0.96, heightBand) * 0.26);
+                                surfaceCol = mix(surfaceCol, vec3(0.11, 0.19, 0.06), shadow * 0.28);
+                                surfaceCol += vec3(0.34, 0.42, 0.16) * rim * 0.08;
+                                surfaceCol = mix(surfaceCol, vec3(0.14, 0.19, 0.075), edge * 0.3);
+                            }
+
+                            col = mix(col, surfaceCol, disk * exp(-tG * 0.01));
+                        }
+                    }
+                }
+                return col;
             }
 
             vec3 gridOverlay(vec3 col, vec3 ro, vec3 rd) {
@@ -1779,9 +2489,10 @@
                 vec3 ambientColor = mix(dayAmbient, nightAmbient, night01);
                 float skyT = smoothstep(0.0, 1.0, clamp(uv.y + 0.5, 0.0, 1.0));
                 float screenY = clamp(gl_FragCoord.y / res.y, 0.0, 1.0);
+                float highAltitudeDarkening = mix(1.04, 0.72, smoothstep(0.08, 1.0, screenY));
                 vec3 localhostBottomSky = vec3(0.055, 0.078, 0.145);
-                vec3 localhostTopSky = vec3(0.044, 0.064, 0.125);
-                vec3 workbenchSky = mix(localhostBottomSky, localhostTopSky, screenY) * uAmbientIntensity;
+                vec3 localhostTopSky = vec3(0.030, 0.050, 0.108);
+                vec3 workbenchSky = mix(localhostBottomSky, localhostTopSky, screenY) * highAltitudeDarkening * uAmbientIntensity;
                 vec3 clearSky = workbenchSky;
                 vec3 sunsetSky = mix(vec3(0.86, 0.42, 0.22), vec3(0.08, 0.12, 0.34), skyT) * uAmbientIntensity;
                 vec3 moonSky = mix(vec3(0.08, 0.11, 0.18), vec3(0.01, 0.018, 0.055), skyT) * uAmbientIntensity;
@@ -1805,7 +2516,7 @@
                 domeZenithSky = mix(domeZenithSky, dayZenithSky, toDay);
                 float glowGate = smoothstep(-0.32, -0.04, sunSin) * (1.0 - smoothstep(0.20, 0.55, sunSin));
                 float sunGlow = pow(max(0.0, dot(rd, daylightDir)), mix(18.0, 32.0, sunHeight01)) * mix(0.58, 0.14, sunHeight01) * glowGate;
-                vec3 atmosphereSky = mix(domeHorizonSky, domeZenithSky, viewSkyT) * uAmbientIntensity;
+                vec3 atmosphereSky = mix(domeHorizonSky, domeZenithSky, viewSkyT) * mix(1.05, 0.70, viewSkyT) * uAmbientIntensity;
                 atmosphereSky *= mix(0.72, 1.0, sunHeight01);
                 atmosphereSky += mix(vec3(1.0, 0.12, 0.04), vec3(1.0, 0.56, 0.20), toDusk) * sunGlow * uSunIntensity * 0.10;
                 atmosphereSky += vec3(0.012, 0.018, 0.038) * night01;
@@ -1818,6 +2529,7 @@
                 col = mix(col, moonSky, moonMask);
                 col = mix(col, atmosphereSky, atmosphereMask);
                 if (uTransparentBackground < 0.5) {
+                    col = surfaceOverlay(col, ro, rd, lightDir);
                     col = gridOverlay(col, ro, rd);
                 }
 
@@ -1965,9 +2677,10 @@
         const MODEL_BASE_KM = 0.5;
         const RESET_TARGET_HEIGHT_RATIO = 0.5;
         const RESET_CAMERA_HEIGHT_RATIO = 0.93;
-        const RESET_CAMERA_DISTANCE = 42.0;
-        const MOBILE_RESET_CAMERA_DISTANCE = 68.0;
-        const MOBILE_ORTHO_FRAME_SCALE = 1.85;
+        const MODEL_VIEW_OCCUPANCY = 0.44;
+        const MOBILE_MODEL_VIEW_OCCUPANCY = 0.38;
+        const MIN_ORTHO_FRUSTUM_SIZE = 24.0;
+        const PERSPECTIVE_DISTANCE_SCALE = 1.56;
         const FRAME_VERTICAL_PADDING_KM = 2.0;
         const ORTHO_VERTICAL_WORLD_SCALE = 1.0;
         const MOTION_SPEED_SCALE = 1.35;
@@ -2009,12 +2722,14 @@
         }
 
         function resetCameraDistance() {
-            return useMobileWideView() ? MOBILE_RESET_CAMERA_DISTANCE : RESET_CAMERA_DISTANCE;
+            const fovRadians = THREE.MathUtils.degToRad(perspCamera.fov);
+            return (defaultOrthoFrustumSize() / (2.0 * Math.tan(fovRadians / 2.0))) * PERSPECTIVE_DISTANCE_SCALE;
         }
 
         function defaultOrthoFrustumSize() {
             const baseSize = currentTropo + FRAME_VERTICAL_PADDING_KM * 2.0;
-            return Math.max(10.0, baseSize * (useMobileWideView() ? MOBILE_ORTHO_FRAME_SCALE : 1.0));
+            const occupancy = useMobileWideView() ? MOBILE_MODEL_VIEW_OCCUPANCY : MODEL_VIEW_OCCUPANCY;
+            return Math.max(MIN_ORTHO_FRUSTUM_SIZE, baseSize / occupancy);
         }
 
         function resetPosition() {
@@ -2041,6 +2756,15 @@
             orthoFrustumSize = defaultOrthoFrustumSize();
             updateOrthoBounds(container.clientWidth / container.clientHeight);
             material.uniforms.uOrthoSize.value = orthoFrustumSize / Math.max(orthoCamera.zoom, 0.001);
+        }
+
+        function setCameraDistanceFromTarget(camera, target, distance) {
+            const direction = camera.position.clone().sub(target);
+            if (direction.lengthSq() < 0.0001) {
+                direction.set(0, 0, -1);
+            }
+            direction.normalize();
+            camera.position.copy(target).addScaledVector(direction, distance);
         }
 
         function cameraPositionFromOrbit(yawDegrees, pitchDegrees, distance) {
@@ -2084,6 +2808,12 @@
         let currentSeed = DEFAULT_SEED;
         let timeSpeed = DEFAULT_TIME_SPEED;
         let timePaused = false;
+        let systemTimeSyncEnabled = query.get('systemTime') === '1';
+        let solarSyncLatitude = 45;
+        let solarSyncUsesDetectedLocation = false;
+        let solarSyncUseCurrentDate = false;
+        let solarSyncLocationStatus = 'default';
+        let sunElevationLinked = true;
         let simulationTime = 0;
         let renderScale = DEFAULT_RENDER_SCALE;
         let effectiveRenderScale = DEFAULT_RENDER_SCALE;
@@ -2220,6 +2950,8 @@
                 uAspect: { value: 1.0 },
                 uTropopause: { value: currentTropo },
                 uShowGrid: { value: 0.0 },
+                uSurfaceVisible: { value: 0.0 },
+                uSurfaceMode: { value: 0.0 },
                 uSeed: { value: currentSeed },
                 uSystemCount: { value: systemCount },
                 uIsOrtho: { value: 0.0 },
@@ -2247,6 +2979,11 @@
         scene.add(plane);
         const drawingBufferSize = new THREE.Vector2();
         let mobileWideViewActive = useMobileWideView();
+        const surfaceModeQuery = (query.get('surface') || '').toLowerCase();
+        const hillsSurfaceAliases = ['hill', 'hills', 'grass', 'grassland', 'prairie', 'mountain', 'mountains', 'plain'];
+        const oceanSurfaceAliases = ['ocean', 'sea', 'water'];
+        let surfaceMode = hillsSurfaceAliases.includes(surfaceModeQuery) ? 1 : 0;
+        let surfaceVisible = hillsSurfaceAliases.includes(surfaceModeQuery) || oceanSurfaceAliases.includes(surfaceModeQuery);
 
         function computeFullscreenRenderScaleCap(width, height) {
             const cssPixels = Math.max(1, width * height);
@@ -2306,11 +3043,14 @@
                 const deltaY = nextTarget.y - controlsOrtho.target.y;
                 orthoCamera.position.y += deltaY;
                 controlsOrtho.target.copy(nextTarget);
+                orthoCamera.zoom = 1.0;
+                orthoCamera.updateProjectionMatrix();
                 controlsOrtho.update();
             } else {
                 const nextTarget = resetTarget();
-                const deltaY = nextTarget.y - controlsPersp.target.y;
-                perspCamera.position.y += deltaY;
+                setCameraDistanceFromTarget(perspCamera, controlsPersp.target, resetCameraDistance());
+                const delta = nextTarget.clone().sub(controlsPersp.target);
+                perspCamera.position.add(delta);
                 controlsPersp.target.copy(nextTarget);
                 controlsPersp.update();
             }
@@ -2519,8 +3259,9 @@
         const uiBar = document.getElementById('ui-bar');
         const btnLandscape = document.getElementById('btn-landscape');
         const btnFullscreen = document.getElementById('btn-fullscreen');
-        const btnLangZh = document.getElementById('btn-lang-zh');
-        const btnLangEn = document.getElementById('btn-lang-en');
+        const btnToggleOtherPanels = document.getElementById('btn-toggle-other-panels');
+        const selectLanguage = document.getElementById('select-language');
+        const selectSurface = document.getElementById('select-surface');
         const btnResetCam = document.getElementById('btn-reset-cam');
         const btnGrid = document.getElementById('btn-grid');
         const btnCamMode = document.getElementById('btn-cam-mode');
@@ -2535,6 +3276,11 @@
         const sunElevationReadout = document.getElementById('sun-elevation-readout');
         const sliderSunAngle = document.getElementById('slider-sun-angle');
         const sunAngleReadout = document.getElementById('sun-angle-readout');
+        const sunReadout = document.getElementById('sun-readout');
+        const sliderAmbient = document.getElementById('slider-ambient');
+        const ambientReadout = document.getElementById('ambient-readout');
+        const btnLinkSunElevation = document.getElementById('btn-link-sun-elevation');
+        const btnLinkElevationSun = document.getElementById('btn-link-elevation-sun');
         const sliderTime = document.getElementById('slider-time');
         const timeReadout = document.getElementById('time-readout');
         const sliderQuality = document.getElementById('slider-quality');
@@ -2544,13 +3290,20 @@
         const sliderSystems = document.getElementById('slider-systems');
         const systemsReadout = document.getElementById('systems-readout');
         const btnTimeToggle = document.getElementById('btn-time-toggle');
+        const btnSyncSystemTime = document.getElementById('btn-sync-system-time');
+        const btnSyncLocation = document.getElementById('btn-sync-location');
+        const syncStatus = document.getElementById('sync-status');
         const btnTimeReset = document.getElementById('btn-time-reset');
-        const btnHud = document.getElementById('btn-hud');
+        const atmosphereControlGroup = document.querySelector('.control-group--atmosphere');
         const overlay = document.getElementById('overlay');
+        const btnHudClose = document.getElementById('btn-hud-close');
+        const controlPanels = [...document.querySelectorAll('.control-panel[data-panel-key]')];
+        const panelRestoreDock = document.getElementById('panel-restore-dock');
+        const hudRestoreButton = document.querySelector('[data-hud-restore]');
         const inputSeed = document.getElementById('input-seed');
         const btnRandomSeed = document.getElementById('btn-random-seed');
         const tropoReadout = document.getElementById('tropo-readout');
-        const FLOATING_PANEL_STORAGE_KEY = 'cumulonimbus-live-hdr-floating-panels-v3';
+        const FLOATING_PANEL_STORAGE_KEY = 'cumulonimbus-live-hdr-floating-panels-v9';
         const floatingPanelState = (() => {
             try {
                 return JSON.parse(localStorage.getItem(FLOATING_PANEL_STORAGE_KEY) || '{}');
@@ -2600,6 +3353,7 @@
             if (!panel || panel.getClientRects().length === 0) return;
             const rect = panel.getBoundingClientRect();
             floatingPanelState[panelKey] = {
+                ...floatingPanelState[panelKey],
                 left: Math.round(rect.left),
                 top: Math.round(rect.top),
                 width: Math.round(rect.width),
@@ -2697,11 +3451,123 @@
             }
         }
 
+        const controlPanelMap = new Map(controlPanels.map((panel) => [panel.dataset.panelKey, panel]));
+
+        function saveControlPanelFlags(panelKey, flags) {
+            floatingPanelState[panelKey] = {
+                ...floatingPanelState[panelKey],
+                ...flags
+            };
+            saveFloatingPanelState();
+        }
+        let uiLanguageReady = false;
+
+        function updatePanelRestoreDock() {
+            let hasHiddenPanel = false;
+            if (hudRestoreButton && overlay) {
+                const hudHidden = overlay.style.display === 'none';
+                hudRestoreButton.hidden = !hudHidden;
+                hasHiddenPanel = hasHiddenPanel || hudHidden;
+            }
+            for (const button of document.querySelectorAll('[data-panel-restore]')) {
+                const panelKey = button.dataset.panelRestore;
+                const panel = controlPanelMap.get(panelKey);
+                const isHidden = Boolean(panel?.hidden);
+                button.hidden = !isHidden;
+                hasHiddenPanel = hasHiddenPanel || isHidden;
+            }
+            if (panelRestoreDock) {
+                panelRestoreDock.hidden = !hasHiddenPanel;
+            }
+        }
+
+        function updateOtherPanelsButton() {
+            if (!btnToggleOtherPanels || !uiLanguageReady) return;
+            const otherPanels = ['cloudPanel', 'atmospherePanel']
+                .map((panelKey) => controlPanelMap.get(panelKey))
+                .filter(Boolean);
+            const allVisible = otherPanels.every((panel) => !panel.hidden);
+            btnToggleOtherPanels.innerText = allVisible ? t('button.hideOtherPanels') : t('button.showOtherPanels');
+            btnToggleOtherPanels.classList.toggle('enabled', allVisible);
+            btnToggleOtherPanels.setAttribute('aria-pressed', allVisible ? 'true' : 'false');
+        }
+
+        function setControlPanelHidden(panelKey, hidden) {
+            const panel = controlPanelMap.get(panelKey);
+            if (!panel) return;
+            panel.hidden = hidden;
+            saveControlPanelFlags(panelKey, { hidden });
+            if (!hidden) {
+                requestAnimationFrame(() => persistFloatingPanel(panelKey, panel));
+            }
+            updatePanelRestoreDock();
+            updateOtherPanelsButton();
+        }
+
+        function setControlPanelCollapsed(panelKey, collapsed) {
+            const panel = controlPanelMap.get(panelKey);
+            if (!panel) return;
+            panel.dataset.panelCollapsed = collapsed ? 'true' : 'false';
+            const button = document.querySelector(`[data-panel-minimize="${panelKey}"]`);
+            if (button) {
+                button.textContent = collapsed ? '+' : '-';
+                button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            }
+            saveControlPanelFlags(panelKey, { collapsed });
+            requestAnimationFrame(() => persistFloatingPanel(panelKey, panel));
+        }
+
+        function applySavedControlPanelState() {
+            for (const panel of controlPanels) {
+                const panelKey = panel.dataset.panelKey;
+                const stored = floatingPanelState[panelKey] || {};
+                panel.hidden = Boolean(stored.hidden);
+                panel.dataset.panelCollapsed = stored.collapsed ? 'true' : 'false';
+                const minimizeButton = document.querySelector(`[data-panel-minimize="${panelKey}"]`);
+                if (minimizeButton) {
+                    minimizeButton.textContent = stored.collapsed ? '+' : '-';
+                    minimizeButton.setAttribute('aria-expanded', stored.collapsed ? 'false' : 'true');
+                }
+            }
+            updatePanelRestoreDock();
+        }
+
         setupFloatingPanel(overlay, 'overlay');
-        setupFloatingPanel(uiBar, 'uiBar', { headerOnly: true });
+        for (const panel of controlPanels) {
+            setupFloatingPanel(panel, panel.dataset.panelKey, { headerOnly: true });
+        }
+        applySavedControlPanelState();
+        for (const button of document.querySelectorAll('[data-panel-close]')) {
+            button.addEventListener('click', () => {
+                setControlPanelHidden(button.dataset.panelClose, true);
+            });
+        }
+        for (const button of document.querySelectorAll('[data-panel-restore]')) {
+            button.addEventListener('click', () => {
+                setControlPanelHidden(button.dataset.panelRestore, false);
+            });
+        }
+        hudRestoreButton?.addEventListener('click', () => {
+            setHudVisible(true);
+        });
+        for (const button of document.querySelectorAll('[data-panel-minimize]')) {
+            button.addEventListener('click', () => {
+                const panelKey = button.dataset.panelMinimize;
+                const panel = controlPanelMap.get(panelKey);
+                setControlPanelCollapsed(panelKey, panel?.dataset.panelCollapsed !== 'true');
+            });
+        }
+        btnToggleOtherPanels.addEventListener('click', () => {
+            const otherPanelKeys = ['cloudPanel', 'atmospherePanel'];
+            const shouldShow = otherPanelKeys.some((panelKey) => controlPanelMap.get(panelKey)?.hidden);
+            for (const panelKey of otherPanelKeys) {
+                setControlPanelHidden(panelKey, !shouldShow);
+            }
+            updateOtherPanelsButton();
+        });
         window.addEventListener('resize', () => {
-            for (const [panelKey, panel] of [['overlay', overlay], ['uiBar', uiBar]]) {
-                if (panel?.dataset.floatingCustomized !== 'true') continue;
+            for (const [panelKey, panel] of [['overlay', overlay], ...controlPanels.map((panel) => [panel.dataset.panelKey, panel])]) {
+                if (!panel || panel.hidden || panel.dataset.floatingCustomized !== 'true') continue;
                 const rect = panel.getBoundingClientRect();
                 const nextRect = applyFloatingPanelRect(panel, rect);
                 floatingPanelState[panelKey] = {
@@ -2726,11 +3592,18 @@
                 'target.landscape': 'Target: 16:9 broadcast',
                 'target.portrait': 'Target: 9:16 live source',
                 'target.fullscreen': 'Target: fullscreen {width}x{height} CSS px',
+                'panel.main': 'MAIN PANEL // DISPLAY + FRAMING + TIME',
+                'panel.cloud': 'CLOUD BODY // SYSTEM + POWER + STRUCTURE',
+                'panel.atmosphere': 'ATMOSPHERE // SUN GEOMETRY',
+                'panel.restoreHud': 'HUD',
+                'panel.restoreCloud': 'Cloud',
+                'panel.restoreAtmosphere': 'Atmosphere',
                 'group.display': 'Display',
                 'group.storm': 'Storm',
                 'group.time': 'Time',
                 'group.render': 'Render',
                 'group.atmosphere': 'Atmosphere',
+                'group.cloudStructure': 'Cloud body',
                 'group.framing': 'Framing',
                 'label.seed': 'Seed',
                 'label.cells': 'Convective cells',
@@ -2740,13 +3613,30 @@
                 'label.freezing': 'Freezing',
                 'label.shear': 'Shear',
                 'label.sun': 'Sun',
+                'label.ambient': 'Ambient',
                 'label.sunElevation': 'Elev',
                 'label.sunAngle': 'Angle',
+                'label.language': 'Language',
+                'label.surface': 'Surface',
+                'option.languageZh': 'Traditional Chinese',
+                'option.languageEn': 'English',
+                'option.surfaceNone': 'None',
+                'option.surfaceOcean': 'Ocean',
+                'option.surfaceHills': 'Grassland hills',
                 'button.fullscreen': 'Fullscreen',
                 'button.exitFullscreen': 'Exit fullscreen',
+                'button.hideOtherPanels': 'Hide panels',
+                'button.showOtherPanels': 'Show panels',
                 'button.pause': 'Pause',
                 'button.play': 'Play',
                 'button.resetTime': 'Reset time',
+                'button.syncSystemTime': 'Sync now',
+                'button.syncLocation': 'Sync location',
+                'button.locationSynced': 'Latitude synced',
+                'button.locationFallback': '45deg solstice',
+                'status.syncedTime': 'Time synced: {time}',
+                'status.syncedLocation': 'Location synced: {region} / {latitude}',
+                'status.syncedLocationFallback': 'Location synced: 45deg summer solstice fallback',
                 'button.grid': 'Scale ruler',
                 'button.perspective': 'Perspective',
                 'button.orthographic': 'Orthographic',
@@ -2754,13 +3644,17 @@
                 'button.autoQuality': 'Auto power',
                 'button.manualQuality': 'Manual power',
                 'button.hdr10': 'HDR10',
-                'button.hud': 'HUD',
-                'button.hudOff': 'HUD off',
                 'hud.timePaused': 'paused',
+                'hud.timeSystem': 'system',
                 'title.randomSeed': 'Random seed',
                 'title.fullscreen': 'Browser fullscreen display; high-resolution screens cap the internal render buffer for performance.',
                 'title.cells': 'Set the number of active convective cells.',
                 'title.time': 'Control the lifecycle speed of the cloud field.',
+                'title.syncSystemTime': 'Synchronize cloud time and sun geometry with the current local time.',
+                'title.syncLocation': 'Use detected latitude for solar elevation; falls back to 45 degrees at summer solstice.',
+                'title.unlinkSunElevation': 'Unlink sun intensity from solar elevation.',
+                'title.linkSunElevation': 'Link sun intensity to solar elevation.',
+                'title.toggleOtherPanels': 'Show or hide cloud and atmosphere panels.',
                 'title.quality': 'Internal render scale; lower values reduce raymarch pixel load and improve FPS.',
                 'title.autoQuality': 'Automatically adjusts internal render scale and raymarch steps by average FPS.',
                 'title.hdr10': 'HDR10 reference preview using ST 2084 / PQ response, 203 nit diffuse white, and a 1000 nit mastering target.',
@@ -2768,8 +3662,12 @@
                 'title.freezing': 'Freezing level, controlling water-to-ice texture transition.',
                 'title.shear': 'Upper-level wind shear controlling anvil outflow asymmetry.',
                 'title.sun': 'Sunlight contribution to cloud scattering and highlights.',
+                'title.ambient': 'Ambient skylight contribution to shadows and sky fill.',
                 'title.sunElevation': 'Sun elevation above the horizon; below-zero values move from sunset red into night color.',
                 'title.sunAngle': 'Horizontal angle between the viewer direction and the sun.',
+                'title.closePanel': 'Close this panel.',
+                'title.closeHud': 'Close HUD.',
+                'title.minimizePanel': 'Minimize this panel.',
                 'title.fullscreenUnsupported': 'This browser does not support the Fullscreen API.'
             },
             'zh-TW': {
@@ -2783,11 +3681,18 @@
                 'target.landscape': '目標：16:9 廣播輸出',
                 'target.portrait': '目標：9:16 直播來源',
                 'target.fullscreen': '目標：全螢幕 {width}x{height} CSS px',
+                'panel.main': '主面板 // 顯示 + 構圖 + 時間',
+                'panel.cloud': '雲體 // 雲系 + 算力 + 結構',
+                'panel.atmosphere': '大氣 // 日光幾何',
+                'panel.restoreHud': 'HUD',
+                'panel.restoreCloud': '雲體',
+                'panel.restoreAtmosphere': '大氣',
                 'group.display': '顯示',
                 'group.storm': '雲系',
                 'group.time': '時間',
                 'group.render': '算力',
                 'group.atmosphere': '大氣',
+                'group.cloudStructure': '雲體',
                 'group.framing': '構圖',
                 'label.seed': '種子',
                 'label.cells': '對流胞',
@@ -2797,13 +3702,30 @@
                 'label.freezing': '凍結',
                 'label.shear': '風切',
                 'label.sun': '日光',
+                'label.ambient': '環境光',
                 'label.sunElevation': '仰角',
                 'label.sunAngle': '日角',
+                'label.language': '語系',
+                'label.surface': '地表',
+                'option.languageZh': '繁體中文',
+                'option.languageEn': 'English',
+                'option.surfaceNone': '無',
+                'option.surfaceOcean': '海洋',
+                'option.surfaceHills': '草原丘陵',
                 'button.fullscreen': '全螢幕',
                 'button.exitFullscreen': '離開全螢幕',
+                'button.hideOtherPanels': '隱藏區塊',
+                'button.showOtherPanels': '顯示區塊',
                 'button.pause': '暫停',
                 'button.play': '播放',
                 'button.resetTime': '時間歸零',
+                'button.syncSystemTime': '同步現在時間',
+                'button.syncLocation': '同步地點',
+                'button.locationSynced': '緯度同步',
+                'button.locationFallback': '45度夏至',
+                'status.syncedTime': '已同步時間：{time}',
+                'status.syncedLocation': '已同步地點：{region} / {latitude}',
+                'status.syncedLocationFallback': '已同步地點：緯度45度夏至預設',
                 'button.grid': '尺度尺標',
                 'button.perspective': '透視投影',
                 'button.orthographic': '正交投影',
@@ -2811,13 +3733,17 @@
                 'button.autoQuality': '自動算力',
                 'button.manualQuality': '手動算力',
                 'button.hdr10': 'HDR10',
-                'button.hud': 'HUD',
-                'button.hudOff': 'HUD OFF',
                 'hud.timePaused': '暫停',
+                'hud.timeSystem': '系統',
                 'title.randomSeed': '隨機種子',
                 'title.fullscreen': '瀏覽器全螢幕顯示；高解析畫面會自動限制內部渲染緩衝，避免效能暴衝。',
                 'title.cells': '設定同時活躍的對流胞數量。',
                 'title.time': '控制雲系生命週期速度。',
+                'title.syncSystemTime': '將雲系時間與日光幾何同步到本機現在時間。',
+                'title.syncLocation': '使用偵測到的緯度計算太陽仰角；未取得資料時使用緯度45度夏至配置。',
+                'title.unlinkSunElevation': '解除日光與太陽仰角連動。',
+                'title.linkSunElevation': '將日光與太陽仰角連動。',
+                'title.toggleOtherPanels': '顯示或隱藏雲體與大氣面板。',
                 'title.quality': '內部渲染解析倍率；降低會減少 raymarch 像素負載並提高 FPS。',
                 'title.autoQuality': '依平均 FPS 自動微調內部渲染解析與 raymarch 步數。',
                 'title.hdr10': 'HDR10 參考預覽：使用 ST 2084 / PQ、203 nit diffuse white 與 1000 nit mastering target。',
@@ -2825,8 +3751,12 @@
                 'title.freezing': '凍結高度，控制水滴到冰晶纖維質感的過渡高度。',
                 'title.shear': '高空風切，控制砧狀雲迎風/下風不對稱外流。',
                 'title.sun': '日光對雲體散射與高光的影響。',
+                'title.ambient': '環境天光對陰影與天空填色的影響。',
                 'title.sunElevation': '太陽高於地平線的仰角；低於地平線時會由夕陽紅壓縮過渡到夜色。',
                 'title.sunAngle': '觀者視線與太陽方位的水平正負夾角。',
+                'title.closePanel': '關閉此面板。',
+                'title.closeHud': '關閉 HUD。',
+                'title.minimizePanel': '縮小此面板。',
                 'title.fullscreenUnsupported': '此瀏覽器不支援 Fullscreen API。'
             }
         };
@@ -2858,23 +3788,64 @@
             return value;
         }
 
+        let syncStatusTimer = null;
+
+        function showSyncStatus(message) {
+            if (!syncStatus) return;
+            syncStatus.textContent = message;
+            syncStatus.hidden = false;
+            window.clearTimeout(syncStatusTimer);
+            syncStatusTimer = window.setTimeout(() => {
+                syncStatus.hidden = true;
+            }, 2600);
+        }
+
+        function formatLocalSyncTime(date = new Date()) {
+            return new Intl.DateTimeFormat(currentLanguage, {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }).format(date);
+        }
+
+        function resolveLocaleRegionLabel() {
+            const localeCandidates = [navigator.language, ...(navigator.languages || [])].filter(Boolean);
+            const regionMatch = localeCandidates.map((locale) => locale.match(/[-_]([A-Za-z]{2}|\d{3})\b/)?.[1]).find(Boolean);
+            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+            if (!regionMatch) return timeZone || 'Local';
+            try {
+                const displayNames = new Intl.DisplayNames([currentLanguage], { type: 'region' });
+                const regionName = displayNames.of(regionMatch.toUpperCase());
+                return [regionName, timeZone].filter(Boolean).join(' / ');
+            } catch (error) {
+                return [regionMatch.toUpperCase(), timeZone].filter(Boolean).join(' / ');
+            }
+        }
+
         function applyLanguage(nextLanguage) {
             currentLanguage = nextLanguage;
             localStorage.setItem('cumulonimbus-live-hdr-language', currentLanguage);
             document.documentElement.lang = currentLanguage;
             document.title = t('meta.title');
+            if (selectLanguage && selectLanguage.value !== currentLanguage) {
+                selectLanguage.value = currentLanguage;
+            }
             for (const element of document.querySelectorAll('[data-i18n]')) {
                 element.textContent = t(element.dataset.i18n);
             }
             for (const element of document.querySelectorAll('[data-i18n-title]')) {
                 element.title = t(element.dataset.i18nTitle);
             }
-            btnLangZh.classList.toggle('active', currentLanguage === 'zh-TW');
-            btnLangEn.classList.toggle('active', currentLanguage === 'en');
             updateViewportLabel();
             updateAutoQualityButton();
             updateHdr10Button();
             updateTimeReadout();
+            uiLanguageReady = true;
+            updateOtherPanelsButton();
+            updateLocationSyncButton();
+            updateAtmosphereLinkButtons();
+            updateGridButton();
+            updateSurfaceControl();
             setHudVisible(overlay.style.display !== 'none');
             btnCamMode.innerText = isOrthoMode ? t('button.orthographic') : t('button.perspective');
         }
@@ -2889,6 +3860,10 @@
                 timeSpeed = Math.max(MIN_TIME_SPEED, Math.min(5, timeSpeedParam));
             }
             sliderTime.value = String(timeSpeed);
+        }
+        if (systemTimeSyncEnabled) {
+            timePaused = false;
+            simulationTime = systemClockSimulationTime();
         }
 
         const qualityQuery = query.get('quality') ?? presetSettings?.quality;
@@ -2937,6 +3912,7 @@
         const ambientParam = Number(ambientQuery);
         if (ambientQuery !== null && ambientQuery !== undefined && ambientQuery !== '' && Number.isFinite(ambientParam)) {
             ambientIntensity = Math.max(0.2, Math.min(1.2, ambientParam));
+            sliderAmbient.value = String(ambientIntensity);
         }
         const sunElevationQuery = query.get('sunElevation') ?? query.get('sunElev') ?? query.get('elevation') ?? presetSettings?.sunElevation;
         const sunElevationParam = Number(sunElevationQuery);
@@ -2960,6 +3936,9 @@
         if (query.get('controls') === '0') {
             document.body.dataset.controlsHidden = 'true';
             uiBar.style.display = 'none';
+            if (panelRestoreDock) {
+                panelRestoreDock.style.display = 'none';
+            }
         }
 
         function applyRenderScale() {
@@ -2993,13 +3972,110 @@
 
         updateHdr10Button();
 
+        function systemClockSimulationTime() {
+            const now = new Date();
+            return now.getHours() * 3600
+                + now.getMinutes() * 60
+                + now.getSeconds()
+                + now.getMilliseconds() / 1000;
+        }
+
+        function clampValue(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function smoothstep(edge0, edge1, value) {
+            const tValue = clampValue((value - edge0) / Math.max(0.0001, edge1 - edge0), 0, 1);
+            return tValue * tValue * (3 - 2 * tValue);
+        }
+
+        function wrapDegrees(value) {
+            return ((((value + 180) % 360) + 360) % 360) - 180;
+        }
+
+        function dayOfYear(date) {
+            const start = new Date(date.getFullYear(), 0, 0);
+            return Math.floor((date - start) / 86400000);
+        }
+
+        function sunIntensityFromElevation(elevation) {
+            const daylight = smoothstep(-6, 46, elevation);
+            return clampValue(1.15 + daylight * 6.15, 0, 8);
+        }
+
+        function systemSolarGeometry(now = new Date()) {
+            const secondsOfDay = now.getHours() * 3600
+                + now.getMinutes() * 60
+                + now.getSeconds()
+                + now.getMilliseconds() / 1000;
+            const solarDay = solarSyncUseCurrentDate ? dayOfYear(now) : 172;
+            const latitudeRad = THREE.MathUtils.degToRad(solarSyncLatitude);
+            const declinationRad = THREE.MathUtils.degToRad(23.44 * Math.sin((Math.PI * 2 * (284 + solarDay)) / 365));
+            const solarHour = secondsOfDay / 3600;
+            const hourAngleRad = THREE.MathUtils.degToRad((solarHour - 12) * 15);
+            const elevation = THREE.MathUtils.radToDeg(Math.asin(
+                Math.sin(latitudeRad) * Math.sin(declinationRad)
+                + Math.cos(latitudeRad) * Math.cos(declinationRad) * Math.cos(hourAngleRad)
+            ));
+            return {
+                elevation: clampValue(elevation, -18, 82),
+                angle: wrapDegrees((solarHour - 12) * 15),
+                intensity: sunIntensityFromElevation(elevation)
+            };
+        }
+
+        function applySystemSolarGeometry(now = new Date()) {
+            const solar = systemSolarGeometry(now);
+            sunElevation = solar.elevation;
+            sunViewerAngle = solar.angle;
+            if (sunElevationLinked) {
+                sunIntensity = solar.intensity;
+            }
+            updateSunPositionReadouts();
+            updateLightReadouts();
+        }
+
         function updateTimeReadout() {
-            timeReadout.innerText = `${timeSpeed.toFixed(timeSpeed % 1 === 0 ? 0 : 2)}x`;
+            timeReadout.innerText = systemTimeSyncEnabled
+                ? t('hud.timeSystem').toUpperCase()
+                : `${timeSpeed.toFixed(timeSpeed % 1 === 0 ? 0 : 2)}x`;
             btnTimeToggle.innerText = timePaused ? t('button.play') : t('button.pause');
             btnTimeToggle.classList.toggle('enabled', timePaused);
+            btnSyncSystemTime.classList.toggle('enabled', systemTimeSyncEnabled);
+            btnSyncSystemTime.setAttribute('aria-pressed', systemTimeSyncEnabled ? 'true' : 'false');
         }
 
         updateTimeReadout();
+
+        function updateLocationSyncButton() {
+            btnSyncLocation.innerText = solarSyncUsesDetectedLocation
+                ? t('button.locationSynced')
+                : (solarSyncLocationStatus === 'fallback' ? t('button.locationFallback') : t('button.syncLocation'));
+            btnSyncLocation.classList.toggle('enabled', solarSyncUsesDetectedLocation);
+            btnSyncLocation.setAttribute('aria-pressed', solarSyncUsesDetectedLocation ? 'true' : 'false');
+        }
+
+        updateLocationSyncButton();
+
+        function updateAtmosphereLinkButtons() {
+            atmosphereControlGroup?.setAttribute('data-sun-elevation-linked', sunElevationLinked ? 'true' : 'false');
+            for (const button of [btnLinkSunElevation, btnLinkElevationSun]) {
+                button.classList.toggle('enabled', sunElevationLinked);
+                button.setAttribute('aria-pressed', sunElevationLinked ? 'true' : 'false');
+                button.title = sunElevationLinked ? t('title.unlinkSunElevation') : t('title.linkSunElevation');
+            }
+        }
+
+        updateAtmosphereLinkButtons();
+
+        function updateLightReadouts() {
+            material.uniforms.uSunIntensity.value = sunIntensity;
+            material.uniforms.uAmbientIntensity.value = ambientIntensity;
+            sliderSun.value = Number(sunIntensity).toFixed(2);
+            sliderAmbient.value = Number(ambientIntensity).toFixed(2);
+            sunReadout.innerText = sunIntensity.toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
+            ambientReadout.innerText = ambientIntensity.toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
+        }
 
         function updateSystemReadout() {
             systemsReadout.innerText = String(systemCount);
@@ -3020,26 +4096,28 @@
         function updateSunPositionReadouts() {
             material.uniforms.uSunElevation.value = sunElevation;
             material.uniforms.uSunViewerAngle.value = sunViewerAngle;
+            sliderSunElevation.value = String(Math.round(sunElevation));
+            sliderSunAngle.value = String(Math.round(sunViewerAngle / 5) * 5);
             sunElevationReadout.innerText = `${sunElevation.toFixed(0)}deg`;
             sunAngleReadout.innerText = `${sunViewerAngle > 0 ? '+' : ''}${sunViewerAngle.toFixed(0)}deg`;
         }
 
+        if (systemTimeSyncEnabled) {
+            applySystemSolarGeometry();
+        }
+
         updateSunPositionReadouts();
+        updateLightReadouts();
 
         function setHudVisible(visible) {
             overlay.style.display = visible ? 'block' : 'none';
-            btnHud.classList.toggle('hud-off', !visible);
-            btnHud.innerText = visible ? t('button.hud') : t('button.hudOff');
+            updatePanelRestoreDock();
         }
 
         setHudVisible(query.get('hud') !== '0');
 
-        btnLangZh.addEventListener('click', () => {
-            applyLanguage('zh-TW');
-        });
-
-        btnLangEn.addEventListener('click', () => {
-            applyLanguage('en');
+        selectLanguage.addEventListener('change', (event) => {
+            applyLanguage(event.target.value);
         });
 
         applyLanguage(currentLanguage);
@@ -3152,8 +4230,8 @@
             toggleFullscreenDisplay();
         });
 
-        btnHud.addEventListener('click', () => {
-            setHudVisible(overlay.style.display === 'none');
+        btnHudClose.addEventListener('click', () => {
+            setHudVisible(false);
         });
 
         inputSeed.value = currentSeed;
@@ -3173,14 +4251,42 @@
             material.uniforms.uSeed.value = currentSeed;
         });
 
+        function updateGridButton() {
+            const showGrid = material.uniforms.uShowGrid.value >= 0.5;
+            btnGrid.classList.toggle('enabled', showGrid);
+            btnGrid.setAttribute('aria-pressed', showGrid ? 'true' : 'false');
+        }
+
         function setGridVisible(showGrid) {
             material.uniforms.uShowGrid.value = showGrid ? 1.0 : 0.0;
-            btnGrid.classList.toggle('enabled', showGrid);
+            updateGridButton();
+        }
+
+        function updateSurfaceControl() {
+            if (!selectSurface) return;
+            selectSurface.value = surfaceVisible ? (surfaceMode === 0 ? 'ocean' : 'hills') : 'none';
+            material.uniforms.uSurfaceVisible.value = surfaceVisible ? 1.0 : 0.0;
+            material.uniforms.uSurfaceMode.value = surfaceMode;
+        }
+
+        function setSurfaceMode(nextMode, visible = true) {
+            surfaceMode = nextMode === 1 ? 1 : 0;
+            surfaceVisible = visible;
+            updateSurfaceControl();
         }
 
         btnGrid.addEventListener('click', () => {
-            const showGrid = material.uniforms.uShowGrid.value < 0.5;
-            setGridVisible(showGrid);
+            setGridVisible(material.uniforms.uShowGrid.value < 0.5);
+        });
+
+        selectSurface.addEventListener('change', (event) => {
+            if (event.target.value === 'hills') {
+                setSurfaceMode(1, true);
+            } else if (event.target.value === 'ocean') {
+                setSurfaceMode(0, true);
+            } else {
+                setSurfaceMode(surfaceMode, false);
+            }
         });
 
         function setCameraMode(nextIsOrtho) {
@@ -3190,14 +4296,18 @@
             btnCamMode.classList.toggle('ortho', isOrthoMode);
             if (isOrthoMode) {
                 btnCamMode.innerText = t('button.orthographic');
+                updateOrthoFrameForCurrentTropo();
                 orthoCamera.position.copy(perspCamera.position);
                 controlsOrtho.target.copy(controlsPersp.target);
+                orthoCamera.zoom = 1.0;
+                orthoCamera.updateProjectionMatrix();
                 controlsPersp.enabled = false;
                 controlsOrtho.enabled = true;
             } else {
                 btnCamMode.innerText = t('button.perspective');
                 perspCamera.position.copy(orthoCamera.position);
                 controlsPersp.target.copy(controlsOrtho.target);
+                setCameraDistanceFromTarget(perspCamera, controlsPersp.target, resetCameraDistance());
                 controlsOrtho.enabled = false;
                 controlsPersp.enabled = true;
             }
@@ -3225,22 +4335,59 @@
         });
 
         sliderSun.addEventListener('input', (event) => {
-            sunIntensity = parseFloat(event.target.value);
-            material.uniforms.uSunIntensity.value = sunIntensity;
+            systemTimeSyncEnabled = false;
+            if (sunElevationLinked) {
+                sunIntensity = sunIntensityFromElevation(sunElevation);
+            } else {
+                sunIntensity = parseFloat(event.target.value);
+            }
+            updateLightReadouts();
+            updateTimeReadout();
+        });
+
+        sliderAmbient.addEventListener('input', (event) => {
+            ambientIntensity = parseFloat(event.target.value);
+            updateLightReadouts();
         });
 
         sliderSunElevation.addEventListener('input', (event) => {
+            systemTimeSyncEnabled = false;
             sunElevation = parseFloat(event.target.value);
+            if (sunElevationLinked) {
+                sunIntensity = sunIntensityFromElevation(sunElevation);
+                updateLightReadouts();
+            }
             updateSunPositionReadouts();
+            updateTimeReadout();
         });
 
         sliderSunAngle.addEventListener('input', (event) => {
+            systemTimeSyncEnabled = false;
             sunViewerAngle = parseFloat(event.target.value);
             updateSunPositionReadouts();
+            updateTimeReadout();
+        });
+
+        function setSunElevationLinked(linked) {
+            sunElevationLinked = linked;
+            if (sunElevationLinked) {
+                sunIntensity = sunIntensityFromElevation(sunElevation);
+                updateLightReadouts();
+            }
+            updateAtmosphereLinkButtons();
+        }
+
+        btnLinkSunElevation.addEventListener('click', () => {
+            setSunElevationLinked(!sunElevationLinked);
+        });
+
+        btnLinkElevationSun.addEventListener('click', () => {
+            setSunElevationLinked(!sunElevationLinked);
         });
 
         sliderTime.addEventListener('input', (event) => {
             timeSpeed = parseFloat(event.target.value);
+            systemTimeSyncEnabled = false;
             if (timeSpeed > 0 && timePaused) {
                 timePaused = false;
             }
@@ -3272,13 +4419,77 @@
         });
 
         btnTimeToggle.addEventListener('click', () => {
+            systemTimeSyncEnabled = false;
             timePaused = !timePaused;
             updateTimeReadout();
         });
 
+        btnSyncSystemTime.addEventListener('click', () => {
+            systemTimeSyncEnabled = !systemTimeSyncEnabled;
+            if (systemTimeSyncEnabled) {
+                timePaused = false;
+                simulationTime = systemClockSimulationTime();
+                applySystemSolarGeometry();
+                updateLightReadouts();
+                material.uniforms.uTime.value = simulationTime;
+                showSyncStatus(t('status.syncedTime', { time: formatLocalSyncTime() }));
+            }
+            updateTimeReadout();
+        });
+
+        function applyFallbackSolarLocation() {
+            solarSyncLatitude = 45;
+            solarSyncUsesDetectedLocation = false;
+            solarSyncUseCurrentDate = false;
+            solarSyncLocationStatus = 'fallback';
+            updateLocationSyncButton();
+            if (systemTimeSyncEnabled) {
+                applySystemSolarGeometry();
+                updateLightReadouts();
+            }
+            showSyncStatus(t('status.syncedLocationFallback'));
+        }
+
+        function applyDetectedSolarLocation(latitude) {
+            solarSyncLatitude = clampValue(latitude, -66, 66);
+            solarSyncUsesDetectedLocation = true;
+            solarSyncUseCurrentDate = true;
+            solarSyncLocationStatus = 'detected';
+            updateLocationSyncButton();
+            if (systemTimeSyncEnabled) {
+                applySystemSolarGeometry();
+                updateLightReadouts();
+            }
+            showSyncStatus(t('status.syncedLocation', {
+                region: resolveLocaleRegionLabel(),
+                latitude: `${solarSyncLatitude.toFixed(1)}deg`
+            }));
+        }
+
+        btnSyncLocation.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                applyFallbackSolarLocation();
+                return;
+            }
+            btnSyncLocation.disabled = true;
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    btnSyncLocation.disabled = false;
+                    applyDetectedSolarLocation(position.coords.latitude);
+                },
+                () => {
+                    btnSyncLocation.disabled = false;
+                    applyFallbackSolarLocation();
+                },
+                { enableHighAccuracy: false, timeout: 5000, maximumAge: 3600000 }
+            );
+        });
+
         btnTimeReset.addEventListener('click', () => {
+            systemTimeSyncEnabled = false;
             simulationTime = 0;
             material.uniforms.uTime.value = 0;
+            updateTimeReadout();
             btnTimeReset.style.transform = 'scale(0.95)';
             setTimeout(() => { btnTimeReset.style.transform = 'scale(1)'; }, 150);
         });
@@ -3300,6 +4511,7 @@
         if (query.get('grid') === '1' || captureMode === 'ortho-grid') {
             setGridVisible(true);
         }
+        setSurfaceMode(surfaceMode, surfaceVisible);
         if (query.get('ortho') === '1' || captureMode === 'ortho-grid') {
             setCameraMode(true);
         }
@@ -3348,7 +4560,10 @@
             activeControls.update();
             const deltaMs = Math.min(100, Math.max(0, time - lastFrameTime));
             lastFrameTime = time;
-            if (!timePaused) {
+            if (systemTimeSyncEnabled) {
+                simulationTime = systemClockSimulationTime();
+                applySystemSolarGeometry();
+            } else if (!timePaused) {
                 simulationTime += deltaMs * 0.00018 * MOTION_SPEED_SCALE * timeSpeed;
             }
             material.uniforms.uTime.value = simulationTime;
@@ -3373,7 +4588,8 @@
                 const bufferStr = `${drawingBufferSize.x}x${drawingBufferSize.y}`;
                 const fsCapStr = isFullscreenDisplay ? ` | FS cap: ${computeFullscreenRenderScaleCap(container.clientWidth, container.clientHeight).toFixed(2)}x` : '';
                 const hdrStr = hdr10Mode ? ` | HDR10 PQ ${HDR10_REFERENCE_PEAK_NITS}nit` : '';
-                fpsEl.innerHTML = `FPS: ${frames} | AVG: ${avgFps.toFixed(0)} | RES: ${renderScale.toFixed(2)}x eff ${effectiveRenderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''} | BUF: ${bufferStr}${fsCapStr} | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'}${hdrStr} | Tropo: ${currentTropo}km | Freeze: ${freezingLevel.toFixed(1)}km | Shear: ${windShear.toFixed(2)} | Time: ${timePaused ? t('hud.timePaused') : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
+                const timeModeStr = systemTimeSyncEnabled ? t('hud.timeSystem') : (timePaused ? t('hud.timePaused') : `${timeSpeed}x`);
+                fpsEl.innerHTML = `FPS: ${frames} | AVG: ${avgFps.toFixed(0)} | RES: ${renderScale.toFixed(2)}x eff ${effectiveRenderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''} | BUF: ${bufferStr}${fsCapStr} | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'}${hdrStr} | Tropo: ${currentTropo}km | Freeze: ${freezingLevel.toFixed(1)}km | Shear: ${windShear.toFixed(2)} | Time: ${timeModeStr} | T: ${simulationTime.toFixed(1)}`;
                 frames = 0;
                 fpsAccumulator = 0;
                 fpsSamples = 0;

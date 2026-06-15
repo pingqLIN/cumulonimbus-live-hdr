@@ -12,8 +12,10 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://cloud.colorgeek.co/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
     <style>
         :root {
             color-scheme: light;
@@ -217,8 +219,28 @@
             border: 0;
             border-radius: 0;
             box-shadow: none;
+            contain: layout paint;
+            isolation: isolate;
             transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
             overflow: hidden;
+        }
+        #render-container::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at 52% 34%, rgb(255 255 255 / 0.52), transparent 0 14%, rgb(255 255 255 / 0.26) 15% 24%, transparent 25%),
+                radial-gradient(circle at 34% 42%, rgb(230 242 255 / 0.42), transparent 0 12%, transparent 26%),
+                radial-gradient(circle at 68% 44%, rgb(210 232 250 / 0.38), transparent 0 11%, transparent 25%),
+                linear-gradient(180deg, rgb(118 152 178 / 0.42), rgb(72 69 91 / 0.68));
+            opacity: 1;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        body[data-app-ready="true"] #render-container::after {
+            opacity: 0;
+            visibility: hidden;
         }
         #render-container::before {
             content: "";
@@ -275,7 +297,17 @@
             display: none;
         }
         canvas { display: block; width: 100%; height: 100%; outline: none; cursor: grab; }
+        #cloud-canvas {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            aspect-ratio: inherit;
+        }
         canvas:active { cursor: grabbing; }
+        body:not([data-app-ready="true"]) #ui-bar,
+        body:not([data-app-ready="true"]) #overlay button {
+            pointer-events: none;
+        }
         #overlay {
             position: absolute;
             top: 0;
@@ -1264,7 +1296,10 @@
         }
         body[data-ui="tracing-paper"] .atmosphere-dome-canvas {
             width: 100%;
+            height: 100%;
+            aspect-ratio: 8 / 5;
             min-height: 6.4rem;
+            contain: layout paint;
             display: block;
         }
         body[data-ui="tracing-paper"] .atmosphere-dashboard {
@@ -1871,6 +1906,7 @@
     </div>
 
     <div id="render-container" class="viewport-landscape">
+        <canvas id="cloud-canvas" width="1280" height="720" role="img" aria-label="Cumulonimbus WebGL stage" aria-describedby="target-label">Interactive cumulonimbus WebGL stage.</canvas>
         <div id="overlay">
             <button id="btn-hud-close" class="hud-close-button" type="button" data-i18n-title="title.closeHud" title="Close HUD">x</button>
             <div class="project-kicker" data-i18n="overlay.kicker">Operational volumetric study</div>
@@ -1886,7 +1922,7 @@
         </div>
     </div>
 
-    <div id="ui-bar" aria-label="Control panels">
+    <div id="ui-bar" aria-label="Control panels" inert>
         <section id="panel-main" class="control-panel control-panel--main" data-panel-key="mainPanel" aria-label="Main display, framing, and time panel">
             <div class="control-panel__chrome">
                 <span class="control-panel__title" data-i18n="panel.main">MAIN PANEL // DISPLAY + FRAMING</span>
@@ -3145,6 +3181,11 @@
 
                         this.renderScale = this.isHeadlessCapture ? 0.35 : CONFIG.DEFAULT_RENDER_SCALE;
                         this.effectiveRenderScale = this.renderScale;
+                        this.renderWidth = 1;
+                        this.renderHeight = 1;
+                        this.resizeDirty = true;
+                        this.resizeMeasureQueued = false;
+                        this.resizeObserver = null;
                         this.autoQualityEnabled = true;
                         this.autoQualityCooldown = 0;
 
@@ -3183,6 +3224,8 @@
                         this.onFpsUpdate = null;
                         this.onRenderFrame = null;
                         this.onRenderScaleChanged = null;
+                        this.onFirstRender = null;
+                        this.firstRenderCompleted = false;
 
                         this.animate = this.animate.bind(this);
                         this.syncMobileWideViewFrame = this.syncMobileWideViewFrame.bind(this);
@@ -3261,9 +3304,11 @@
                     }
 
                     init() {
-                        const canvas = document.createElement('canvas');
+                        const canvas = document.getElementById('cloud-canvas') || document.createElement('canvas');
                         canvas.id = 'cloud-canvas';
-                        this.container.insertBefore(canvas, this.container.firstChild);
+                        if (canvas.parentElement !== this.container) {
+                            this.container.insertBefore(canvas, this.container.firstChild);
+                        }
 
                         const originalError = console.error;
                         console.error = function(...args) {
@@ -3342,10 +3387,12 @@
 
                         this.renderer.setClearColor(0x000000, this.transparentBackground ? 0 : 1);
                         this.renderer.setPixelRatio(1);
+                        this.initResizeTracking();
+                        this.effectiveRenderScale = this.computeEffectiveRenderScale(this.renderWidth, this.renderHeight);
                         this.applyRenderScale();
 
                         this.scene = new THREE.Scene();
-                        const aspect = this.container.clientWidth / this.container.clientHeight;
+                        const aspect = this.renderWidth / this.renderHeight;
                         this.perspCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 220);
                         this.orthoFrustumSize = this.defaultOrthoFrustumSize();
                         this.orthoCamera = new THREE.OrthographicCamera(
@@ -3413,6 +3460,59 @@
                         if (this.systemTimeSyncEnabled) {
                             this.applySystemSolarGeometry();
                         }
+                    }
+
+                    readContainerSize() {
+                        const rect = this.container.getBoundingClientRect();
+                        return {
+                            width: rect.width || this.container.clientWidth || window.innerWidth || 1,
+                            height: rect.height || this.container.clientHeight || window.innerHeight || 1
+                        };
+                    }
+
+                    updateRenderSize(width, height) {
+                        const nextWidth = Math.max(1, Math.round(width || window.innerWidth || 1));
+                        const nextHeight = Math.max(1, Math.round(height || window.innerHeight || 1));
+                        if (nextWidth === this.renderWidth && nextHeight === this.renderHeight) return;
+                        this.renderWidth = nextWidth;
+                        this.renderHeight = nextHeight;
+                        this.resizeDirty = true;
+                    }
+
+                    initResizeTracking() {
+                        const initialSize = this.readContainerSize();
+                        this.updateRenderSize(initialSize.width, initialSize.height);
+
+                        if (typeof ResizeObserver === 'function') {
+                            this.resizeObserver = new ResizeObserver((entries) => {
+                                const entry = entries[0];
+                                if (!entry) return;
+                                this.updateRenderSize(entry.contentRect.width, entry.contentRect.height);
+                            });
+                            this.resizeObserver.observe(this.container);
+                            return;
+                        }
+
+                        const queueMeasure = () => this.queueRenderSizeMeasure();
+                        window.addEventListener('resize', queueMeasure, { passive: true });
+                        window.addEventListener('orientationchange', queueMeasure, { passive: true });
+                        document.addEventListener('fullscreenchange', queueMeasure);
+                        if (window.visualViewport) {
+                            window.visualViewport.addEventListener('resize', queueMeasure, { passive: true });
+                        }
+                    }
+
+                    queueRenderSizeMeasure() {
+                        if (this.resizeMeasureQueued) return;
+                        this.resizeMeasureQueued = true;
+                        requestAnimationFrame(() => {
+                            this.resizeMeasureQueued = false;
+                            const nextSize = this.readContainerSize();
+                            this.updateRenderSize(nextSize.width, nextSize.height);
+                            if (this.material && this.renderer) {
+                                this.resizeCanvasToDisplaySize(true);
+                            }
+                        });
                     }
 
                     systemClockSimulationTime() {
@@ -3507,7 +3607,7 @@
 
                     updateOrthoFrameForCurrentTropo() {
                         this.orthoFrustumSize = this.defaultOrthoFrustumSize();
-                        this.updateOrthoBounds(this.container.clientWidth / this.container.clientHeight);
+                        this.updateOrthoBounds(this.renderWidth / this.renderHeight);
                         this.material.uniforms.uOrthoSize.value = this.orthoFrustumSize / Math.max(this.orthoCamera.zoom, 0.001);
                     }
 
@@ -3570,7 +3670,7 @@
                         this.mobileWideViewActive = nextMobileWideViewActive;
                         this.updateOrthoFrameForCurrentTropo();
                         if (this.isOrthoMode) this.controlsOrtho.update();
-                        this.resizeCanvasToDisplaySize();
+                        this.resizeCanvasToDisplaySize(true);
                     }
 
                     resetActiveCamera() {
@@ -3620,16 +3720,16 @@
 
                     setRenderScale(scale) {
                         this.renderScale = scale;
-                        this.effectiveRenderScale = this.computeEffectiveRenderScale(this.container.clientWidth, this.container.clientHeight);
+                        this.effectiveRenderScale = this.computeEffectiveRenderScale(this.renderWidth, this.renderHeight);
                         this.applyRenderScale();
-                        this.resizeCanvasToDisplaySize();
+                        this.resizeCanvasToDisplaySize(true);
                     }
 
-                    resizeCanvasToDisplaySize() {
+                    resizeCanvasToDisplaySize(force = false) {
+                        if (!force && !this.resizeDirty) return;
                         const canvas = this.renderer.domElement;
-                        const rect = this.container.getBoundingClientRect();
-                        const width = Math.max(1, Math.round(this.container.clientWidth || rect.width || window.innerWidth || 1));
-                        const height = Math.max(1, Math.round(this.container.clientHeight || rect.height || window.innerHeight || 1));
+                        const width = Math.max(1, this.renderWidth);
+                        const height = Math.max(1, this.renderHeight);
 
                         const nextEffectiveRenderScale = this.computeEffectiveRenderScale(width, height);
                         if (Math.abs(nextEffectiveRenderScale - this.effectiveRenderScale) >= 0.001) {
@@ -3655,6 +3755,7 @@
                             this.perspCamera.updateProjectionMatrix();
                             this.updateOrthoBounds(newAspect);
                         }
+                        this.resizeDirty = false;
                     }
 
                     copyEdgeStrip(targetCanvas, sourceCanvas, sourceX, sourceY, sourceWidth, sourceHeight) {
@@ -3777,8 +3878,12 @@
                             this.material.uniforms.uCameraTarget.value.copy(this.controlsPersp.target);
                         }
 
-                        this.renderer.render(this.scene, this.isOrthoMode ? this.orthoCamera : this.perspCamera);
-                        this.updateStageEdgeFill(now);
+	                        this.renderer.render(this.scene, this.isOrthoMode ? this.orthoCamera : this.perspCamera);
+	                        if (!this.firstRenderCompleted) {
+	                            this.firstRenderCompleted = true;
+	                            if (this.onFirstRender) this.onFirstRender();
+	                        }
+	                        this.updateStageEdgeFill(now);
 
                         this.frames++;
                         this.fpsAccumulator += delta;
@@ -3788,10 +3893,10 @@
                             this.autoQualityCooldown = Math.max(0, this.autoQualityCooldown - 1);
 
                             if (this.onFpsUpdate) {
-                                const aspectStr = (this.container.clientWidth / this.container.clientHeight).toFixed(2);
+                                const aspectStr = (this.renderWidth / this.renderHeight).toFixed(2);
                                 this.renderer.getDrawingBufferSize(this.drawingBufferSize);
                                 const bufferStr = `${this.drawingBufferSize.x}x${this.drawingBufferSize.y}`;
-                                const fsCapStr = this.isFullscreenDisplay ? ` | FS cap: ${this.computeFullscreenRenderScaleCap(this.container.clientWidth, this.container.clientHeight).toFixed(2)}x` : '';
+                                const fsCapStr = this.isFullscreenDisplay ? ` | FS cap: ${this.computeFullscreenRenderScaleCap(this.renderWidth, this.renderHeight).toFixed(2)}x` : '';
                                 const hdrStr = this.hdr10Mode ? ` | HDR10 PQ ${CONFIG.HDR10_REFERENCE_PEAK_NITS}nit` : '';
 
                                 const stats = `FPS: ${this.frames} | AVG: ${this.avgFps.toFixed(0)} | RES: ${this.renderScale.toFixed(2)}x eff ${this.effectiveRenderScale.toFixed(2)}x${this.autoQualityEnabled ? ' AUTO' : ''} | BUF: ${bufferStr}${fsCapStr} | Aspect: ${aspectStr} | Mode: ${this.isOrthoMode ? 'Ortho' : 'Persp'}${hdrStr} | Tropo: ${Utils.formatKm(this.currentTropo)}km -> ${Utils.formatKm(this.targetTropo)}km | Freeze: ${this.freezingLevel.toFixed(1)}km | Shear: ${this.windShear.toFixed(2)} | T: ${this.simulationTime.toFixed(1)}`;
@@ -3816,6 +3921,10 @@
                         this.btnSyncLocation = null;
                         this.syncStatus = document.getElementById('sync-status');
                         this.syncStatusTimer = null;
+                        this.atmosphereCanvas = null;
+                        this.atmosphereCanvasPixelRatio = 1;
+                        this.measureAtmosphereCanvas = null;
+                        this.atmosphereResizeObserver = null;
                         this.floatingPanelState = (() => {
                             try { return JSON.parse(localStorage.getItem('cumulonimbus-live-hdr-floating-panels-v10') || '{}'); }
                             catch (error) { return {}; }
@@ -3824,6 +3933,7 @@
 
                     init() {
                         this.setupFloatingPanels();
+                        this.setupAtmosphereCanvasResize();
                         this.bindSliders();
                         this.bindButtons();
                         this.applySavedControlPanelState();
@@ -3849,6 +3959,42 @@
                                 this.persistFloatingPanel(panelKey, panel);
                             }
                         });
+                    }
+
+                    setupAtmosphereCanvasResize() {
+                        const canvas = document.getElementById('atm-canvas');
+                        if (!canvas) return;
+                        this.atmosphereCanvas = canvas;
+
+                        const syncCanvasSize = (width, height) => {
+                            const dpr = window.devicePixelRatio || 1;
+                            this.atmosphereCanvasPixelRatio = dpr;
+                            const nextWidth = Math.max(1, Math.round(width * dpr));
+                            const nextHeight = Math.max(1, Math.round(height * dpr));
+                            if (canvas.width !== nextWidth) canvas.width = nextWidth;
+                            if (canvas.height !== nextHeight) canvas.height = nextHeight;
+                        };
+
+                        const measureCanvas = () => {
+                            const rect = canvas.getBoundingClientRect();
+                            if (rect.width > 0 && rect.height > 0) {
+                                syncCanvasSize(rect.width, rect.height);
+                            }
+                        };
+                        this.measureAtmosphereCanvas = measureCanvas;
+
+                        requestAnimationFrame(measureCanvas);
+
+                        if (typeof ResizeObserver === 'function') {
+                            this.atmosphereResizeObserver = new ResizeObserver((entries) => {
+                                const entry = entries[0];
+                                if (!entry || entry.contentRect.width <= 0 || entry.contentRect.height <= 0) return;
+                                requestAnimationFrame(measureCanvas);
+                            });
+                            this.atmosphereResizeObserver.observe(canvas.parentElement || canvas);
+                        } else {
+                            window.addEventListener('resize', measureCanvas, { passive: true });
+                        }
                     }
 
                     initPanelDrag(panel, panelKey, options = {}) {
@@ -4317,21 +4463,18 @@
                     }
 
                     updateAtmosphereWidget() {
-                        const canvas = document.getElementById('atm-canvas');
+                        const canvas = this.atmosphereCanvas || document.getElementById('atm-canvas');
                         if (!canvas) return;
 
-                        const rect = canvas.getBoundingClientRect();
-                        if (rect.width === 0 || rect.height === 0) return;
-
-                        const dpr = window.devicePixelRatio || 1;
-                        if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
-                            canvas.width = rect.width * dpr;
-                            canvas.height = rect.height * dpr;
+                        if (canvas.width === 0 || canvas.height === 0) {
+                            if (this.measureAtmosphereCanvas) this.measureAtmosphereCanvas();
+                            if (canvas.width === 0 || canvas.height === 0) return;
                         }
 
                         const ctx = canvas.getContext('2d');
                         const w = canvas.width;
                         const h = canvas.height;
+                        const dpr = this.atmosphereCanvasPixelRatio || 1;
                         const el = parseFloat(this.engine.material.uniforms.uSunElevation.value) || 0;
 
                         const clampedEl = Utils.clamp(el, -90, 90);
@@ -4450,39 +4593,77 @@
                 // ============================================================================
                 // 系統初始化與執行 (Entry Point)
                 // ============================================================================
+                let applicationStarted = false;
+                let applicationStarting = false;
+
                 function startApplication() {
-                    const engine = new CloudEngine('render-container', 'stage-edge-fill');
-                    engine.init();
-                    window.cloudEngine = engine;
-                    window.resetCameraDistance = () => engine.resetCameraDistance();
-                    window.defaultOrthoFrustumSize = () => engine.defaultOrthoFrustumSize();
+                    if (applicationStarted || applicationStarting) return;
+                    applicationStarting = true;
 
-                    const uiManager = new UIManager(engine);
-                    uiManager.init();
+                    try {
+                        const engine = new CloudEngine('render-container', 'stage-edge-fill');
+                        engine.init();
+                        window.cloudEngine = engine;
+                        window.resetCameraDistance = () => engine.resetCameraDistance();
+                        window.defaultOrthoFrustumSize = () => engine.defaultOrthoFrustumSize();
 
-                    engine.onFpsUpdate = (stats) => {
-                        const fpsEl = document.getElementById('fps-counter');
-                        const timeModeStr = engine.systemTimeSyncEnabled ? 'system' : (engine.timePaused ? 'paused' : `${engine.timeSpeed}x`);
-                        if (fpsEl) {
-                            fpsEl.innerHTML = stats.replace('T:', `Time: ${timeModeStr} | T:`);
-                        }
-                    };
+                        const uiManager = new UIManager(engine);
+                        uiManager.init();
 
-                    engine.onRenderFrame = () => {
-                        uiManager.updateAtmosphereWidget();
-                    };
+                        engine.onFpsUpdate = (stats) => {
+                            const fpsEl = document.getElementById('fps-counter');
+                            const timeModeStr = engine.systemTimeSyncEnabled ? 'system' : (engine.timePaused ? 'paused' : `${engine.timeSpeed}x`);
+                            if (fpsEl) {
+                                fpsEl.innerHTML = stats.replace('T:', `Time: ${timeModeStr} | T:`);
+                            }
+                        };
 
-                    engine.onRenderScaleChanged = (scale) => {
-                        const sliderQuality = document.getElementById('slider-quality');
-                        const qualityReadout = document.getElementById('quality-readout');
-                        if (sliderQuality) sliderQuality.value = scale;
-                        if (qualityReadout) qualityReadout.innerText = scale.toFixed(2) + 'x';
-                    };
+                        engine.onRenderFrame = () => {
+                            uiManager.updateAtmosphereWidget();
+                        };
 
-                    requestAnimationFrame(engine.animate);
+                        engine.onRenderScaleChanged = (scale) => {
+                            const sliderQuality = document.getElementById('slider-quality');
+                            const qualityReadout = document.getElementById('quality-readout');
+                            if (sliderQuality) sliderQuality.value = scale;
+                            if (qualityReadout) qualityReadout.innerText = scale.toFixed(2) + 'x';
+                        };
+
+                        engine.onFirstRender = () => {
+                            document.body.dataset.appReady = 'true';
+                            const uiBar = document.getElementById('ui-bar');
+                            if (uiBar) {
+                                uiBar.inert = false;
+                                uiBar.removeAttribute('inert');
+                            }
+                        };
+
+                        applicationStarted = true;
+                        requestAnimationFrame(engine.animate);
+                    } catch (error) {
+                        applicationStarted = false;
+                        document.body.dataset.appReady = 'error';
+                        console.error('Cumulonimbus application startup failed.', error);
+                    } finally {
+                        applicationStarting = false;
+                    }
+                }
+
+                function librariesReady() {
+                    return Boolean(window.THREE && window.THREE.WebGLRenderer && window.THREE.OrbitControls);
                 }
 
                 function startWhenRenderContainerReady(attempt = 0) {
+                    if (!librariesReady()) {
+                        if (attempt >= 120) {
+                            console.error('Cumulonimbus startup timed out waiting for Three.js libraries.');
+                            document.body.dataset.appReady = 'error';
+                            return;
+                        }
+                        window.setTimeout(() => startWhenRenderContainerReady(attempt + 1), 50);
+                        return;
+                    }
+
                     const container = document.getElementById('render-container');
                     const rect = container ? container.getBoundingClientRect() : null;
                     const width = rect ? Math.round(rect.width) : 0;
@@ -4497,16 +4678,25 @@
                         container.style.width = '100vw';
                         container.style.height = '100dvh';
                         container.style.minHeight = '100dvh';
-                        startApplication();
+                        requestAnimationFrame(() => startApplication());
                         return;
                     }
 
                     requestAnimationFrame(() => startWhenRenderContainerReady(attempt + 1));
                 }
 
+                function scheduleApplicationStart() {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => startWhenRenderContainerReady());
+                    });
+                }
+
                 window.addEventListener('DOMContentLoaded', () => {
-                    requestAnimationFrame(() => startWhenRenderContainerReady());
-                });
+                    document.body.dataset.appReady = 'starting';
+                    const uiBar = document.getElementById('ui-bar');
+                    if (uiBar) uiBar.inert = true;
+                    scheduleApplicationStart();
+                }, { once: true });
     </script>
 </body>
 </html>

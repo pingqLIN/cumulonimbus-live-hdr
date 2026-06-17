@@ -21,7 +21,7 @@ const url = pathToFileURL(join(projectRoot, "cumulonimbus-live-hdr-mainline.html
 url.searchParams.set("seed", args.seed ?? "574");
 url.searchParams.set("time", args.time ?? "2.2");
 url.searchParams.set("timeSpeed", "0");
-url.searchParams.set("quality", args.quality ?? "0.72");
+url.searchParams.set("quality", args.quality ?? "0.62");
 url.searchParams.set("hud", args.hud ?? "1");
 url.searchParams.set("grid", args.grid ?? "1");
 url.searchParams.set("ortho", args.ortho ?? "1");

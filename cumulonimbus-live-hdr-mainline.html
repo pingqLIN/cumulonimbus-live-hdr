@@ -37,16 +37,49 @@
 
         window.syncThreeLoadState = syncThreeLoadState;
         syncThreeLoadState("loading", "", "vendor-r128");
+
+        function loadVendorScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement("script");
+                script.src = src;
+                script.defer = true;
+                script.onload = () => resolve(src);
+                script.onerror = () => reject(new Error(`Failed to load ${src}`));
+                document.head.appendChild(script);
+            });
+        }
+
+        async function loadFirstVendorCandidate(filename) {
+            const roots = window.location.protocol === "file:"
+                ? ["./public/vendor/"]
+                : ["./vendor/", "/vendor/", "./public/vendor/"];
+            let lastError = null;
+            for (const root of roots) {
+                try {
+                    return await loadVendorScript(`${root}${filename}`);
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+            throw lastError || new Error(`Failed to load ${filename}`);
+        }
+
+        (async () => {
+            try {
+                const threeSource = await loadFirstVendorCandidate("three-r128.min.js");
+                const controlsSource = await loadFirstVendorCandidate("OrbitControls-r128.js");
+                if (!window.THREE || !window.THREE.OrbitControls) {
+                    throw new Error("OrbitControls r128 did not attach to THREE.");
+                }
+                window.__threeLoadError = null;
+                syncThreeLoadState("ready", "", `vendor-r128:${threeSource},${controlsSource}`);
+            } catch (error) {
+                const detail = error instanceof Error ? error.message : String(error);
+                window.__threeLoadError = error;
+                syncThreeLoadState("error", detail, "vendor-r128");
+            }
+        })();
     </script>
-    <script
-        src="./public/vendor/three-r128.min.js"
-        defer
-        onerror="window.__threeLoadError=new Error('Failed to load local Three.js r128 runtime.'); window.syncThreeLoadState && window.syncThreeLoadState('error', 'Failed to load local Three.js r128 runtime.', 'vendor-r128');"></script>
-    <script
-        src="./public/vendor/OrbitControls-r128.js"
-        defer
-        onload="if (window.THREE && window.THREE.OrbitControls) { window.__threeLoadError=null; window.syncThreeLoadState && window.syncThreeLoadState('ready', '', 'vendor-r128'); } else { window.__threeLoadError=new Error('OrbitControls r128 did not attach to THREE.'); window.syncThreeLoadState && window.syncThreeLoadState('error', 'OrbitControls r128 did not attach to THREE.', 'vendor-r128'); }"
-        onerror="window.__threeLoadError=new Error('Failed to load local OrbitControls r128 runtime.'); window.syncThreeLoadState && window.syncThreeLoadState('error', 'Failed to load local OrbitControls r128 runtime.', 'vendor-r128');"></script>
     <style>
         :root {
             color-scheme: light;
@@ -132,6 +165,13 @@
         body[data-controls-hidden="true"] {
             padding: 0;
             background: var(--stage-sky-fill);
+        }
+        body[data-controls-hidden="true"] #ui-bar,
+        body[data-controls-hidden="true"] .panel-restore-dock {
+            display: none !important;
+        }
+        body[data-hud-hidden="true"] #overlay {
+            display: none !important;
         }
         body[data-background="transparent"],
         body[data-background="transparent"].fullscreen-mode,
@@ -2164,14 +2204,14 @@
             ORTHO_VERTICAL_WORLD_SCALE: 1.0,
             MOTION_SPEED_SCALE: 1.35,
             DEFAULT_TIME_SPEED: 1.5,
-            DEFAULT_RENDER_SCALE: 0.72,
+            DEFAULT_RENDER_SCALE: 0.62,
             DEFAULT_SUN_INTENSITY: 4.6,
             DEFAULT_AMBIENT_INTENSITY: 0.75,
             DEFAULT_SUN_ELEVATION: 35,
             DEFAULT_SUN_VIEWER_ANGLE: 25,
             AUTO_QUALITY_TARGET_FPS: 60,
             AUTO_QUALITY_MIN_SCALE: 0.55,
-            AUTO_QUALITY_MAX_SCALE: 1.0,
+            AUTO_QUALITY_MAX_SCALE: 0.78,
             MAX_CONVECTIVE_CELLS: 10,
             FULLSCREEN_RENDER_PIXEL_BUDGET: 1920 * 1080,
             FULLSCREEN_MIN_EFFECTIVE_SCALE: 0.42,
@@ -2237,6 +2277,14 @@
         const normalizedUiMode = (query.get('ui') || 'tracing-paper').toLowerCase();
         if (normalizedUiMode !== 'classic' && normalizedUiMode !== 'default') {
             document.body.dataset.ui = 'tracing-paper';
+        }
+        const controlsVisible = Utils.readBooleanQuery(query, ['controls', 'uiControls', 'panels'], true);
+        if (!controlsVisible) {
+            document.body.dataset.controlsHidden = 'true';
+        }
+        const hudVisible = Utils.readBooleanQuery(query, ['hud', 'overlay'], true);
+        if (!hudVisible) {
+            document.body.dataset.hudHidden = 'true';
         }
         const normalizedViewportMode = (query.get('viewport') || query.get('layout') || 'background').toLowerCase();
         const fullBackgroundMode = normalizedViewportMode === 'background'
@@ -3093,7 +3141,7 @@
                     float cosTheta = dot(rd, lightDir);
                     float heightRange = max(0.1, uTropopause - MODEL_BASE_KM);
 
-                    for(int i = 0; i < 168; i++) {
+                    for(int i = 0; i < 64; i++) {
                         if (float(i) > uMaxSteps || t > maxT || densityAcc > 0.955) break;
                         vec3 p = ro + rd * t;
                         if (p.y < 0.0 || p.y > uTropopause + 1.2) {
@@ -3190,6 +3238,8 @@
                         this.mobileWideViewQuery = window.matchMedia('(max-width: 760px), (pointer: coarse)');
                         this.isHeadlessCapture = /\bHeadlessChrome\b/.test(navigator.userAgent || '')
                             || (this.query.get('timeSpeed') === '0' && this.query.get('ortho') === '1');
+                        this.webglMode = (this.query.get('webgl') || this.query.get('renderer') || 'webgl1').toLowerCase();
+                        this.shaderDiagnosticsEnabled = Utils.readBooleanQuery(this.query, ['debugShader', 'shaderDebug'], false);
 
                         this.transparentBackground = Utils.readTransparentBackgroundQuery(this.query);
                         this.timeSpeed = CONFIG.DEFAULT_TIME_SPEED;
@@ -3315,6 +3365,16 @@
                         this.autoQualityEnabled = this.query.get('autoQuality') !== '0';
                         this.initialGridVisible = this.query.get('grid') === '1';
                         this.initialOrthoMode = this.query.get('ortho') === '1';
+                        this.initialRaymarchStepSize = this.isHeadlessCapture ? 0.58 : 0.42;
+                        this.initialRaymarchMaxSteps = this.isHeadlessCapture ? 24.0 : 48.0;
+                        const stepSizeParam = Number(this.query.get('stepSize') ?? this.query.get('rayStep'));
+                        if (Number.isFinite(stepSizeParam)) {
+                            this.initialRaymarchStepSize = Utils.clamp(stepSizeParam, 0.22, 1.4);
+                        }
+                        const maxStepsParam = Number(this.query.get('maxSteps') ?? this.query.get('raymarchSteps'));
+                        if (Number.isFinite(maxStepsParam)) {
+                            this.initialRaymarchMaxSteps = Utils.clamp(maxStepsParam, 8.0, 64.0);
+                        }
 
                         const sysParam = Number(this.query.get('systems') ?? this.query.get('systemCount') ?? presetSettings?.systems);
                         if (Number.isFinite(sysParam)) this.systemCount = Math.max(1, Math.min(CONFIG.MAX_CONVECTIVE_CELLS, Math.round(sysParam)));
@@ -3374,15 +3434,19 @@
                             };
 
                             try {
-                                // 第一階段：高能效 WebGL 2.0
-                                this.renderer = new THREE.WebGLRenderer({
-                                    canvas: canvas,
-                                    antialias: false,
-                                    alpha: this.transparentBackground,
-                                    premultipliedAlpha: !this.transparentBackground,
-                                    powerPreference: 'high-performance',
-                                    ...contextAttributes
-                                });
+                                // Default to WebGL 1 for the large raymarch shader; Chrome's WebGL 2 path can lose context on some GPUs.
+                                if (this.webglMode !== '2' && this.webglMode !== 'webgl2') {
+                                    this.renderer = createWebGL1Renderer();
+                                } else {
+                                    this.renderer = new THREE.WebGLRenderer({
+                                        canvas: canvas,
+                                        antialias: false,
+                                        alpha: this.transparentBackground,
+                                        premultipliedAlpha: !this.transparentBackground,
+                                        powerPreference: 'high-performance',
+                                        ...contextAttributes
+                                    });
+                                }
                             } catch (error1) {
                                 console.warn('高能效 WebGL Context 建立失敗，正在嘗試基礎設定...');
                                 try {
@@ -3430,7 +3494,7 @@
 
                         console.error = originalError;
 
-                        if (this.renderer?.debug) {
+                        if (this.shaderDiagnosticsEnabled && this.renderer?.debug) {
                             this.renderer.debug.checkShaderErrors = true;
                             this.renderer.debug.onShaderError = (gl, program, vertexShader, fragmentShader) => {
                                 console.error('Cumulonimbus shader diagnostics', {
@@ -3491,8 +3555,8 @@
                                 uIsOrtho: { value: 0.0 },
                                 uOrthoSize: { value: this.orthoFrustumSize },
                                 uOrthoVerticalScale: { value: CONFIG.ORTHO_VERTICAL_WORLD_SCALE },
-                                uStepSize: { value: this.isHeadlessCapture ? 0.36 : 0.2 },
-                                uMaxSteps: { value: this.isHeadlessCapture ? 48.0 : 126.0 },
+                                uStepSize: { value: this.initialRaymarchStepSize },
+                                uMaxSteps: { value: this.initialRaymarchMaxSteps },
                                 uSunIntensity: { value: this.sunIntensity },
                                 uAmbientIntensity: { value: this.ambientIntensity },
                                 uSunElevation: { value: this.sunElevation },
@@ -3636,6 +3700,18 @@
                     }
 
                     applyInitialDisplayQuery() {
+                        this.material.uniforms.uSeed.value = this.currentSeed;
+                        this.material.uniforms.uSystemCount.value = this.systemCount;
+                        this.material.uniforms.uTropopause.value = this.currentTropo;
+                        this.material.uniforms.uFreezingLevel.value = this.freezingLevel;
+                        this.material.uniforms.uWindShear.value = this.windShear;
+                        this.material.uniforms.uSunIntensity.value = this.sunIntensity;
+                        this.material.uniforms.uAmbientIntensity.value = this.ambientIntensity;
+                        this.material.uniforms.uSunElevation.value = this.sunElevation;
+                        this.material.uniforms.uSunViewerAngle.value = this.sunViewerAngle;
+                        this.material.uniforms.uPhotographicStyle.value = this.photographicStyle ? 1.0 : 0.0;
+                        this.material.uniforms.uLightPreset.value = this.lightPreset;
+                        this.material.uniforms.uSkyMode.value = this.skyMode;
                         this.material.uniforms.uShowGrid.value = this.initialGridVisible ? 1.0 : 0.0;
                         if (!this.initialOrthoMode) return;
                         this.isOrthoMode = true;

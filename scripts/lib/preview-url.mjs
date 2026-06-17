@@ -10,6 +10,9 @@ export function buildPreviewUrl(options = {}) {
   url.searchParams.set("simWidth", String(options.width ?? defaultDimensions.width));
   url.searchParams.set("simHeight", String(options.height ?? defaultDimensions.height));
   url.searchParams.set("fps", String(options.fps ?? 30));
+  if (options.seed) {
+    url.searchParams.set("seed", String(options.seed));
+  }
   if (options.renderer) {
     url.searchParams.set("renderer", options.renderer);
   }

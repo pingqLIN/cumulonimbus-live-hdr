@@ -49,6 +49,7 @@ const url = buildPreviewUrl({
   fps: 30,
   renderer: args.renderer,
   preset: args.preset,
+  seed: args.seed,
   captureFrames,
   outputMode,
   ...readThreeBubbleTuningArgs(args)

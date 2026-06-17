@@ -12,10 +12,41 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://cloud.colorgeek.co/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
+    <script>
+        function syncThreeLoadState(state, detail = "", source = "") {
+            window.__threeLoadState = state;
+            if (detail) window.__threeLoadDetail = detail;
+            else delete window.__threeLoadDetail;
+            if (source) window.__threeLoadSource = source;
+            else delete window.__threeLoadSource;
+
+            document.documentElement.dataset.threeLoadState = state;
+            if (detail) document.documentElement.dataset.threeLoadDetail = detail;
+            else delete document.documentElement.dataset.threeLoadDetail;
+            if (source) document.documentElement.dataset.threeLoadSource = source;
+            else delete document.documentElement.dataset.threeLoadSource;
+
+            if (document.body) {
+                document.body.dataset.threeLoadState = state;
+                if (detail) document.body.dataset.threeLoadDetail = detail;
+                else delete document.body.dataset.threeLoadDetail;
+                if (source) document.body.dataset.threeLoadSource = source;
+                else delete document.body.dataset.threeLoadSource;
+            }
+        }
+
+        window.syncThreeLoadState = syncThreeLoadState;
+        syncThreeLoadState("loading", "", "vendor-r128");
+    </script>
+    <script
+        src="./public/vendor/three-r128.min.js"
+        defer
+        onerror="window.__threeLoadError=new Error('Failed to load local Three.js r128 runtime.'); window.syncThreeLoadState && window.syncThreeLoadState('error', 'Failed to load local Three.js r128 runtime.', 'vendor-r128');"></script>
+    <script
+        src="./public/vendor/OrbitControls-r128.js"
+        defer
+        onload="if (window.THREE && window.THREE.OrbitControls) { window.__threeLoadError=null; window.syncThreeLoadState && window.syncThreeLoadState('ready', '', 'vendor-r128'); } else { window.__threeLoadError=new Error('OrbitControls r128 did not attach to THREE.'); window.syncThreeLoadState && window.syncThreeLoadState('error', 'OrbitControls r128 did not attach to THREE.', 'vendor-r128'); }"
+        onerror="window.__threeLoadError=new Error('Failed to load local OrbitControls r128 runtime.'); window.syncThreeLoadState && window.syncThreeLoadState('error', 'Failed to load local OrbitControls r128 runtime.', 'vendor-r128');"></script>
     <style>
         :root {
             color-scheme: light;
@@ -2959,8 +2990,8 @@
                 vec3 ro = uCameraPos;
                 vec3 target = uCameraTarget;
                 vec3 forward = normalize(target - ro);
-                vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
-                vec3 up = cross(right, forward);
+                vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), forward));
+                vec3 up = cross(forward, right);
                 vec3 rd;
 
                 if (uIsOrtho > 0.5) {
@@ -3209,6 +3240,9 @@
                         this.drawingBufferSize = new THREE.Vector2();
                         this.edgeSampleBuffer = new Uint8Array(0);
                         this.lastEdgeSampleTime = -Infinity;
+                        this.renderedFrameCount = 0;
+                        this.edgeSamplingWarmupFrames = 12;
+                        this.edgeSamplingDisabled = this.isHeadlessCapture;
                         this.edgeSamplingWarningShown = false;
                         this.edgeStripCanvases = this.edgeFill ? {
                             top: this.edgeFill.querySelector('.stage-edge-fill__top'),
@@ -3327,6 +3361,18 @@
                                 failIfMajorPerformanceCaveat: false
                             };
 
+                            const createWebGL1Renderer = () => {
+                                const gl1 = canvas.getContext('webgl', contextAttributes) || canvas.getContext('experimental-webgl', contextAttributes);
+                                if (!gl1) throw new Error('WebGL not supported');
+                                return new THREE.WebGLRenderer({
+                                    canvas: canvas,
+                                    context: gl1,
+                                    antialias: false,
+                                    alpha: this.transparentBackground,
+                                    premultipliedAlpha: !this.transparentBackground
+                                });
+                            };
+
                             try {
                                 // 第一階段：高能效 WebGL 2.0
                                 this.renderer = new THREE.WebGLRenderer({
@@ -3350,26 +3396,25 @@
                                 } catch (error2) {
                                     console.warn('基礎 WebGL Context 建立失敗，正在嘗試強制降級至 WebGL 1.0...');
                                     // 第三階段：強制指定 WebGL 1.0
-                                    const gl1 = canvas.getContext('webgl', contextAttributes) || canvas.getContext('experimental-webgl', contextAttributes);
-                                    if (!gl1) throw new Error('WebGL not supported');
-                                    this.renderer = new THREE.WebGLRenderer({
-                                        canvas: canvas,
-                                        context: gl1,
-                                        antialias: false,
-                                        alpha: this.transparentBackground,
-                                        premultipliedAlpha: !this.transparentBackground
-                                    });
+                                    this.renderer = createWebGL1Renderer();
                                 }
                             }
                         } catch (e3) {
+                                    const webglInitErrorDetail = e3 instanceof Error ? `${e3.name}: ${e3.message}` : String(e3);
+                                    window.__webglInitError = webglInitErrorDetail;
+                                    document.documentElement.dataset.webglInitError = webglInitErrorDetail;
+                                    if (document.body) {
+                                        document.body.dataset.webglInitError = webglInitErrorDetail;
+                                    }
                                     if (this.container) {
                                         const fallbackOverlay = document.createElement('div');
                                         fallbackOverlay.className = 'webgl-fallback-overlay';
                                         fallbackOverlay.style.cssText = 'color: #fff; padding: 2rem; text-align: center; font-family: sans-serif; position: absolute; z-index: 100; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-shadow: 0 2px 4px rgba(0,0,0,0.8); pointer-events: none;';
                                         fallbackOverlay.innerHTML = 'WebGL 初始化失敗。<br>您的瀏覽器可能不支援硬體加速，或 WebGL 資源已被佔滿。';
-                                        this.container.appendChild(fallbackOverlay);
+                                    this.container.appendChild(fallbackOverlay);
                                     }
                                     this.webglInitError = e3;
+                                    this.edgeSamplingDisabled = true;
                                     this.renderer = {
                                         domElement: canvas,
                                         setClearColor: function() {},
@@ -3384,6 +3429,17 @@
                         }
 
                         console.error = originalError;
+
+                        if (this.renderer?.debug) {
+                            this.renderer.debug.checkShaderErrors = true;
+                            this.renderer.debug.onShaderError = (gl, program, vertexShader, fragmentShader) => {
+                                console.error('Cumulonimbus shader diagnostics', {
+                                    programLog: gl.getProgramInfoLog(program) || '',
+                                    vertexLog: gl.getShaderInfoLog(vertexShader) || '',
+                                    fragmentLog: gl.getShaderInfoLog(fragmentShader) || ''
+                                });
+                            };
+                        }
 
                         this.renderer.setClearColor(0x000000, this.transparentBackground ? 0 : 1);
                         this.renderer.setPixelRatio(1);
@@ -3449,10 +3505,13 @@
                                 uTransparentBackground: { value: this.transparentBackground ? 1.0 : 0.0 },
                                 uHdr10Mode: { value: this.hdr10Mode ? 1.0 : 0.0 },
                                 uHdrReferencePeakNits: { value: CONFIG.HDR10_REFERENCE_PEAK_NITS }
-                            }
+                            },
+                            depthWrite: false,
+                            depthTest: false
                         });
 
                         this.plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material);
+                        this.plane.frustumCulled = false;
                         this.scene.add(this.plane);
 
                         this.applyInitialCameraQuery();
@@ -3798,7 +3857,8 @@
                     }
 
                     updateStageEdgeFill(time, force = false) {
-                        if (this.transparentBackground || !this.edgeFill) return;
+                        if (this.transparentBackground || !this.edgeFill || this.edgeSamplingDisabled) return;
+                        if (!force && this.renderedFrameCount < this.edgeSamplingWarmupFrames) return;
                         if (!force && time - this.lastEdgeSampleTime < 180) return;
                         this.lastEdgeSampleTime = time;
                         this.updateStageEdgeGeometry();
@@ -3818,6 +3878,15 @@
                             const top = this.averageEdgePixels(gl, 0, canvas.height - thickness, canvas.width, thickness);
                             const left = this.averageEdgePixels(gl, 0, 0, thickness, canvas.height);
                             const right = this.averageEdgePixels(gl, canvas.width - thickness, 0, thickness, canvas.height);
+                            const totalEdgeSignal =
+                                top.r + top.g + top.b +
+                                right.r + right.g + right.b +
+                                bottom.r + bottom.g + bottom.b +
+                                left.r + left.g + left.b;
+                            if (totalEdgeSignal === 0) {
+                                this.edgeSamplingDisabled = true;
+                                return;
+                            }
 
                             const centerFill = {
                                 r: Math.round((top.r + right.r + bottom.r + left.r)/4),
@@ -3833,6 +3902,7 @@
                             rootStyle.setProperty('--stage-edge-left', formatRgb(left));
                             rootStyle.setProperty('--stage-sky-fill', formatRgb(centerFill));
                         } catch (error) {
+                            this.edgeSamplingDisabled = true;
                             if (!this.edgeSamplingWarningShown) {
                                 this.edgeSamplingWarningShown = true;
                             }
@@ -3879,6 +3949,7 @@
                         }
 
 	                        this.renderer.render(this.scene, this.isOrthoMode ? this.orthoCamera : this.perspCamera);
+	                        this.renderedFrameCount += 1;
 	                        if (!this.firstRenderCompleted) {
 	                            this.firstRenderCompleted = true;
 	                            if (this.onFirstRender) this.onFirstRender();
@@ -4603,6 +4674,10 @@
                     try {
                         const engine = new CloudEngine('render-container', 'stage-edge-fill');
                         engine.init();
+                        if (engine.webglInitError) {
+                            document.body.dataset.appReady = 'error';
+                            return;
+                        }
                         window.cloudEngine = engine;
                         window.resetCameraDistance = () => engine.resetCameraDistance();
                         window.defaultOrthoFrustumSize = () => engine.defaultOrthoFrustumSize();
@@ -4639,7 +4714,7 @@
                         };
 
                         applicationStarted = true;
-                        requestAnimationFrame(engine.animate);
+                        engine.animate(performance.now());
                     } catch (error) {
                         applicationStarted = false;
                         document.body.dataset.appReady = 'error';
@@ -4654,6 +4729,12 @@
                 }
 
                 function startWhenRenderContainerReady(attempt = 0) {
+                    if (window.__threeLoadState === 'error') {
+                        console.error('Cumulonimbus startup aborted because Three.js failed to load.', window.__threeLoadError);
+                        document.body.dataset.appReady = 'error';
+                        return;
+                    }
+
                     if (!librariesReady()) {
                         if (attempt >= 120) {
                             console.error('Cumulonimbus startup timed out waiting for Three.js libraries.');
@@ -4678,21 +4759,26 @@
                         container.style.width = '100vw';
                         container.style.height = '100dvh';
                         container.style.minHeight = '100dvh';
-                        requestAnimationFrame(() => startApplication());
+                        window.setTimeout(() => startApplication(), 0);
                         return;
                     }
 
-                    requestAnimationFrame(() => startWhenRenderContainerReady(attempt + 1));
+                    window.setTimeout(() => startWhenRenderContainerReady(attempt + 1), 16);
                 }
 
                 function scheduleApplicationStart() {
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => startWhenRenderContainerReady());
-                    });
+                    window.setTimeout(() => startWhenRenderContainerReady(), 0);
                 }
 
                 window.addEventListener('DOMContentLoaded', () => {
                     document.body.dataset.appReady = 'starting';
+                    document.body.dataset.threeLoadState = document.documentElement.dataset.threeLoadState || 'loading';
+                    if (document.documentElement.dataset.threeLoadSource) {
+                        document.body.dataset.threeLoadSource = document.documentElement.dataset.threeLoadSource;
+                    }
+                    if (document.documentElement.dataset.threeLoadDetail) {
+                        document.body.dataset.threeLoadDetail = document.documentElement.dataset.threeLoadDetail;
+                    }
                     const uiBar = document.getElementById('ui-bar');
                     if (uiBar) uiBar.inert = true;
                     scheduleApplicationStart();

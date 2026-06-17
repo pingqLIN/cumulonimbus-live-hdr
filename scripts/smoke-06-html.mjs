@@ -11,7 +11,7 @@ const args = parseArgs(process.argv.slice(2));
 const width = readIntegerArg(args, "width", 900);
 const height = readIntegerArg(args, "height", 506);
 const waitMs = readIntegerArg(args, "waitMs", 7000);
-const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(60000, waitMs + 20000));
+const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(90000, waitMs + 20000));
 const outputPath = resolve(
   projectRoot,
   args.out ?? join("outputs", "analysis", "mainline-html-smoke.png")
@@ -67,7 +67,8 @@ for (const key of [
   "autoQuality",
   "hdr",
   "hdr10",
-  "hdrMode"
+  "hdrMode",
+  "surface"
 ]) {
   if (args[key] !== undefined && args[key] !== "") {
     url.searchParams.set(key, args[key]);

@@ -5,160 +5,1084 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cumulonimbus Live HDR Observatory</title>
     <meta name="description" content="Interactive WebGL cumulonimbus cloud observatory for live HDR-oriented look development, scale inspection, and broadcast framing." />
-    <meta name="theme-color" content="#060705" />
+    <meta name="theme-color" content="#eaf5fb" />
     <link rel="canonical" href="https://cloud.colorgeek.co/" />
     <meta property="og:title" content="Cumulonimbus Live HDR Observatory" />
     <meta property="og:description" content="Interactive WebGL cumulonimbus cloud observatory for live HDR-oriented look development." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://cloud.colorgeek.co/" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:,">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
-        :root { --panel: rgba(10, 13, 16, 0.88); --panel-soft: rgba(22, 28, 31, 0.78); --line: rgba(158, 171, 161, 0.28); --text: #d9ded7; --muted: #9ca89c; --accent: #e2c06f; --accent-2: #7fc7a0; --danger: #d96b5f; }
-        body { margin: 0; background: #060705; color: var(--muted); font-family: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; flex-direction: column; letter-spacing: 0; }
-        body.fullscreen-mode { background: #000; align-items: center; }
-        #render-container { position: relative; background: #000; box-shadow: 0 0 40px rgba(0,0,0,0.78); border: 1px solid rgba(185, 178, 137, 0.34); transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), height 0.4s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; }
-        .viewport-portrait { width: 360px; height: 640px; max-width: 95vw; max-height: 85vh; }
-        .viewport-landscape { width: 900px; height: 506px; max-width: 95vw; max-height: 85vh; }
-        .viewport-fullscreen { width: 100vw; height: 100vh; max-width: none; max-height: none; border: 0; box-shadow: none; }
+        :root {
+            color-scheme: light;
+            --sky-50: oklch(98% 0.012 235);
+            --sky-100: oklch(95% 0.025 235);
+            --sky-150: oklch(92% 0.034 235);
+            --sky-200: oklch(86% 0.048 232);
+            --cloud-ink: oklch(24% 0.035 245);
+            --cloud-muted: oklch(48% 0.035 245);
+            --line: oklch(79% 0.045 232 / 0.68);
+            --panel: oklch(98% 0.011 235 / 0.84);
+            --panel-strong: oklch(96% 0.022 235 / 0.94);
+            --sunlit: oklch(78% 0.105 78);
+            --blue-signal: oklch(62% 0.13 232);
+            --storm-shadow: oklch(45% 0.06 282);
+            --danger: oklch(58% 0.13 28);
+            --stage-sky-fill: #48455b;
+            --stage-edge-top: var(--stage-sky-fill);
+            --stage-edge-right: var(--stage-sky-fill);
+            --stage-edge-bottom: var(--stage-sky-fill);
+            --stage-edge-left: var(--stage-sky-fill);
+            --stage-render-top: 0px;
+            --stage-render-right: 100vw;
+            --stage-render-bottom: 100vh;
+            --stage-render-left: 0px;
+            --stage-shadow: 0 28px 80px oklch(46% 0.08 238 / 0.24);
+        }
+        * { box-sizing: border-box; }
+        html {
+            min-height: 100%;
+            background: var(--stage-sky-fill);
+        }
+        html[data-background="transparent"] {
+            background: transparent;
+        }
+        body {
+            position: relative;
+            margin: 0;
+            min-height: 100vh;
+            padding: clamp(0.75rem, 1.8vw, 1.4rem);
+            color: var(--cloud-muted);
+            font-family: "Segoe UI Variable", "Aptos", "Segoe UI", system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            flex-direction: column;
+            letter-spacing: 0;
+            background: var(--stage-sky-fill);
+        }
+        body::before,
+        body::after {
+            content: "";
+            display: none;
+            position: fixed;
+            inset: auto;
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::before {
+            left: -8vw;
+            right: -6vw;
+            bottom: -14vh;
+            height: 42vh;
+            background:
+                radial-gradient(ellipse at 15% 65%, oklch(100% 0.01 235 / 0.86) 0 18%, transparent 19%),
+                radial-gradient(ellipse at 39% 45%, oklch(100% 0.011 235 / 0.72) 0 21%, transparent 22%),
+                radial-gradient(ellipse at 70% 60%, oklch(100% 0.012 235 / 0.8) 0 23%, transparent 24%);
+            filter: blur(7px);
+        }
+        body::after {
+            inset: 0;
+            background:
+                linear-gradient(115deg, transparent 0 18%, oklch(75% 0.055 232 / 0.22) 18.1% 18.35%, transparent 18.45% 100%),
+                linear-gradient(150deg, transparent 0 66%, oklch(76% 0.04 232 / 0.18) 66.1% 66.35%, transparent 66.45% 100%);
+            mask-image: linear-gradient(180deg, oklch(0% 0 0) 0 78%, transparent 100%);
+        }
+        body.fullscreen-mode {
+            padding: 0;
+            background: var(--stage-sky-fill);
+            align-items: center;
+        }
+        body[data-controls-hidden="true"] {
+            padding: 0;
+            background: var(--stage-sky-fill);
+        }
+        body[data-background="transparent"],
+        body[data-background="transparent"].fullscreen-mode,
+        body[data-background="transparent"][data-controls-hidden="true"] {
+            padding: 0;
+            background: transparent;
+        }
+        body[data-background="transparent"]::before,
+        body[data-background="transparent"]::after {
+            display: none;
+        }
+        body[data-viewport-mode="background"] {
+            padding: 0;
+            align-items: stretch;
+            justify-content: stretch;
+            background: var(--stage-sky-fill);
+        }
+        body[data-viewport-mode="background"]::before,
+        body[data-viewport-mode="background"]::after {
+            display: none;
+        }
+        #stage-edge-fill {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+            background: var(--stage-sky-fill);
+        }
+        html[data-background="transparent"] #stage-edge-fill {
+            display: none;
+        }
+        .stage-edge-fill__top,
+        .stage-edge-fill__top-left,
+        .stage-edge-fill__top-right,
+        .stage-edge-fill__right,
+        .stage-edge-fill__bottom,
+        .stage-edge-fill__bottom-left,
+        .stage-edge-fill__bottom-right,
+        .stage-edge-fill__left {
+            position: absolute;
+            display: block;
+            pointer-events: none;
+            image-rendering: auto;
+            filter: blur(10px);
+            transform: scale(1.035);
+            transform-origin: center;
+        }
+        .stage-edge-fill__top {
+            top: 0;
+            left: var(--stage-render-left);
+            width: calc(var(--stage-render-right) - var(--stage-render-left));
+            height: var(--stage-render-top);
+            background: var(--stage-edge-top);
+        }
+        .stage-edge-fill__top-left {
+            top: 0;
+            left: 0;
+            width: var(--stage-render-left);
+            height: var(--stage-render-top);
+            background: var(--stage-edge-top);
+        }
+        .stage-edge-fill__top-right {
+            top: 0;
+            right: 0;
+            width: calc(100vw - var(--stage-render-right));
+            height: var(--stage-render-top);
+            background: var(--stage-edge-top);
+        }
+        .stage-edge-fill__right {
+            top: var(--stage-render-top);
+            right: 0;
+            left: var(--stage-render-right);
+            width: calc(100vw - var(--stage-render-right));
+            height: calc(var(--stage-render-bottom) - var(--stage-render-top));
+            background: var(--stage-edge-right);
+        }
+        .stage-edge-fill__bottom {
+            left: var(--stage-render-left);
+            bottom: 0;
+            width: calc(var(--stage-render-right) - var(--stage-render-left));
+            height: calc(100vh - var(--stage-render-bottom));
+            background: var(--stage-edge-bottom);
+        }
+        .stage-edge-fill__bottom-left {
+            bottom: 0;
+            left: 0;
+            width: var(--stage-render-left);
+            height: calc(100vh - var(--stage-render-bottom));
+            background: var(--stage-edge-bottom);
+        }
+        .stage-edge-fill__bottom-right {
+            right: 0;
+            bottom: 0;
+            width: calc(100vw - var(--stage-render-right));
+            height: calc(100vh - var(--stage-render-bottom));
+            background: var(--stage-edge-bottom);
+        }
+        .stage-edge-fill__left {
+            top: var(--stage-render-top);
+            left: 0;
+            width: var(--stage-render-left);
+            height: calc(var(--stage-render-bottom) - var(--stage-render-top));
+            background: var(--stage-edge-left);
+        }
+        #stage-edge-fill canvas {
+            cursor: default;
+        }
+        #render-container,
+        #ui-bar {
+            position: relative;
+            z-index: 1;
+        }
+        #render-container {
+            background: var(--stage-sky-fill);
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
+            overflow: hidden;
+        }
+        #render-container::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            pointer-events: none;
+            background:
+                linear-gradient(180deg, oklch(100% 0.006 235 / 0.22), transparent 28%),
+                linear-gradient(90deg, oklch(68% 0.08 232 / 0.24), transparent 22%, transparent 72%, oklch(78% 0.09 78 / 0.18));
+            mix-blend-mode: screen;
+            display: none;
+        }
+        .viewport-portrait { width: 360px; height: 640px; max-width: 95vw; max-height: 82vh; }
+        .viewport-landscape { width: 900px; height: 506px; max-width: 95vw; max-height: 82vh; }
+        .viewport-fullscreen { width: 100vw; height: 100vh; max-width: none; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
+        body[data-controls-hidden="true"] #render-container {
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        body[data-controls-hidden="true"] .viewport-portrait,
+        body[data-controls-hidden="true"] .viewport-landscape {
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        body[data-background="transparent"] #render-container {
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        body[data-background="transparent"] #render-container::before {
+            display: none;
+        }
+        body[data-background="transparent"] .viewport-portrait,
+        body[data-background="transparent"] .viewport-landscape {
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        body[data-viewport-mode="background"] #render-container {
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            max-height: none;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        body[data-viewport-mode="background"] #render-container::before {
+            display: none;
+        }
         canvas { display: block; width: 100%; height: 100%; outline: none; cursor: grab; }
         canvas:active { cursor: grabbing; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; padding: 1rem; pointer-events: none; z-index: 10; }
-        .project-kicker { font-size: 0.68rem; color: var(--accent-2); text-transform: uppercase; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.85); }
-        .project-title { margin-top: 0.15rem; font-size: 0.92rem; color: var(--text); font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.85); }
-        .hud-text { font-size: 0.72rem; line-height: 1.55; text-shadow: 0 1px 2px rgba(0,0,0,0.85); color: #d7ddd5; }
-        .hud-list { margin-top: 0.55rem; max-width: 42rem; }
-        #ui-bar { margin-top: 0.85rem; display: flex; gap: 0.5rem; z-index: 20; flex-wrap: wrap; justify-content: center; align-items: stretch; max-width: min(1180px, 96vw); }
-        button { background-color: rgba(31, 37, 39, 0.92); border: 1px solid rgba(150, 166, 151, 0.28); color: var(--text); padding: 0.4rem 0.62rem; font-size: 0.75rem; border-radius: 0.375rem; cursor: pointer; transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 0.35rem; white-space: nowrap; min-height: 2rem; }
-        button:hover { background-color: rgba(58, 65, 63, 0.96); color: white; }
-        button.active { background-color: rgba(127, 199, 160, 0.26); border-color: rgba(127, 199, 160, 0.9); color: white; }
-        button:disabled { opacity: 0.48; cursor: not-allowed; }
-        .btn-action { background-color: rgba(85, 96, 59, 0.9); border-color: rgba(226, 192, 111, 0.72); color: #fff8df; }
-        .btn-action:hover { background-color: rgba(111, 122, 69, 0.96); }
-        .btn-toggle { background-color: rgba(37, 45, 47, 0.94); border-color: rgba(145, 158, 150, 0.34); color: #eef5ec; }
-        .btn-toggle.enabled { background-color: rgba(88, 75, 52, 0.96); border-color: rgba(226, 192, 111, 0.92); }
-        .btn-toggle.camera { background-color: rgba(33, 53, 55, 0.95); border-color: rgba(127, 199, 160, 0.56); }
-        .btn-toggle.camera.ortho { background-color: rgba(74, 66, 42, 0.96); border-color: rgba(226, 192, 111, 0.88); }
-        .btn-toggle.quality-auto { background-color: rgba(37, 62, 48, 0.94); border-color: rgba(127, 199, 160, 0.72); }
-        .btn-toggle.hud-off { background-color: rgba(11, 13, 14, 0.92); border-color: rgba(150, 166, 151, 0.28); color: #9da89d; }
-        .btn-toggle.fullscreen { background-color: rgba(34, 55, 58, 0.95); border-color: rgba(127, 199, 160, 0.62); }
-        .btn-toggle.fullscreen.enabled { background-color: rgba(51, 77, 57, 0.96); border-color: rgba(127, 199, 160, 0.92); }
-        .control-group { display: flex; align-items: center; gap: 0.42rem; flex-wrap: wrap; background: var(--panel); padding: 0.38rem; border-radius: 0.45rem; border: 1px solid var(--line); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2); }
-        .control-group__label { align-self: stretch; display: flex; align-items: center; padding: 0 0.42rem; min-width: max-content; color: var(--accent); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; border-right: 1px solid rgba(158, 171, 161, 0.2); }
-        .slider-group { display: flex; align-items: center; gap: 0.42rem; background: var(--panel-soft); padding: 0.32rem 0.52rem; border-radius: 0.375rem; border: 1px solid rgba(150, 166, 151, 0.2); font-size: 0.72rem; white-space: nowrap; min-height: 2rem; }
-        .slider-group label { color: var(--text); }
-        .slider-group input[type=range] { width: 78px; accent-color: var(--accent-2); cursor: pointer; }
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: clamp(0.85rem, 1.6vw, 1.15rem);
+            pointer-events: none;
+            z-index: 10;
+            background: linear-gradient(180deg, oklch(14% 0.03 248 / 0.62), transparent 72%);
+        }
+        .project-kicker {
+            width: max-content;
+            padding: 0.18rem 0.46rem;
+            color: oklch(90% 0.09 220);
+            border: 1px solid oklch(85% 0.08 225 / 0.36);
+            border-radius: 999px;
+            background: oklch(16% 0.045 248 / 0.46);
+            font-size: 0.66rem;
+            font-weight: 750;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            text-shadow: 0 1px 2px oklch(6% 0.02 245 / 0.8);
+        }
+        .project-title {
+            margin-top: 0.42rem;
+            color: oklch(97% 0.012 235);
+            font-size: clamp(0.98rem, 1.4vw, 1.2rem);
+            font-weight: 760;
+            text-shadow: 0 2px 9px oklch(8% 0.02 245 / 0.7);
+        }
+        .hud-text {
+            max-width: 42rem;
+            color: oklch(91% 0.02 235);
+            font-size: 0.74rem;
+            line-height: 1.55;
+            text-shadow: 0 2px 8px oklch(6% 0.02 245 / 0.82);
+        }
+        .hud-list { margin-top: 0.55rem; }
+        #fps-counter { font-variant-numeric: tabular-nums; }
+        .mt-4 { margin-top: 1rem; }
+        .opacity-50 { opacity: 0.5; }
+        #ui-bar {
+            width: min(1220px, 96vw);
+            margin-top: 0.95rem;
+            display: flex;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: stretch;
+            padding: 0.72rem;
+            border: 1px solid var(--line);
+            border-radius: 1.1rem;
+            background:
+                linear-gradient(180deg, oklch(100% 0.008 235 / 0.74), oklch(94% 0.025 235 / 0.62)),
+                repeating-linear-gradient(90deg, transparent 0 29px, oklch(73% 0.04 232 / 0.13) 30px 31px);
+            box-shadow: 0 18px 48px oklch(48% 0.06 235 / 0.18);
+            backdrop-filter: blur(20px) saturate(1.08);
+        }
+        button {
+            min-height: 2.1rem;
+            padding: 0.42rem 0.66rem;
+            color: var(--cloud-ink);
+            border: 1px solid oklch(78% 0.043 232 / 0.72);
+            border-radius: 0.62rem;
+            background: linear-gradient(180deg, oklch(99% 0.009 235 / 0.94), oklch(92% 0.026 235 / 0.88));
+            cursor: pointer;
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+            font-family: inherit;
+            font-size: 0.75rem;
+            font-weight: 650;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+        button:hover {
+            border-color: oklch(64% 0.105 232 / 0.78);
+            background: linear-gradient(180deg, oklch(100% 0.008 235), oklch(90% 0.045 232));
+            transform: translateY(-1px);
+            box-shadow: 0 7px 18px oklch(57% 0.08 232 / 0.16);
+        }
+        button:focus-visible,
+        input:focus-visible {
+            outline: 3px solid oklch(74% 0.11 232 / 0.42);
+            outline-offset: 2px;
+        }
+        button.active,
+        button[aria-pressed="true"] {
+            color: oklch(24% 0.04 245);
+            border-color: oklch(68% 0.115 232 / 0.9);
+            background: linear-gradient(180deg, oklch(88% 0.07 226), oklch(78% 0.1 232));
+            box-shadow: inset 0 1px 0 oklch(100% 0.008 235 / 0.56), 0 9px 20px oklch(58% 0.09 232 / 0.18);
+        }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-action {
+            color: oklch(25% 0.04 75);
+            border-color: oklch(67% 0.12 78 / 0.88);
+            background: linear-gradient(180deg, oklch(88% 0.105 80), var(--sunlit));
+        }
+        .btn-action:hover { background: linear-gradient(180deg, oklch(90% 0.11 80), oklch(75% 0.12 78)); }
+        .btn-toggle.enabled,
+        .btn-toggle.camera.ortho,
+        .btn-toggle.fullscreen.enabled,
+        .btn-toggle.quality-auto {
+            color: oklch(25% 0.04 245);
+            border-color: oklch(64% 0.12 232 / 0.9);
+            background: linear-gradient(180deg, oklch(86% 0.065 228), oklch(75% 0.095 232));
+        }
+        .btn-toggle.hud-off {
+            color: oklch(42% 0.026 245);
+            border-style: dashed;
+            background: oklch(91% 0.018 235 / 0.7);
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 0.42rem;
+            flex-wrap: wrap;
+            padding: 0.38rem;
+            border: 1px solid oklch(78% 0.04 232 / 0.62);
+            border-radius: 0.8rem;
+            background: linear-gradient(180deg, var(--panel), var(--panel-strong));
+            box-shadow: inset 0 1px 0 oklch(100% 0.006 235 / 0.56);
+        }
+        .control-group__label {
+            align-self: stretch;
+            display: flex;
+            align-items: center;
+            padding: 0 0.52rem;
+            min-width: max-content;
+            color: var(--cloud-muted);
+            font-size: 0.66rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            border-right: 1px solid oklch(78% 0.04 232 / 0.48);
+            letter-spacing: 0.08em;
+        }
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 0.42rem;
+            min-height: 2.1rem;
+            padding: 0.32rem 0.54rem;
+            border: 1px solid oklch(80% 0.035 232 / 0.56);
+            border-radius: 0.62rem;
+            background: oklch(98% 0.01 235 / 0.72);
+            color: var(--cloud-muted);
+            font-size: 0.74rem;
+            white-space: nowrap;
+        }
+        .slider-group label { color: var(--cloud-ink); font-weight: 650; }
+        .slider-group input[type=range] {
+            width: 82px;
+            accent-color: var(--blue-signal);
+            cursor: pointer;
+        }
         .slider-group.accent-red input[type=range] { accent-color: var(--danger); }
-        .seed-input { width: 58px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(150, 166, 151, 0.32); color: white; border-radius: 0.25rem; padding: 2px 4px; font-size: 0.75rem; text-align: center; outline: none; }
-        .readout { color: #fff8df; min-width: 2.3rem; text-align: right; }
+        .seed-input {
+            width: 62px;
+            padding: 0.16rem 0.32rem;
+            color: var(--cloud-ink);
+            border: 1px solid oklch(75% 0.04 232 / 0.72);
+            border-radius: 0.5rem;
+            background: oklch(100% 0.006 235 / 0.76);
+            font-size: 0.75rem;
+            text-align: center;
+            outline: none;
+            font-variant-numeric: tabular-nums;
+        }
+        .readout {
+            min-width: 2.45rem;
+            color: oklch(34% 0.055 235);
+            text-align: right;
+            font-weight: 760;
+            font-variant-numeric: tabular-nums;
+        }
         .lang-switch { display: flex; align-items: center; gap: 0.25rem; }
         .lang-switch button { min-width: 2.35rem; }
-        body.fullscreen-mode #ui-bar { position: fixed; left: 50%; bottom: max(0.75rem, env(safe-area-inset-bottom)); transform: translateX(-50%); margin-top: 0; padding: 0.4rem; max-width: calc(100vw - 1.5rem); max-height: 30vh; overflow-y: auto; background: rgba(3, 5, 5, 0.72); border: 1px solid rgba(185, 178, 137, 0.36); border-radius: 0.5rem; backdrop-filter: blur(10px); opacity: 0.28; transition: opacity 0.2s; }
+        #btn-random-seed {
+            padding: 2px 8px !important;
+            color: oklch(25% 0.04 245);
+            border-color: oklch(66% 0.11 232 / 0.72) !important;
+            background: oklch(88% 0.06 228 / 0.92) !important;
+        }
+        body.fullscreen-mode #ui-bar {
+            position: fixed;
+            left: 50%;
+            bottom: max(0.75rem, env(safe-area-inset-bottom));
+            transform: translateX(-50%);
+            width: auto;
+            margin-top: 0;
+            padding: 0.5rem;
+            max-width: calc(100vw - 1.5rem);
+            max-height: 30vh;
+            overflow-y: auto;
+            background: oklch(96% 0.02 235 / 0.82);
+            border: 1px solid oklch(86% 0.04 232 / 0.64);
+            border-radius: 0.9rem;
+            opacity: 0.34;
+            transition: opacity 0.18s ease;
+        }
         body.fullscreen-mode #ui-bar:hover,
         body.fullscreen-mode #ui-bar:focus-within { opacity: 1; }
         body.fullscreen-mode #overlay { padding: clamp(0.65rem, 1.2vw, 1rem); }
+        body[data-ui="tracing-paper"] {
+            --tp-paper: 252 249 244;
+            --tp-paper-cool: 246 242 236;
+            --tp-ink: 40 38 35;
+            --tp-line: rgb(var(--tp-ink) / 0.16);
+            --tp-line-heavy: rgb(var(--tp-ink) / 0.34);
+            --tp-text: rgb(var(--tp-ink) / 0.82);
+            --tp-text-soft: rgb(var(--tp-ink) / 0.56);
+            --tp-text-faint: rgb(var(--tp-ink) / 0.34);
+            --tp-font: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+            --tp-mono: var(--tp-font);
+            --tp-sans: var(--tp-font);
+            --tp-weight: 300;
+            --tp-panel-width: min(1180px, calc(100vw - 1.4rem));
+            --tp-panel-column: calc((var(--tp-panel-width) - 5px) / 6);
+            --tp-panel-min-width: 64rem;
+            --tp-panel-header-height: 1.35rem;
+            --tp-control-min-width: 10.75rem;
+            --tp-control-min-height: 15rem;
+            --tp-overlay-min-width: 24rem;
+            --tp-overlay-min-height: 7.15rem;
+            font-family: var(--tp-font);
+            font-size: 17px;
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] #overlay {
+            position: fixed;
+            top: clamp(0.42rem, 1.1vw, 0.82rem);
+            left: calc((100vw - var(--tp-panel-width)) / 2);
+            transform: none;
+            width: min(max(var(--tp-overlay-min-width), calc((var(--tp-panel-column) * 2) + 1px)), calc(100vw - 2rem));
+            min-width: min(var(--tp-overlay-min-width), calc(100vw - 2rem));
+            min-height: var(--tp-overlay-min-height);
+            max-width: min(62vw, var(--tp-panel-width));
+            max-height: none;
+            padding: 0.54rem 0.64rem 0.58rem;
+            overflow: visible;
+            resize: none;
+            pointer-events: auto;
+            color: var(--tp-text);
+            font-family: var(--tp-sans);
+            font-weight: var(--tp-weight);
+            background:
+                linear-gradient(rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                rgb(var(--tp-paper) / 0.46);
+            background-size: 96px 96px, 96px 96px, 12px 12px, 12px 12px, auto;
+            border: 1px solid rgb(var(--tp-ink) / 0.22);
+            border-radius: 0;
+            box-shadow:
+                inset 0 1px 0 rgb(255 255 255 / 0.58),
+                inset 0 -1px 0 rgb(145 129 113 / 0.12),
+                0 8px 22px rgb(0 0 0 / 0.10);
+            opacity: 0.82;
+            backdrop-filter: blur(10px) saturate(0.92) brightness(1.05);
+            -webkit-backdrop-filter: blur(10px) saturate(0.92) brightness(1.05);
+            cursor: move;
+            touch-action: none;
+        }
+        body[data-ui="tracing-paper"] .project-kicker {
+            width: fit-content;
+            padding: 0 0 0.18rem;
+            color: var(--tp-text-faint);
+            border: 0;
+            border-bottom: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            background: transparent;
+            font-family: var(--tp-mono);
+            font-size: 0.55rem;
+            font-weight: var(--tp-weight);
+            letter-spacing: 0.14em;
+            text-shadow: none;
+        }
+        body[data-ui="tracing-paper"] .project-title {
+            margin-top: 0.46rem;
+            color: var(--tp-text);
+            font-family: var(--tp-sans);
+            font-size: clamp(0.9rem, 1.1vw, 1.02rem);
+            font-weight: var(--tp-weight);
+            letter-spacing: 0;
+            text-shadow: none;
+        }
+        body[data-ui="tracing-paper"] .hud-text {
+            max-width: 100%;
+            color: var(--tp-text-soft);
+            font-family: var(--tp-mono);
+            font-size: 0.58rem;
+            font-weight: var(--tp-weight);
+            line-height: 1.52;
+            letter-spacing: 0.02em;
+            text-shadow: none;
+        }
+        body[data-ui="tracing-paper"] .hud-list {
+            margin-top: 0.46rem;
+        }
+        body[data-ui="tracing-paper"] #fps-counter {
+            margin-top: 0.62rem;
+            color: var(--tp-text-faint);
+            opacity: 1;
+        }
+        body[data-ui="tracing-paper"] #ui-bar {
+            position: fixed;
+            left: 50%;
+            bottom: max(0.85rem, env(safe-area-inset-bottom));
+            transform: translateX(-50%);
+            width: var(--tp-panel-width);
+            min-width: min(var(--tp-panel-min-width), calc(100vw - 0.8rem));
+            min-height: calc(var(--tp-panel-header-height) + var(--tp-control-min-height));
+            max-width: calc(100vw - 0.8rem);
+            max-height: none;
+            margin-top: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            grid-template-rows: auto minmax(var(--tp-control-min-height), max-content);
+            grid-auto-rows: minmax(var(--tp-control-min-height), max-content);
+            gap: 1px;
+            align-items: stretch;
+            justify-content: stretch;
+            overflow: visible;
+            resize: none;
+            color: var(--tp-text);
+            font-family: var(--tp-sans);
+            font-weight: var(--tp-weight);
+            background:
+                linear-gradient(rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                linear-gradient(rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                rgb(var(--tp-paper) / 0.42);
+            background-size: 96px 96px, 96px 96px, 12px 12px, 12px 12px, auto;
+            border: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            box-shadow:
+                inset 0 1px 0 rgb(255 255 255 / 0.62),
+                inset 0 -1px 0 rgb(145 129 113 / 0.16),
+                0 18px 54px rgb(0 0 0 / 0.24);
+            backdrop-filter: blur(16px) saturate(0.95) brightness(1.04);
+            -webkit-backdrop-filter: blur(16px) saturate(0.95) brightness(1.04);
+            opacity: 0.42;
+            transition: opacity 0.18s ease;
+            z-index: 20;
+        }
+        body[data-ui="tracing-paper"] #ui-bar::before {
+            content: "DOCUMENT NO. CB-FS-001 // CUMULONIMBUS LIVE HDR // TRACING PAPER CONTROL";
+            position: sticky;
+            left: 0;
+            grid-column: 1 / -1;
+            min-height: var(--tp-panel-header-height);
+            padding: 0.22rem 0.55rem;
+            color: var(--tp-text-faint);
+            font-family: var(--tp-mono);
+            font-size: 0.58rem;
+            font-weight: var(--tp-weight);
+            line-height: 1.15;
+            letter-spacing: 0.14em;
+            border-bottom: 1px solid var(--tp-line-heavy);
+            background: rgb(var(--tp-paper-cool) / 0.32);
+            cursor: move;
+            user-select: none;
+        }
+        body[data-ui="tracing-paper"] #ui-bar:hover,
+        body[data-ui="tracing-paper"] #ui-bar:focus-within {
+            opacity: 1;
+        }
+        body[data-ui="tracing-paper"] .control-group {
+            min-width: var(--tp-control-min-width);
+            width: auto;
+            min-height: var(--tp-control-min-height);
+            margin: 0;
+            padding: 0.52rem;
+            display: flex;
+            align-self: stretch;
+            align-items: flex-start;
+            align-content: flex-start;
+            gap: 0.38rem;
+            overflow: visible;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            background: rgb(255 255 255 / 0.34);
+        }
+        body[data-ui="tracing-paper"] .control-group--atmosphere-wide {
+            grid-column: span 2;
+        }
+        body[data-ui="tracing-paper"] .control-group--atmosphere-wide .slider-group {
+            flex-basis: 100%;
+            grid-template-columns: minmax(3.25rem, 4rem) minmax(7.5rem, 1fr) minmax(3rem, auto);
+        }
+        body[data-ui="tracing-paper"] .framing-controls {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1px;
+            background: var(--tp-line);
+        }
+        body[data-ui="tracing-paper"] .framing-controls button {
+            min-width: 0;
+            border-color: transparent;
+            background: rgb(255 255 255 / 0.22);
+        }
+        body[data-ui="tracing-paper"] .framing-controls #btn-reset-cam {
+            grid-column: 1 / -1;
+        }
+        body[data-ui="tracing-paper"] .floating-panel--dragging {
+            cursor: grabbing !important;
+        }
+        body[data-ui="tracing-paper"].panel-dragging,
+        body[data-ui="tracing-paper"].panel-dragging * {
+            user-select: none;
+        }
+        body[data-ui="tracing-paper"] .control-group__label {
+            width: 100%;
+            margin-bottom: 0.14rem;
+            padding-bottom: 0.28rem;
+            color: var(--tp-text);
+            border-bottom: 1px solid var(--tp-line);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            font-weight: var(--tp-weight);
+            letter-spacing: 0.12em;
+        }
+        body[data-ui="tracing-paper"] button {
+            min-width: 2.65rem;
+            min-height: 1.75rem;
+            padding: 0.28rem 0.45rem;
+            color: var(--tp-text);
+            border: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            font-family: var(--tp-mono);
+            font-size: 0.61rem;
+            font-weight: var(--tp-weight);
+            letter-spacing: 0.05em;
+            text-shadow: none;
+        }
+        body[data-ui="tracing-paper"] button:hover,
+        body[data-ui="tracing-paper"] button.active,
+        body[data-ui="tracing-paper"] button.enabled {
+            color: rgb(255 255 255 / 0.96);
+            background: rgb(var(--tp-ink) / 0.9);
+            border-color: rgb(var(--tp-ink) / 0.9);
+            transform: none;
+        }
+        body[data-ui="tracing-paper"] .slider-group {
+            flex: 1 1 8.5rem;
+            display: grid;
+            grid-template-columns: minmax(3.1rem, 3.6rem) minmax(4.25rem, 1fr) minmax(2.55rem, auto);
+            gap: 0.4rem;
+            min-height: 1.65rem;
+            padding: 0.18rem 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            color: var(--tp-text);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            white-space: nowrap;
+        }
+        body[data-ui="tracing-paper"] .slider-group label {
+            color: var(--tp-text-soft);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] .slider-group input[type=range] {
+            width: 100%;
+            height: 1px;
+            align-self: center;
+            background: var(--tp-text-faint);
+            box-shadow: 0 4px 7px rgb(28 26 23 / 0.16);
+            accent-color: rgb(var(--tp-ink) / 0.9);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        body[data-ui="tracing-paper"] .slider-group input[type=range]::-webkit-slider-thumb {
+            width: 8px;
+            height: 13px;
+            border-radius: 1px;
+            border: 0;
+            background: rgb(var(--tp-ink) / 0.92);
+            box-shadow:
+                0 5px 9px rgb(28 26 23 / 0.24),
+                0 1px 0 rgb(255 255 255 / 0.36);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        body[data-ui="tracing-paper"] .slider-group input[type=range]::-moz-range-thumb {
+            width: 8px;
+            height: 13px;
+            border-radius: 1px;
+            border: 0;
+            background: rgb(var(--tp-ink) / 0.92);
+            box-shadow:
+                0 5px 9px rgb(28 26 23 / 0.24),
+                0 1px 0 rgb(255 255 255 / 0.36);
+        }
+        body[data-ui="tracing-paper"] .readout {
+            min-width: 0;
+            color: var(--tp-text);
+            font-family: var(--tp-mono);
+            font-size: 0.62rem;
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] .seed-input {
+            width: 4.25rem;
+            min-height: 1.75rem;
+            padding: 0.22rem 0.32rem;
+            color: var(--tp-text);
+            border: 1px solid var(--tp-line-heavy);
+            border-radius: 0;
+            background: rgb(255 255 255 / 0.34);
+            font-family: var(--tp-mono);
+            font-size: 0.64rem;
+            font-weight: var(--tp-weight);
+        }
+        body[data-ui="tracing-paper"] #btn-random-seed {
+            color: var(--tp-text) !important;
+            border-color: var(--tp-line-heavy) !important;
+            background: transparent !important;
+        }
+        body[data-ui="tracing-paper"] .lang-switch {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1px;
+            background: var(--tp-line);
+        }
+        body[data-ui="tracing-paper"] .lang-switch button {
+            min-width: 0;
+            border-color: transparent;
+            background: rgb(255 255 255 / 0.28);
+        }
+        body[data-controls-hidden="true"]::before,
+        body[data-controls-hidden="true"]::after,
+        body[data-controls-hidden="true"] #render-container::before {
+            display: none;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+        @media (max-width: 760px) {
+            body {
+                justify-content: center;
+                align-items: center;
+                overflow: hidden;
+                padding: 0;
+            }
+            #render-container {
+                transform: translateY(-4.5vh);
+            }
+            #ui-bar { width: min(100%, 95vw); justify-content: flex-start; }
+            .control-group { width: 100%; }
+            .slider-group { flex: 1 1 13rem; }
+            .viewport-landscape { max-height: 52vh; }
+            .viewport-portrait { max-height: 62vh; }
+            .hud-list { display: none; }
+            body[data-viewport-mode="background"] { align-items: stretch; justify-content: stretch; }
+            body[data-viewport-mode="background"] #render-container {
+                transform: none;
+            }
+            body[data-viewport-mode="background"] .viewport-landscape,
+            body[data-viewport-mode="background"] .viewport-portrait,
+            body[data-viewport-mode="background"] .viewport-fullscreen {
+                width: 100vw;
+                height: 100vh;
+                max-width: none;
+                max-height: none;
+            }
+            body[data-ui="tracing-paper"] #ui-bar {
+                --tp-control-min-height: auto;
+                --mobile-console-gutter: 0.58rem;
+                position: fixed !important;
+                inset-block: auto max(0.46rem, env(safe-area-inset-bottom)) !important;
+                inset-inline: var(--mobile-console-gutter) !important;
+                transform: none !important;
+                width: auto !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                height: clamp(12.75rem, 38dvh, 18.5rem) !important;
+                min-height: 0;
+                max-height: calc(100dvh - 1rem);
+                padding: 1.85rem 0.46rem 0.5rem;
+                display: grid;
+                grid-auto-columns: minmax(15.8rem, 82vw);
+                grid-auto-flow: column;
+                grid-template-columns: none;
+                grid-template-rows: 1fr;
+                grid-auto-rows: 1fr;
+                gap: 0.38rem;
+                overflow-x: auto;
+                overflow-y: hidden;
+                overscroll-behavior-inline: contain;
+                scroll-padding-inline: 0.46rem;
+                scroll-snap-type: inline mandatory;
+                touch-action: pan-x;
+                color: var(--tp-text);
+                background:
+                    linear-gradient(rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                    linear-gradient(90deg, rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+                    linear-gradient(rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                    linear-gradient(90deg, rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+                    rgb(var(--tp-paper) / 0.52);
+                background-size: 96px 96px, 96px 96px, 12px 12px, 12px 12px, auto;
+                border: 1px solid var(--tp-line-heavy);
+                border-radius: 0;
+                box-shadow:
+                    inset 0 1px 0 rgb(255 255 255 / 0.62),
+                    inset 0 -1px 0 rgb(145 129 113 / 0.16),
+                    0 -12px 36px rgb(0 0 0 / 0.22);
+                opacity: 0.88;
+                scrollbar-width: none;
+                backdrop-filter: blur(16px) saturate(0.95) brightness(1.04);
+                -webkit-backdrop-filter: blur(16px) saturate(0.95) brightness(1.04);
+            }
+            body[data-ui="tracing-paper"] #ui-bar::-webkit-scrollbar {
+                display: none;
+            }
+            body[data-ui="tracing-paper"] #ui-bar::before {
+                content: "DOCUMENT NO. CB-FS-001 // CUMULONIMBUS LIVE HDR // MOBILE CONTROL";
+                position: absolute;
+                inset: 0.44rem 0.72rem auto;
+                z-index: 1;
+                min-height: 0;
+                padding: 0 0 0.34rem;
+                color: var(--tp-text-faint);
+                border-bottom: 1px solid var(--tp-line-heavy);
+                background: transparent;
+                font-size: 0.58rem;
+                letter-spacing: 0.16em;
+                line-height: 1.15;
+                cursor: default;
+                pointer-events: none;
+            }
+            body[data-ui="tracing-paper"] #ui-bar:hover,
+            body[data-ui="tracing-paper"] #ui-bar:focus-within {
+                opacity: 1;
+            }
+            body[data-ui="tracing-paper"] .control-group,
+            body[data-ui="tracing-paper"] .control-group--atmosphere-wide {
+                grid-column: auto;
+                width: auto;
+                min-width: 0;
+                min-height: 0;
+                max-height: 100%;
+                padding: 0.58rem;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-auto-rows: minmax(2.55rem, auto);
+                align-content: start;
+                align-items: stretch;
+                gap: 0.46rem;
+                overflow-y: auto;
+                overflow-x: hidden;
+                overscroll-behavior-block: contain;
+                scroll-snap-align: center;
+                touch-action: pan-y;
+                color: var(--tp-text);
+                background: rgb(255 255 255 / 0.34);
+                border: 1px solid var(--tp-line);
+                border-radius: 0;
+                box-shadow: none;
+                scrollbar-width: thin;
+                scrollbar-color: var(--tp-line-heavy) transparent;
+            }
+            body[data-ui="tracing-paper"] .control-group__label {
+                grid-column: 1 / -1;
+                margin: 0;
+                min-height: 1rem;
+                padding: 0 0 0.22rem;
+                color: var(--tp-text);
+                border-bottom-color: var(--tp-line);
+                font-size: 0.58rem;
+                letter-spacing: 0.15em;
+            }
+            body[data-ui="tracing-paper"] button,
+            body[data-ui="tracing-paper"] .seed-input {
+                min-width: 0;
+                min-height: 44px;
+                padding: 0.42rem 0.52rem;
+                color: var(--tp-text);
+                border-color: var(--tp-line-heavy);
+                border-radius: 0;
+                background: transparent;
+                font-size: 0.68rem;
+                letter-spacing: 0.03em;
+            }
+            body[data-ui="tracing-paper"] button:hover,
+            body[data-ui="tracing-paper"] button.active,
+            body[data-ui="tracing-paper"] button.enabled {
+                color: rgb(255 255 255 / 0.96);
+                border-color: rgb(var(--tp-ink) / 0.9);
+                background: rgb(var(--tp-ink) / 0.9);
+            }
+            body[data-ui="tracing-paper"] .lang-switch,
+            body[data-ui="tracing-paper"] .framing-controls {
+                grid-column: 1 / -1;
+                gap: 0.32rem;
+                background: transparent;
+            }
+            body[data-ui="tracing-paper"] .lang-switch button,
+            body[data-ui="tracing-paper"] .framing-controls button {
+                border-color: transparent;
+                background: rgb(255 255 255 / 0.24);
+            }
+            body[data-ui="tracing-paper"] .slider-group {
+                grid-column: 1 / -1;
+                flex-basis: auto;
+                grid-template-columns: minmax(4.2rem, 0.72fr) minmax(0, 1fr) minmax(2.8rem, auto);
+                align-items: center;
+                min-height: 2.75rem;
+                padding: 0.18rem 0.1rem;
+                gap: 0.58rem;
+                color: var(--tp-text);
+                white-space: normal;
+            }
+            body[data-ui="tracing-paper"] .control-group--atmosphere-wide .slider-group {
+                grid-template-columns: minmax(4.2rem, 0.72fr) minmax(0, 1fr) minmax(2.8rem, auto);
+            }
+            body[data-ui="tracing-paper"] .slider-group label,
+            body[data-ui="tracing-paper"] .readout {
+                color: var(--tp-text-soft);
+                font-size: 0.66rem;
+            }
+            body[data-ui="tracing-paper"] .slider-group input[type=range] {
+                min-height: 44px;
+                height: 44px;
+                background:
+                    linear-gradient(transparent calc(50% - 1px), var(--tp-text-faint) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
+                border-radius: 999px;
+                box-shadow: none;
+            }
+            body[data-ui="tracing-paper"] .slider-group input[type=range]::-webkit-slider-thumb {
+                width: 1.35rem;
+                height: 1.35rem;
+                border: 1px solid rgb(var(--tp-ink) / 0.9);
+                border-radius: 0;
+                background: rgb(var(--tp-ink) / 0.9);
+            }
+            body[data-ui="tracing-paper"] .slider-group input[type=range]::-moz-range-thumb {
+                width: 1.35rem;
+                height: 1.35rem;
+                border: 1px solid rgb(var(--tp-ink) / 0.9);
+                border-radius: 0;
+                background: rgb(var(--tp-ink) / 0.9);
+            }
+            body[data-ui="tracing-paper"] #btn-random-seed {
+                min-height: 44px;
+                color: var(--tp-text) !important;
+                border-color: var(--tp-line-heavy) !important;
+                background: transparent !important;
+            }
+            body[data-ui="tracing-paper"] #btn-random-seed:hover {
+                color: rgb(255 255 255 / 0.96) !important;
+                background: rgb(var(--tp-ink) / 0.9) !important;
+                border-color: rgb(var(--tp-ink) / 0.9) !important;
+            }
+            body[data-ui="tracing-paper"] .control-group[aria-label="Storm seed and convective cells"] .slider-group:first-of-type {
+                grid-template-columns: minmax(4.2rem, 0.72fr) minmax(0, 1fr) 2.55rem;
+            }
+        }
+        @media (max-width: 520px) {
+            body[data-ui="tracing-paper"] #ui-bar {
+                --mobile-console-gutter: 0.42rem;
+                height: clamp(12.4rem, 40dvh, 17.2rem) !important;
+                grid-auto-columns: minmax(15rem, 86vw);
+            }
+            body[data-ui="tracing-paper"] .control-group--atmosphere-wide {
+                grid-column: auto;
+            }
+            body[data-ui="tracing-paper"] .control-group {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                padding: 0.5rem;
+            }
+            body[data-ui="tracing-paper"] .slider-group,
+            body[data-ui="tracing-paper"] .control-group--atmosphere-wide .slider-group {
+                grid-template-columns: minmax(3.6rem, 0.64fr) minmax(0, 1fr) minmax(2.5rem, auto);
+                gap: 0.42rem;
+            }
+        }
     </style>
 </head>
-<body>
-    <div id="render-container" class="viewport-landscape">
-        <div id="overlay">
-            <div class="project-kicker" data-i18n="overlay.kicker">Operational volumetric study</div>
-            <div class="project-title" data-i18n="overlay.title">Cumulonimbus Live HDR Observatory</div>
-            <div class="hud-text" id="target-label">Target: 16:9 Broadcast</div>
-            <div class="hud-text hud-list">
-                <span data-i18n="overlay.line1">Cloud form: Cb tower, convective cells, and tropopause anvil.</span><br>
-                <span data-i18n="overlay.line2">Scale: sea level 0 km plane, 1 grid = 1 km, bold/ring = 5 km.</span><br>
-                <span data-i18n="overlay.line3">Framing: camera center tracks the cloud-layer midpoint.</span><br>
-                <span data-i18n="overlay.gesture">Left drag: orbit | Wheel: zoom | Right drag: pan</span>
-            </div>
-            <div class="hud-text mt-4 opacity-50" id="fps-counter">FPS: 00 | RES: 0.72x</div>
-        </div>
+<body data-controls-hidden="true">
+    <div id="stage-edge-fill" aria-hidden="true">
+        <canvas class="stage-edge-fill__top"></canvas>
+        <canvas class="stage-edge-fill__top-left"></canvas>
+        <canvas class="stage-edge-fill__top-right"></canvas>
+        <canvas class="stage-edge-fill__right"></canvas>
+        <canvas class="stage-edge-fill__bottom"></canvas>
+        <canvas class="stage-edge-fill__bottom-left"></canvas>
+        <canvas class="stage-edge-fill__bottom-right"></canvas>
+        <canvas class="stage-edge-fill__left"></canvas>
     </div>
 
-    <div id="ui-bar">
-        <div class="control-group" aria-label="Project display">
-            <span class="control-group__label" data-i18n="group.display">Display</span>
-            <button id="btn-landscape" class="active">16:9</button>
-            <button id="btn-portrait">9:16</button>
-            <button id="btn-fullscreen" class="btn-toggle fullscreen" title="Browser fullscreen display; high-resolution screens cap the internal render buffer for performance." data-i18n="button.fullscreen" data-i18n-title="title.fullscreen">Fullscreen</button>
-            <button id="btn-hud" class="btn-toggle">HUD</button>
-            <div class="lang-switch" role="group" aria-label="Language">
-                <button id="btn-lang-zh" type="button" data-lang-option="zh-TW">繁</button>
-                <button id="btn-lang-en" type="button" data-lang-option="en">EN</button>
-            </div>
-        </div>
-
-        <div class="control-group" aria-label="Storm seed and convective cells">
-            <span class="control-group__label" data-i18n="group.storm">Storm</span>
-            <div class="slider-group">
-                <label data-i18n="label.seed">Seed</label>
-            <input type="number" id="input-seed" class="seed-input">
-                <button id="btn-random-seed" title="Random seed" data-i18n-title="title.randomSeed" style="padding: 2px 6px; background: rgba(127, 199, 160, 0.24); border-color: rgba(127, 199, 160, 0.62);">↻</button>
-            </div>
-            <div class="slider-group" title="Set the number of active convective cells." data-i18n-title="title.cells">
-                <label data-i18n="label.cells">Convective cells</label>
-                <input type="range" id="slider-systems" min="1" max="10" step="1" value="3">
-                <span id="systems-readout" class="readout">3</span>
-            </div>
-        </div>
-
-        <div class="control-group" aria-label="Time controls">
-            <span class="control-group__label" data-i18n="group.time">Time</span>
-            <div class="slider-group" title="Control the lifecycle speed of the cloud field." data-i18n-title="title.time">
-                <label data-i18n="label.time">Speed</label>
-                <input type="range" id="slider-time" min="0.5" max="5" step="0.25" value="1.5">
-                <span id="time-readout" class="readout">1.5x</span>
-            </div>
-            <button id="btn-time-toggle" class="btn-toggle" data-i18n="button.pause">Pause</button>
-            <button id="btn-time-reset" class="btn-toggle" data-i18n="button.resetTime">Reset time</button>
-        </div>
-
-        <div class="control-group" aria-label="Render performance">
-            <span class="control-group__label" data-i18n="group.render">Render</span>
-            <div class="slider-group" title="Internal render scale; lower values reduce raymarch pixel load and improve FPS." data-i18n-title="title.quality">
-                <label data-i18n="label.quality">Power</label>
-                <input type="range" id="slider-quality" min="0.45" max="1" step="0.01" value="0.72">
-                <span id="quality-readout" class="readout">0.72x</span>
-            </div>
-            <button id="btn-auto-quality" class="btn-toggle quality-auto" title="Automatically adjusts internal render scale and raymarch steps by average FPS." data-i18n="button.autoQuality" data-i18n-title="title.autoQuality">Auto power</button>
-        </div>
-
-        <div class="control-group" aria-label="Atmospheric parameters">
-            <span class="control-group__label" data-i18n="group.atmosphere">Atmosphere</span>
-            <div class="slider-group accent-red" title="Tropopause height in kilometers." data-i18n-title="title.tropo">
-                <label data-i18n="label.tropo">Top</label>
-                <input type="range" id="slider-tropo" min="8" max="18" step="0.5" value="12">
-                <span id="tropo-readout" class="readout">12km</span>
-            </div>
-            <div class="slider-group" title="Freezing level, controlling water-to-ice texture transition." data-i18n-title="title.freezing">
-                <label data-i18n="label.freezing">Freezing</label>
-                <input type="range" id="slider-freezing" min="3" max="6" step="0.25" value="5">
-                <span id="freezing-readout" class="readout">5km</span>
-            </div>
-            <div class="slider-group" title="Upper-level wind shear controlling anvil outflow asymmetry." data-i18n-title="title.shear">
-                <label data-i18n="label.shear">Shear</label>
-                <input type="range" id="slider-shear" min="0" max="1" step="0.05" value="0.7">
-                <span id="shear-readout" class="readout">0.70</span>
-            </div>
-            <div class="slider-group" title="Sunlight contribution to cloud scattering and highlights." data-i18n-title="title.sun">
-                <label data-i18n="label.sun">Sun</label>
-                <input type="range" id="slider-sun" min="0" max="8" step="0.1" value="4.6">
-            </div>
-            <div class="slider-group" title="Background atmosphere and cloud ambient light." data-i18n-title="title.ambient">
-                <label data-i18n="label.ambient">Ambient</label>
-                <input type="range" id="slider-amb" min="0.1" max="3" step="0.1" value="0.75">
-            </div>
-        </div>
-
-        <div class="control-group" aria-label="Framing controls">
-            <span class="control-group__label" data-i18n="group.framing">Framing</span>
-            <button id="btn-grid" class="btn-toggle" data-i18n="button.grid">Scale ruler</button>
-            <button id="btn-cam-mode" class="btn-toggle camera" data-i18n="button.perspective">Perspective</button>
-            <button id="btn-reset-cam" class="btn-action" data-i18n="button.recenter">Recenter</button>
-        </div>
-    </div>
+    <div id="render-container" class="viewport-fullscreen" aria-label="Cumulonimbus cloud render"></div>
 
     <script>
         const fragmentShader = `
@@ -178,8 +1102,16 @@
             uniform float uMaxSteps;
             uniform float uSunIntensity;
             uniform float uAmbientIntensity;
+            uniform float uSunElevation;
+            uniform float uSunViewerAngle;
             uniform float uFreezingLevel;
             uniform float uWindShear;
+            uniform float uPhotographicStyle;
+            uniform float uLightPreset;
+            uniform float uSkyMode;
+            uniform float uTransparentBackground;
+            uniform float uHdr10Mode;
+            uniform float uHdrReferencePeakNits;
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
@@ -306,26 +1238,36 @@
                 float lowerShelf = smoothstep(0.02, 0.18, h) * (1.0 - smoothstep(0.3, 0.52, h));
                 float towerColumn = smoothstep(0.16, 0.42, h) * (1.0 - smoothstep(0.66, 0.88, h));
                 float crownSpread = smoothstep(0.6, 0.94, h);
-                float verticalProfile = 0.56 + lowerShelf * 0.34 + towerColumn * 0.08 + crownSpread * 0.34;
+                float photo = uPhotographicStyle;
+                float verticalProfile = mix(
+                    0.56 + lowerShelf * 0.34 + towerColumn * 0.08 + crownSpread * 0.34,
+                    0.48 + lowerShelf * 0.22 + towerColumn * 0.2 + crownSpread * 0.3,
+                    photo
+                );
                 verticalProfile *= mix(1.0, 0.82, dissipating * smoothstep(0.12, 0.62, h));
                 float hitLid = smoothstep(MODEL_LOCAL_TROPO - 1.5, MODEL_LOCAL_TROPO, naturalTop);
-                float anvilMask = smoothstep(actualTop - 2.0, actualTop + 0.5, p.y);
+                float anvilMask = mix(
+                    smoothstep(actualTop - 2.0, actualTop + 0.5, p.y),
+                    smoothstep(actualTop - 1.05, actualTop + 0.35, p.y),
+                    uPhotographicStyle
+                );
                 float anvilLife = hitLid * smoothstep(0.34, 0.82, cycle) * (1.0 - dissipating * 0.18);
                 vec2 windAxis = windShearAxis(phase);
                 float downwind = dot(baseLocal, windAxis);
                 float crosswind = length(baseLocal - windAxis * downwind);
                 float downwind01 = smoothstep(-maxR * 0.65, maxR * 2.6, downwind);
-                float anvilLength = maxR * mix(1.0, mix(0.72, 2.45, downwind01), uWindShear);
-                float anvilWidth = maxR * mix(0.92, mix(0.74, 1.26, downwind01), uWindShear);
+                float anvilLength = maxR * mix(1.0, mix(0.72, 2.45 + photo * 0.7, downwind01), uWindShear);
+                float anvilWidth = maxR * mix(0.92, mix(0.74, 1.26 + photo * 0.36, downwind01), uWindShear);
                 float anvilPlume = exp(-crosswind * crosswind / max(0.01, anvilWidth * anvilWidth))
                     * smoothstep(-maxR * 0.95, maxR * 3.25, downwind)
                     * (1.0 - smoothstep(anvilLength * 0.78, anvilLength * 1.18, downwind));
-                float anvil = anvilLife * anvilMask * maxR * 1.48 * anvilScale * anvilPlume;
+                float anvil = anvilLife * anvilMask * maxR * mix(1.48, 1.56, photo) * anvilScale * anvilPlume;
                 float anvilSlab = max(abs(crosswind) - anvilWidth, max(-downwind - maxR * 0.95, downwind - anvilLength));
-                float anvilThickness = mix(0.12, 0.68, anvilMask) * (0.4 + anvilLife * 0.6);
+                float anvilThickness = mix(0.12, mix(0.68, 0.42, photo), anvilMask) * (0.4 + anvilLife * 0.6);
                 float anvilVertical = abs(p.y - actualTop) - anvilThickness;
-                float anvilShape = smax(anvilSlab - anvil * 0.36, anvilVertical, 0.52) + (1.0 - anvilLife) * 4.0;
-                float shape = smin(r - currentR * verticalProfile, anvilShape, 0.92);
+                float anvilShape = smax(anvilSlab - anvil * mix(0.36, 0.3, photo), anvilVertical, mix(0.52, 0.36, photo)) + (1.0 - anvilLife) * 4.0;
+                float bodyTaper = mix(1.0, 0.58 + lowerShelf * 0.2 + towerColumn * 0.22 + crownSpread * 0.1, photo);
+                float shape = smin(r - currentR * verticalProfile * bodyTaper, anvilShape, mix(0.92, 0.62, photo));
                 float topDist = p.y - actualTop;
 
                 float baseWave =
@@ -348,7 +1290,7 @@
                 );
                 shape += dissipating * lowerDowndraft * coreVoid * dryPocket * maxR * 0.62;
                 shape += dissipating * lowerDowndraft * (1.0 - mature * 0.35) * 0.18;
-                return smax(shape, verticalDist, 1.2);
+                return smax(shape, verticalDist, mix(1.2, 0.86, photo));
             }
 
             float getCell00(vec3 p, vec2 offset, float maxR, float phase, float maxH) {
@@ -455,15 +1397,28 @@
                 layoutP.x /= widthStretch;
 
                 vec3 modelP = worldToModelSpace(layoutP);
-                float c1 = getCell01(modelP, vec2(0.0, 0.0), 3.2, 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
+                float photo = uPhotographicStyle;
+                float layoutMode = mod(floor(abs(uSeed)), 3.0);
+                float triangleLayout = step(0.5, layoutMode) * (1.0 - step(1.5, layoutMode));
+                float clusterLayout = step(1.5, layoutMode);
+                vec2 c2Offset = mix(vec2(3.75, -1.35), vec2(-2.45, -1.28), triangleLayout);
+                c2Offset = mix(c2Offset, vec2(1.1, -0.58), clusterLayout);
+                vec2 c3Offset = mix(vec2(-3.2, 1.55), vec2(2.5, -1.12), triangleLayout);
+                c3Offset = mix(c3Offset, vec2(-0.86, 0.78), clusterLayout);
+                float c2Blend = mix(mix(1.35, 0.92, photo), mix(1.58, 1.06, photo), triangleLayout);
+                c2Blend = mix(c2Blend, mix(1.8, 1.18, photo), clusterLayout);
+                float c3Blend = mix(mix(1.45, 0.96, photo), mix(1.58, 1.06, photo), triangleLayout);
+                c3Blend = mix(c3Blend, mix(1.82, 1.2, photo), clusterLayout);
+
+                float c1 = getCell01(modelP, vec2(0.0, 0.0), mix(3.2, 1.95, photo), 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
                 float macro = c1;
                 if (uSystemCount >= 1.5) {
-                    float c2 = getCell01(modelP, vec2(4.15, -0.95), 2.8, 2.0, 3.75, 0.82, 1.12, 0.28, 0.8);
-                    macro = smin(macro, c2, 1.35);
+                    float c2 = getCell01(modelP, c2Offset, mix(2.8, 1.65, photo), 2.0, mix(3.75, 3.35, photo), 0.82, 1.12, 0.28, mix(0.8, 0.48, photo));
+                    macro = smin(macro, c2, c2Blend);
                 }
                 if (uSystemCount >= 2.5) {
-                    float c3 = getCell01(modelP, vec2(-3.35, 1.45), 2.65, 4.0, 4.35, 1.26, 4.85, 0.1, 1.14);
-                    macro = smin(macro, c3, 1.45);
+                    float c3 = getCell01(modelP, c3Offset, mix(2.65, 1.75, photo), 4.0, 4.55, 1.26, 4.85, 0.1, mix(1.14, 0.74, photo));
+                    macro = smin(macro, c3, c3Blend);
                 }
                 for (int i = 3; i < 10; i++) {
                     float fi = float(i);
@@ -485,7 +1440,7 @@
                     float earlyDecay = hash(fi * 97.7 + uSeed * 0.006) * 0.34;
                     float anvilScale = mix(0.58, 1.12, hash(fi * 101.9 + uSeed * 0.008));
                     float cell = getCell01(modelP, offset, maxR, phase, maxH, speedScale, ageOffset, earlyDecay, anvilScale);
-                    macro = smin(macro, cell, 1.08);
+                    macro = smin(macro, cell, mix(1.08, 0.82, photo));
                 }
                 float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
                 float groundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
@@ -526,9 +1481,11 @@
                         0.9,
                         noise(vec3(q.x * 0.18 - uTime * 0.015, q.z * 0.22 + uSeed * 0.05, q.y * 0.11))
                     );
-                    float carving = noise(q * 0.4 + uTime * 0.1) * 1.5;
+                    float photo = uPhotographicStyle;
+                    float carving = noise(q * 0.4 + uTime * 0.1) * mix(1.5, 1.28, photo);
                     float details = fbm(q * 1.2) * 1.0;
                     float microBillow = fbm(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(uSeed * 0.017, 1.9, uTime * 0.04));
+                    float broadBillow = fbm(vec3(q.x * 0.92, q.y * 1.24, q.z * 0.92) + vec3(uSeed * 0.023, 6.1, -uTime * 0.02));
                     vec2 iceAxis = windShearAxis(uSeed * 0.003 + 4.0);
                     float iceFiber = noise(vec3(
                         dot(q.xz, iceAxis) * 0.18 + uTime * 0.026,
@@ -538,13 +1495,15 @@
                     float towerBand = smoothstep(0.12, 0.58, height01) * (1.0 - smoothstep(0.78, 1.02, height01));
                     float surfaceShell = smoothstep(-0.7, 0.16, macro) * (1.0 - smoothstep(0.18, 0.82, macro));
                     d += details - carving * 0.8;
-                    d += surfaceShell * towerBand * (microBillow - 0.46) * 0.42;
+                    d += surfaceShell * towerBand * (microBillow - 0.46) * mix(0.42, 0.74, photo);
+                    d += surfaceShell * (1.0 - anvilBand) * (broadBillow - 0.44) * mix(0.0, 0.42, photo);
+                    d -= surfaceShell * towerBand * smoothstep(0.58, 0.94, broadBillow) * mix(0.0, 0.18, photo);
                     d += mixedPhaseBand * surfaceShell * 0.14;
                     d += anvilBand * iceFactor * (iceFiber - 0.42) * 0.38;
                     d -= anvilBand * iceFactor * smoothstep(0.72, 0.98, iceFiber) * 0.12;
                     float edgeBand = smoothstep(-0.72, 0.34, macro);
                     float edgeCuts = noise(vec3(q.x * 0.82 + uSeed * 0.019, q.y * 0.92, q.z * 0.82 - uTime * 0.03));
-                    d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * 0.24;
+                    d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * mix(0.24, 0.38, photo);
                     float raggedFloor =
                         MODEL_LOCAL_BASE +
                         (noise(vec3(baseQ.xz * 0.58 + uSeed * 0.13, uSeed * 0.29)) - 0.5) * 0.68 +
@@ -576,6 +1535,46 @@
             vec3 ACESFilm(vec3 x) {
                 float a = 2.51; float b = 0.03; float c = 2.43; float d = 0.59; float e = 0.14;
                 return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+            }
+
+            vec3 nitsToPq(vec3 nits) {
+                const float m1 = 2610.0 / 16384.0;
+                const float m2 = 2523.0 / 32.0;
+                const float c1 = 3424.0 / 4096.0;
+                const float c2 = 2413.0 / 128.0;
+                const float c3 = 2392.0 / 128.0;
+                vec3 normalized = clamp(nits / 10000.0, 0.0, 1.0);
+                vec3 powered = pow(normalized, vec3(m1));
+                return clamp(pow((c1 + c2 * powered) / (1.0 + c3 * powered), vec3(m2)), 0.0, 1.0);
+            }
+
+            float sceneLinearToDisplayNits(float value, float highlightPeakNits) {
+                const float diffuseWhiteNits = 203.0;
+                float linear = max(0.0, value);
+                if (linear <= 1.0) {
+                    return linear * diffuseWhiteNits;
+                }
+                float highlight = 1.0 - exp(-(linear - 1.0) * 1.15);
+                return diffuseWhiteNits + highlight * (max(diffuseWhiteNits, highlightPeakNits) - diffuseWhiteNits);
+            }
+
+            vec3 hdr10ReferencePreview(vec3 sceneLinear, float densityAcc, float sunHeight01, float sunForward) {
+                const float clearSkyLowNits = 1000.0;
+                const float clearSkyHighNits = 20000.0;
+                const float sunlitCloudNits = 12000.0;
+                float naturalSkyNits = mix(clearSkyLowNits, clearSkyHighNits, sunHeight01);
+                float cloudForwardScatter = smoothstep(0.12, 0.92, sunForward);
+                float naturalCloudNits = mix(650.0, sunlitCloudNits, sunHeight01) * mix(0.76, 1.22, cloudForwardScatter);
+                float naturalSceneNits = mix(naturalSkyNits, naturalCloudNits, densityAcc);
+                float highlightPeakNits = 203.0 + (uHdrReferencePeakNits - 203.0) * (1.0 - exp(-naturalSceneNits / 7200.0));
+                vec3 mappedNits = vec3(
+                    sceneLinearToDisplayNits(sceneLinear.r, highlightPeakNits),
+                    sceneLinearToDisplayNits(sceneLinear.g, highlightPeakNits),
+                    sceneLinearToDisplayNits(sceneLinear.b, highlightPeakNits)
+                );
+                vec3 pqCode = nitsToPq(mappedNits);
+                vec3 daylightBalance = mix(vec3(0.92, 0.96, 1.04), vec3(1.06, 1.02, 0.94), sunHeight01 * (0.35 + cloudForwardScatter * 0.45));
+                return clamp(pow(pqCode, vec3(1.0 / 1.18)) * daylightBalance, 0.0, 1.0);
             }
 
             vec3 gridOverlay(vec3 col, vec3 ro, vec3 rd) {
@@ -646,13 +1645,80 @@
                     rd = normalize(forward * fovScale + uv.x * right + uv.y * up);
                 }
 
-                vec3 lightDir = normalize(vec3(-0.8, 0.9, 0.4));
-                vec3 lightColor = vec3(1.0, 0.9, 0.85) * uSunIntensity;
-                vec3 ambientColor = vec3(0.08, 0.12, 0.22) * uAmbientIntensity;
-                vec3 bgDark = vec3(0.015, 0.025, 0.07) * uAmbientIntensity;
-                vec3 bgLight = vec3(0.075, 0.115, 0.24) * uAmbientIntensity;
-                vec3 col = mix(bgDark, bgLight, clamp(uv.y + 0.5, 0.0, 1.0));
-                col = gridOverlay(col, ro, rd);
+                float sunElevationRad = radians(uSunElevation);
+                float sunViewerAngleRad = radians(uSunViewerAngle);
+                vec3 viewerForwardFlat = vec3(forward.x, 0.0, forward.z);
+                vec3 viewerForwardXZ = dot(viewerForwardFlat, viewerForwardFlat) < 0.0001
+                    ? vec3(0.0, 0.0, -1.0)
+                    : normalize(viewerForwardFlat);
+                vec3 viewerRightFlat = vec3(right.x, 0.0, right.z);
+                vec3 viewerRightXZ = dot(viewerRightFlat, viewerRightFlat) < 0.0001
+                    ? vec3(1.0, 0.0, 0.0)
+                    : normalize(viewerRightFlat);
+                vec3 sunAzimuthDir = normalize(viewerForwardXZ * cos(sunViewerAngleRad) + viewerRightXZ * sin(sunViewerAngleRad));
+                vec3 daylightDir = normalize(sunAzimuthDir * cos(sunElevationRad) + vec3(0.0, sin(sunElevationRad), 0.0));
+                vec3 goldenDir = normalize(vec3(-0.92, 0.34, 0.2));
+                vec3 backlitDir = normalize(vec3(0.18, 0.52, 0.86));
+                vec3 lightDir = normalize(mix(daylightDir, goldenDir, step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset))));
+                lightDir = normalize(mix(lightDir, backlitDir, step(1.5, uLightPreset)));
+                float sunSin = sin(sunElevationRad);
+                float sunHeight01 = smoothstep(-0.08, 0.70, sunSin);
+                float night01 = 1.0 - smoothstep(-0.26, -0.02, sunSin);
+                vec3 lowSunLight = mix(vec3(1.0, 0.16, 0.055), vec3(1.0, 0.54, 0.24), smoothstep(-0.08, 0.14, sunSin));
+                vec3 highSunLight = vec3(1.0, 0.93, 0.82);
+                vec3 solarLightColor = mix(lowSunLight, highSunLight, sunHeight01);
+                solarLightColor = mix(solarLightColor, vec3(1.0, 0.78, 0.52), step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset)));
+                solarLightColor = mix(solarLightColor, vec3(0.95, 0.9, 1.0), step(1.5, uLightPreset));
+                vec3 moonDir = normalize(vec3(-0.34, 0.55, 0.76));
+                lightDir = normalize(mix(lightDir, moonDir, night01 * 0.86));
+                vec3 moonLightColor = vec3(0.15, 0.20, 0.36) * night01 * mix(0.62, 0.82, uPhotographicStyle);
+                vec3 lightColor = solarLightColor * uSunIntensity * (1.0 - night01 * 0.74) + moonLightColor;
+                vec3 dayAmbient = mix(vec3(0.065, 0.085, 0.16), vec3(0.18, 0.24, 0.34), max(uPhotographicStyle, sunHeight01 * 0.55)) * uAmbientIntensity;
+                vec3 nightAmbient = vec3(0.025, 0.034, 0.072) * mix(0.82, 1.0, uPhotographicStyle);
+                vec3 ambientColor = mix(dayAmbient, nightAmbient, night01);
+                float skyT = smoothstep(0.0, 1.0, clamp(uv.y + 0.5, 0.0, 1.0));
+                float screenY = clamp(gl_FragCoord.y / res.y, 0.0, 1.0);
+                vec3 localhostBottomSky = vec3(0.055, 0.078, 0.145);
+                vec3 localhostTopSky = vec3(0.044, 0.064, 0.125);
+                vec3 workbenchSky = mix(localhostBottomSky, localhostTopSky, screenY) * uAmbientIntensity;
+                vec3 clearSky = workbenchSky;
+                vec3 sunsetSky = mix(vec3(0.86, 0.42, 0.22), vec3(0.08, 0.12, 0.34), skyT) * uAmbientIntensity;
+                vec3 moonSky = mix(vec3(0.08, 0.11, 0.18), vec3(0.01, 0.018, 0.055), skyT) * uAmbientIntensity;
+                float viewSkyT = smoothstep(mix(-0.36, -0.22, sunHeight01), mix(0.34, 0.84, sunHeight01), rd.y);
+                vec3 nightHorizonSky = vec3(0.010, 0.012, 0.028);
+                vec3 nightZenithSky = vec3(0.002, 0.004, 0.015);
+                vec3 emberHorizonSky = vec3(0.56, 0.075, 0.032);
+                vec3 emberZenithSky = vec3(0.030, 0.026, 0.064);
+                vec3 duskHorizonSky = vec3(0.42, 0.19, 0.075);
+                vec3 duskZenithSky = vec3(0.026, 0.045, 0.105);
+                vec3 dayHorizonSky = vec3(0.070, 0.105, 0.190);
+                vec3 dayZenithSky = vec3(0.018, 0.080, 0.220);
+                float toEmber = smoothstep(-0.34, -0.10, sunSin);
+                float toDusk = smoothstep(-0.05, 0.15, sunSin);
+                float toDay = smoothstep(0.18, 0.44, sunSin);
+                vec3 domeHorizonSky = mix(nightHorizonSky, emberHorizonSky, toEmber);
+                domeHorizonSky = mix(domeHorizonSky, duskHorizonSky, toDusk);
+                domeHorizonSky = mix(domeHorizonSky, dayHorizonSky, toDay);
+                vec3 domeZenithSky = mix(nightZenithSky, emberZenithSky, toEmber);
+                domeZenithSky = mix(domeZenithSky, duskZenithSky, toDusk);
+                domeZenithSky = mix(domeZenithSky, dayZenithSky, toDay);
+                float glowGate = smoothstep(-0.32, -0.04, sunSin) * (1.0 - smoothstep(0.20, 0.55, sunSin));
+                float sunGlow = pow(max(0.0, dot(rd, daylightDir)), mix(18.0, 32.0, sunHeight01)) * mix(0.58, 0.14, sunHeight01) * glowGate;
+                vec3 atmosphereSky = mix(domeHorizonSky, domeZenithSky, viewSkyT) * uAmbientIntensity;
+                atmosphereSky *= mix(0.72, 1.0, sunHeight01);
+                atmosphereSky += mix(vec3(1.0, 0.12, 0.04), vec3(1.0, 0.56, 0.20), toDusk) * sunGlow * uSunIntensity * 0.10;
+                atmosphereSky += vec3(0.012, 0.018, 0.038) * night01;
+                float clearMask = step(0.5, uSkyMode) * (1.0 - step(1.5, uSkyMode));
+                float sunsetMask = step(1.5, uSkyMode) * (1.0 - step(2.5, uSkyMode));
+                float moonMask = step(2.5, uSkyMode) * (1.0 - step(3.5, uSkyMode));
+                float atmosphereMask = step(3.5, uSkyMode);
+                vec3 col = mix(workbenchSky, clearSky, clearMask);
+                col = mix(col, sunsetSky, sunsetMask);
+                col = mix(col, moonSky, moonMask);
+                col = mix(col, atmosphereSky, atmosphereMask);
+                if (uTransparentBackground < 0.5) {
+                    col = gridOverlay(col, ro, rd);
+                }
 
                 vec3 boxMin = vec3(-18.0, 0.0, -18.0);
                 vec3 boxMax = vec3(18.0, uTropopause + 1.5, 18.0);
@@ -706,7 +1772,7 @@
                                     shadow += mapCloudFromMacro(lPos, shadowMacro);
                                 }
                             }
-                            float mixedPhaseShadow = 1.0 + smoothstep(0.36, 0.7, height01) * (1.0 - smoothstep(0.78, 0.94, height01)) * 0.38;
+                            float mixedPhaseShadow = 1.0 + smoothstep(0.36, 0.7, height01) * (1.0 - smoothstep(0.78, 0.94, height01)) * mix(0.38, 0.64, uPhotographicStyle);
                             float transmittance = exp(-shadow * mix(0.86, 0.58, iceFactor) * mixedPhaseShadow);
                             float surfaceRelief = smoothstep(-0.72, 0.18, macro) * (1.0 - smoothstep(0.2, 0.92, macro));
                             float relief = fbm(vec3(p.x * 0.42, p.y * 0.58, p.z * 0.42) + uSeed * 0.021);
@@ -714,11 +1780,19 @@
                             if (surfaceRelief > 0.025) {
                                 fineRelief = fbm(vec3(p.x * 0.9, p.y * 1.05, p.z * 0.9) + vec3(uSeed * 0.013, 4.1, uTime * 0.03));
                             }
-                            float reliefLight = mix(0.66, 1.34, smoothstep(0.26, 0.84, relief));
+                            float reliefLight = mix(mix(0.66, 0.52, uPhotographicStyle), mix(1.34, 1.58, uPhotographicStyle), smoothstep(0.26, 0.84, relief));
                             reliefLight *= mix(1.0, mix(0.72, 1.42, smoothstep(0.3, 0.82, fineRelief)), surfaceRelief);
                             vec3 phaseTint = mix(vec3(1.0, 0.95, 0.88), vec3(0.78, 0.9, 1.08), iceFactor);
-                            vec3 lowerWaterDarkening = mix(vec3(0.78, 0.8, 0.86), vec3(1.0), smoothstep(0.16, 0.46, height01));
-                            vec3 lighting = ambientColor * lowerWaterDarkening + lightColor * phaseTint * transmittance * phase * reliefLight;
+                            phaseTint = mix(phaseTint, mix(vec3(1.16, 1.1, 1.02), vec3(0.9, 0.98, 1.1), iceFactor), uPhotographicStyle);
+                            vec3 lowerWaterDarkening = mix(vec3(0.9, 0.92, 0.96), vec3(1.0), smoothstep(0.16, 0.46, height01));
+                            lowerWaterDarkening = mix(lowerWaterDarkening, vec3(0.86, 0.88, 0.94), uPhotographicStyle * (1.0 - smoothstep(0.2, 0.62, height01)));
+                            float upperCloudLift = smoothstep(0.22, 0.94, height01);
+                            vec3 upperCloudBrightening = mix(vec3(0.78, 0.82, 0.9), vec3(1.34, 1.42, 1.62), upperCloudLift);
+                            upperCloudBrightening = mix(upperCloudBrightening, vec3(1.12, 1.22, 1.48), iceFactor * upperCloudLift * uPhotographicStyle);
+                            float directHeightLift = mix(0.72, 2.08, upperCloudLift) * mix(1.0, 1.16, uPhotographicStyle * upperCloudLift);
+                            vec3 ambientTerm = ambientColor * lowerWaterDarkening * upperCloudBrightening;
+                            vec3 directTerm = lightColor * phaseTint * transmittance * phase * reliefLight * directHeightLift;
+                            vec3 lighting = ambientTerm + directTerm;
                             float cloudOpacity = mix(1.0, 0.46, uShowGrid);
                             float alpha = (1.0 - exp(-density * stepSize * 12.8)) * cloudOpacity;
                             cloudCol += (1.0 - densityAcc) * lighting * alpha;
@@ -730,23 +1804,107 @@
                     }
                 }
 
-                col = mix(col, cloudCol, densityAcc);
-                col = ACESFilm(col);
-                col = pow(col, vec3(1.0 / 2.2));
-                gl_FragColor = vec4(col, 1.0);
+                vec3 alphaCompositedCloud = col * (1.0 - densityAcc) + cloudCol;
+                float lowSunEdgeBlend = 1.0 - smoothstep(0.35, 1.65, uSunIntensity);
+                col = mix(mix(col, cloudCol, densityAcc), alphaCompositedCloud, lowSunEdgeBlend);
+                col = mix(col, cloudCol, uTransparentBackground);
+                float sunForward = dot(rd, daylightDir);
+                vec3 sdrColor = pow(ACESFilm(col), vec3(1.0 / 2.2));
+                vec3 hdr10Color = hdr10ReferencePreview(col, densityAcc, sunHeight01, sunForward);
+                col = mix(sdrColor, hdr10Color, uHdr10Mode);
+                float finalAlpha = mix(1.0, densityAcc, uTransparentBackground);
+                gl_FragColor = vec4(col, finalAlpha);
             }
         `;
 
         const vertexShader = `void main() { gl_Position = vec4(position, 1.0); }`;
         const container = document.getElementById('render-container');
-        const renderer = new THREE.WebGLRenderer({ antialias: false });
+        const edgeFill = document.getElementById('stage-edge-fill');
+        const edgeStripCanvases = {
+            top: edgeFill?.querySelector('.stage-edge-fill__top'),
+            topLeft: edgeFill?.querySelector('.stage-edge-fill__top-left'),
+            topRight: edgeFill?.querySelector('.stage-edge-fill__top-right'),
+            right: edgeFill?.querySelector('.stage-edge-fill__right'),
+            bottom: edgeFill?.querySelector('.stage-edge-fill__bottom'),
+            bottomLeft: edgeFill?.querySelector('.stage-edge-fill__bottom-left'),
+            bottomRight: edgeFill?.querySelector('.stage-edge-fill__bottom-right'),
+            left: edgeFill?.querySelector('.stage-edge-fill__left')
+        };
+        const query = new URLSearchParams(window.location.search);
+        const mobileWideViewQuery = window.matchMedia('(max-width: 760px), (pointer: coarse)');
+        const transparentBackground = readTransparentBackgroundQuery(query);
+        if (transparentBackground) {
+            document.documentElement.dataset.background = 'transparent';
+            document.body.dataset.background = 'transparent';
+        }
+        const normalizedUiMode = (query.get('ui') || 'tracing-paper').toLowerCase();
+        if (normalizedUiMode !== 'classic' && normalizedUiMode !== 'default') {
+            document.body.dataset.ui = 'tracing-paper';
+        }
+        const normalizedViewportMode = (query.get('viewport') || query.get('layout') || 'background').toLowerCase();
+        const fullBackgroundMode = normalizedViewportMode === 'background'
+            || normalizedViewportMode === 'full'
+            || normalizedViewportMode === 'fullscreen'
+            || normalizedViewportMode === 'fullscreen-background';
+        if (fullBackgroundMode) {
+            document.body.dataset.viewportMode = 'background';
+        }
+        const renderer = new THREE.WebGLRenderer({
+            antialias: false,
+            alpha: transparentBackground,
+            premultipliedAlpha: !transparentBackground,
+            powerPreference: 'high-performance',
+            preserveDrawingBuffer: true
+        });
+        renderer.setClearColor(0x000000, transparentBackground ? 0 : 1);
+        renderer.setPixelRatio(1);
         container.appendChild(renderer.domElement);
+
+        const LOCKED_PRESENTATION = Object.freeze({
+            seed: 134,
+            systems: 1,
+            timeSpeed: 1,
+            renderScale: 0.8,
+            tropopause: 8,
+            freezingLevel: 3,
+            windShear: 0.3,
+            sunIntensity: 4,
+            ambientIntensity: 0.75,
+            sunElevation: 36,
+            sunViewerAngle: -50,
+            isOrtho: false,
+            autoQuality: false
+        });
+        const DEFAULT_SEED = LOCKED_PRESENTATION.seed;
+        const MODEL_BASE_KM = 0.5;
+        const RESET_TARGET_HEIGHT_RATIO = 0.5;
+        const RESET_CAMERA_HEIGHT_RATIO = 0.93;
+        const RESET_CAMERA_DISTANCE = 42.0;
+        const MOBILE_RESET_CAMERA_DISTANCE = 68.0;
+        const MOBILE_ORTHO_FRAME_SCALE = 1.85;
+        const FRAME_VERTICAL_PADDING_KM = 2.0;
+        const ORTHO_VERTICAL_WORLD_SCALE = 1.0;
+        const MOTION_SPEED_SCALE = 1.35;
+        const DEFAULT_TIME_SPEED = LOCKED_PRESENTATION.timeSpeed;
+        const MIN_TIME_SPEED = 0.5;
+        const DEFAULT_RENDER_SCALE = LOCKED_PRESENTATION.renderScale;
+        const DEFAULT_SUN_INTENSITY = LOCKED_PRESENTATION.sunIntensity;
+        const DEFAULT_AMBIENT_INTENSITY = LOCKED_PRESENTATION.ambientIntensity;
+        const DEFAULT_SUN_ELEVATION = LOCKED_PRESENTATION.sunElevation;
+        const DEFAULT_SUN_VIEWER_ANGLE = LOCKED_PRESENTATION.sunViewerAngle;
+        const AUTO_QUALITY_TARGET_FPS = 60;
+        const AUTO_QUALITY_MIN_SCALE = 0.55;
+        const AUTO_QUALITY_MAX_SCALE = 1.0;
+        const MAX_CONVECTIVE_CELLS = 10;
+        const FULLSCREEN_RENDER_PIXEL_BUDGET = 1920 * 1080;
+        const FULLSCREEN_MIN_EFFECTIVE_SCALE = 0.42;
+        const HDR10_REFERENCE_PEAK_NITS = 1000;
 
         const scene = new THREE.Scene();
         const aspect = container.clientWidth / container.clientHeight;
         const perspCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 220);
-        let currentTropo = 12.0;
-        let orthoFrustumSize = currentTropo + 8.0;
+        let currentTropo = LOCKED_PRESENTATION.tropopause;
+        let orthoFrustumSize = defaultOrthoFrustumSize();
         const orthoCamera = new THREE.OrthographicCamera(
             -orthoFrustumSize * aspect / 2,
             orthoFrustumSize * aspect / 2,
@@ -756,30 +1914,25 @@
             220
         );
 
-        const DEFAULT_SEED = 574;
-        const MODEL_BASE_KM = 0.5;
-        const RESET_TARGET_HEIGHT_RATIO = 0.5;
-        const RESET_CAMERA_HEIGHT_RATIO = 0.93;
-        const RESET_CAMERA_DISTANCE = 42.0;
-        const FRAME_VERTICAL_PADDING_KM = 2.0;
-        const ORTHO_VERTICAL_WORLD_SCALE = 1.0;
-        const MOTION_SPEED_SCALE = 1.35;
-        const DEFAULT_TIME_SPEED = 1.5;
-        const MIN_TIME_SPEED = 0.5;
-        const DEFAULT_RENDER_SCALE = 0.72;
-        const AUTO_QUALITY_TARGET_FPS = 60;
-        const AUTO_QUALITY_MIN_SCALE = 0.55;
-        const AUTO_QUALITY_MAX_SCALE = 1.0;
-        const MAX_CONVECTIVE_CELLS = 10;
-        const FULLSCREEN_RENDER_PIXEL_BUDGET = 1920 * 1080;
-        const FULLSCREEN_MIN_EFFECTIVE_SCALE = 0.42;
-
         function heightAtCloudRatio(ratio) {
             return MODEL_BASE_KM + (currentTropo - MODEL_BASE_KM) * ratio;
         }
 
+        function useMobileWideView() {
+            return mobileWideViewQuery.matches;
+        }
+
+        function resetCameraDistance() {
+            return useMobileWideView() ? MOBILE_RESET_CAMERA_DISTANCE : RESET_CAMERA_DISTANCE;
+        }
+
+        function defaultOrthoFrustumSize() {
+            const baseSize = currentTropo + FRAME_VERTICAL_PADDING_KM * 2.0;
+            return Math.max(10.0, baseSize * (useMobileWideView() ? MOBILE_ORTHO_FRAME_SCALE : 1.0));
+        }
+
         function resetPosition() {
-            return new THREE.Vector3(0, heightAtCloudRatio(RESET_CAMERA_HEIGHT_RATIO), -RESET_CAMERA_DISTANCE);
+            return new THREE.Vector3(0, heightAtCloudRatio(RESET_CAMERA_HEIGHT_RATIO), -resetCameraDistance());
         }
 
         function resetTarget() {
@@ -791,7 +1944,7 @@
         }
 
         function resetOrthoPosition() {
-            return new THREE.Vector3(0, resetOrthoHeight(), -RESET_CAMERA_DISTANCE);
+            return new THREE.Vector3(0, resetOrthoHeight(), -resetCameraDistance());
         }
 
         function resetOrthoTarget() {
@@ -799,7 +1952,7 @@
         }
 
         function updateOrthoFrameForCurrentTropo() {
-            orthoFrustumSize = Math.max(10.0, currentTropo + FRAME_VERTICAL_PADDING_KM * 2.0);
+            orthoFrustumSize = defaultOrthoFrustumSize();
             updateOrthoBounds(container.clientWidth / container.clientHeight);
             material.uniforms.uOrthoSize.value = orthoFrustumSize / Math.max(orthoCamera.zoom, 0.001);
         }
@@ -832,8 +1985,12 @@
         controlsOrtho.target.copy(resetOrthoTarget());
         controlsOrtho.enabled = false;
 
-        const query = new URLSearchParams(window.location.search);
         const captureMode = query.get('capture');
+        const normalizedStyle = (query.get('style') || '').toLowerCase();
+        const normalizedLight = (query.get('light') || query.get('lighting') || '').toLowerCase();
+        const normalizedSky = (query.get('sky') || '').toLowerCase();
+        const normalizedPreset = (query.get('preset') || query.get('capturePreset') || '').toLowerCase();
+        const presetSettings = resolveCapturePreset(normalizedPreset);
         let isOrthoMode = false;
         let isFullscreenDisplay = false;
         let windowedViewportClass = 'viewport-landscape';
@@ -845,23 +2002,32 @@
         let renderScale = DEFAULT_RENDER_SCALE;
         let effectiveRenderScale = DEFAULT_RENDER_SCALE;
         let fullscreenEntryRenderScale = null;
-        let autoQualityEnabled = true;
-        let systemCount = 3;
-        let freezingLevel = 5.0;
-        let windShear = 0.7;
+        let autoQualityEnabled = LOCKED_PRESENTATION.autoQuality;
+        let systemCount = LOCKED_PRESENTATION.systems;
+        let freezingLevel = LOCKED_PRESENTATION.freezingLevel;
+        let windShear = LOCKED_PRESENTATION.windShear;
+        let sunIntensity = DEFAULT_SUN_INTENSITY;
+        let ambientIntensity = DEFAULT_AMBIENT_INTENSITY;
+        let sunElevation = DEFAULT_SUN_ELEVATION;
+        let sunViewerAngle = DEFAULT_SUN_VIEWER_ANGLE;
+        let photographicStyle = normalizedStyle === 'photographic-cb' || Boolean(presetSettings?.photographicStyle);
+        let lightPreset = resolveLightPreset(normalizedLight || presetSettings?.light);
+        let skyMode = resolveSkyMode(normalizedSky || presetSettings?.sky, photographicStyle);
+        let hdr10Mode = readBooleanQuery(query, ['hdr10', 'hdr', 'hdrMode'], false);
         let lastFrameTime = performance.now();
-        const seedParam = query.get('seed');
+        const seedParam = query.get('seed') ?? presetSettings?.seed;
         const querySeed = Number(seedParam);
         if (seedParam !== null && seedParam !== '' && Number.isFinite(querySeed)) {
             currentSeed = Math.floor(querySeed);
         } else if (captureMode === 'ortho-grid') {
             currentSeed = 6577;
         }
-        const timeParam = Number(query.get('time'));
-        if (query.get('time') !== null && Number.isFinite(timeParam)) {
+        const timeQuery = query.get('time') ?? presetSettings?.time;
+        const timeParam = Number(timeQuery);
+        if (timeQuery !== null && timeQuery !== undefined && Number.isFinite(timeParam)) {
             simulationTime = Math.max(0, timeParam);
         }
-        const systemCountQuery = query.get('systems') ?? query.get('systemCount');
+        const systemCountQuery = query.get('systems') ?? query.get('systemCount') ?? presetSettings?.systems;
         const systemCountParam = Number(systemCountQuery);
         if (systemCountQuery !== null && systemCountQuery !== '' && Number.isFinite(systemCountParam)) {
             systemCount = Math.max(1, Math.min(MAX_CONVECTIVE_CELLS, Math.round(systemCountParam)));
@@ -878,10 +2044,39 @@
             return fallback;
         }
 
+        function resolveCapturePreset(name) {
+            const presets = {
+                'model-landscape': { seed: 574, time: 2.2, systems: 3, tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, sky: 'workbench', light: 'daylight' },
+                'model-portrait': { seed: 574, time: 2.2, systems: 3, viewport: 'portrait', tropopause: 12, freezingLevel: 5, windShear: 0.7, sun: 4.6, sky: 'workbench', light: 'daylight' },
+                'high-sun-daylight': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.4, windShear: 0.76, sun: 7.4, ambient: 0.55, sunElevation: 58, sunAngle: 20, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'warm-low-angle': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13, freezingLevel: 4.5, windShear: 0.84, sun: 5.0, ambient: 0.48, sunElevation: 12, sunAngle: -35, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'photographic-mature': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.82, sun: 7.15, ambient: 0.52, sunElevation: 42, sunAngle: 25, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'sunset-anvil': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.35, windShear: 0.88, sun: 4.4, ambient: 0.46, sunElevation: 5, sunAngle: -25, sky: 'demo3', light: 'daylight', photographicStyle: true },
+                'moonlight-night': { seed: 574, time: 2.2, systems: 3, quality: 0.72, tropopause: 13.5, freezingLevel: 4.2, windShear: 0.78, sun: 1.6, ambient: 0.5, sunElevation: -4, sunAngle: 70, sky: 'moonlight', light: 'backlit-edge', photographicStyle: true }
+            };
+            return presets[name] || null;
+        }
+
+        function resolveLightPreset(name) {
+            if (name === 'golden-side' || name === 'warm-low-angle') return 1;
+            if (name === 'backlit-edge' || name === 'backlit') return 2;
+            return 0;
+        }
+
+        function resolveSkyMode(name, forcePhotographicSky) {
+            if (name === 'transparent' || name === 'none' || name === 'alpha') return 0;
+            if (name === 'workbench' || name === 'dark') return 0;
+            if (name === 'blue' || name === 'photographic-blue' || name === 'clear') return 4;
+            if (name === 'sunset' || name === 'evening' || name === 'golden') return 2;
+            if (name === 'moonlight' || name === 'night' || name === 'lunar') return 3;
+            if (name === 'demo3' || name === 'atmosphere' || name === 'sky-dome' || name === 'skydome') return 4;
+            return 4;
+        }
+
         function applyInitialCameraQuery() {
             const yaw = readQueryFloat(['cameraYawDegrees', 'yawDegrees', 'yaw'], null);
             const pitch = readQueryFloat(['cameraPitchDegrees', 'pitchDegrees', 'pitch'], 0);
-            const distance = readQueryFloat(['cameraDistance', 'distance'], RESET_CAMERA_DISTANCE);
+            const distance = readQueryFloat(['cameraDistance', 'distance'], resetCameraDistance());
             if (yaw === null) return;
             const nextPosition = cameraPositionFromOrbit(yaw, pitch, distance);
             const nextTarget = resetTarget();
@@ -891,6 +2086,36 @@
             controlsOrtho.target.copy(nextTarget);
             controlsPersp.update();
             controlsOrtho.update();
+        }
+
+        function readTransparentBackgroundQuery(params) {
+            const transparentValue = params.get('transparent');
+            if (transparentValue !== null) {
+                const normalized = transparentValue.toLowerCase();
+                if (normalized === '' || normalized === '1' || normalized === 'true' || normalized === 'yes') return true;
+                if (normalized === '0' || normalized === 'false' || normalized === 'no') return false;
+            }
+
+            for (const name of ['background', 'bg']) {
+                const value = params.get(name);
+                if (value === null) continue;
+                const normalized = value.toLowerCase();
+                if (normalized === '0' || normalized === 'false' || normalized === 'none' || normalized === 'transparent' || normalized === 'alpha') return true;
+                if (normalized === '' || normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'default') return false;
+            }
+
+            return false;
+        }
+
+        function readBooleanQuery(params, names, fallback = false) {
+            for (const name of names) {
+                const value = params.get(name);
+                if (value === null) continue;
+                const normalized = value.toLowerCase();
+                if (normalized === '' || normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
+                if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === 'sdr') return false;
+            }
+            return fallback;
         }
 
         applyInitialCameraQuery();
@@ -918,8 +2143,16 @@
                 uMaxSteps: { value: 126.0 },
                 uSunIntensity: { value: 4.6 },
                 uAmbientIntensity: { value: 0.75 },
+                uSunElevation: { value: sunElevation },
+                uSunViewerAngle: { value: sunViewerAngle },
                 uFreezingLevel: { value: freezingLevel },
-                uWindShear: { value: windShear }
+                uWindShear: { value: windShear },
+                uPhotographicStyle: { value: photographicStyle ? 1.0 : 0.0 },
+                uLightPreset: { value: lightPreset },
+                uSkyMode: { value: skyMode },
+                uTransparentBackground: { value: transparentBackground ? 1.0 : 0.0 },
+                uHdr10Mode: { value: hdr10Mode ? 1.0 : 0.0 },
+                uHdrReferencePeakNits: { value: HDR10_REFERENCE_PEAK_NITS }
             }
         });
 
@@ -927,6 +2160,7 @@
         const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
         scene.add(plane);
         const drawingBufferSize = new THREE.Vector2();
+        let mobileWideViewActive = useMobileWideView();
 
         function computeFullscreenRenderScaleCap(width, height) {
             const cssPixels = Math.max(1, width * height);
@@ -935,7 +2169,7 @@
         }
 
         function computeEffectiveRenderScale(width, height) {
-            if (!isFullscreenDisplay) return renderScale;
+            if (!isFullscreenDisplay && windowedViewportClass !== 'viewport-fullscreen') return renderScale;
             return Math.min(renderScale, computeFullscreenRenderScaleCap(width, height));
         }
 
@@ -945,6 +2179,23 @@
             orthoCamera.top = orthoFrustumSize / 2;
             orthoCamera.bottom = -orthoFrustumSize / 2;
             orthoCamera.updateProjectionMatrix();
+        }
+
+        function syncMobileWideViewFrame() {
+            const nextMobileWideViewActive = useMobileWideView();
+            if (nextMobileWideViewActive === mobileWideViewActive) return;
+            mobileWideViewActive = nextMobileWideViewActive;
+            updateOrthoFrameForCurrentTropo();
+            if (isOrthoMode) {
+                controlsOrtho.update();
+            }
+            resizeCanvasToDisplaySize();
+        }
+
+        if (mobileWideViewQuery.addEventListener) {
+            mobileWideViewQuery.addEventListener('change', syncMobileWideViewFrame);
+        } else if (mobileWideViewQuery.addListener) {
+            mobileWideViewQuery.addListener(syncMobileWideViewFrame);
         }
 
         function resetActiveCamera() {
@@ -995,7 +2246,7 @@
             const expectedWidth = Math.floor(width * activePixelRatio);
             const expectedHeight = Math.floor(height * activePixelRatio);
             if (canvas.width !== expectedWidth || canvas.height !== expectedHeight) {
-                renderer.setSize(width, height, false);
+                renderer.setSize(expectedWidth, expectedHeight, false);
             }
 
             const newAspect = width / height;
@@ -1012,37 +2263,392 @@
             }
         }
 
-        const btnPortrait = document.getElementById('btn-portrait');
-        const uiBar = document.getElementById('ui-bar');
-        const btnLandscape = document.getElementById('btn-landscape');
-        const btnFullscreen = document.getElementById('btn-fullscreen');
-        const btnLangZh = document.getElementById('btn-lang-zh');
-        const btnLangEn = document.getElementById('btn-lang-en');
-        const btnResetCam = document.getElementById('btn-reset-cam');
-        const btnGrid = document.getElementById('btn-grid');
-        const btnCamMode = document.getElementById('btn-cam-mode');
-        const targetLabel = document.getElementById('target-label');
-        const sliderTropo = document.getElementById('slider-tropo');
-        const sliderFreezing = document.getElementById('slider-freezing');
-        const freezingReadout = document.getElementById('freezing-readout');
-        const sliderShear = document.getElementById('slider-shear');
-        const shearReadout = document.getElementById('shear-readout');
-        const sliderSun = document.getElementById('slider-sun');
-        const sliderAmb = document.getElementById('slider-amb');
-        const sliderTime = document.getElementById('slider-time');
-        const timeReadout = document.getElementById('time-readout');
-        const sliderQuality = document.getElementById('slider-quality');
-        const qualityReadout = document.getElementById('quality-readout');
-        const btnAutoQuality = document.getElementById('btn-auto-quality');
-        const sliderSystems = document.getElementById('slider-systems');
-        const systemsReadout = document.getElementById('systems-readout');
-        const btnTimeToggle = document.getElementById('btn-time-toggle');
-        const btnTimeReset = document.getElementById('btn-time-reset');
-        const btnHud = document.getElementById('btn-hud');
-        const overlay = document.getElementById('overlay');
-        const inputSeed = document.getElementById('input-seed');
-        const btnRandomSeed = document.getElementById('btn-random-seed');
-        const tropoReadout = document.getElementById('tropo-readout');
+        const EDGE_SAMPLE_THICKNESS = 1;
+        const EDGE_SAMPLE_INTERVAL_MS = 180;
+        let edgeSampleBuffer = new Uint8Array(0);
+        let lastEdgeSampleTime = -Infinity;
+        let edgeSamplingWarningShown = false;
+
+        function clampNumber(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function formatRgbColor(color) {
+            return `rgb(${color.r}, ${color.g}, ${color.b})`;
+        }
+
+        function averageColors(colors) {
+            const total = colors.reduce((sum, color) => {
+                sum.r += color.r;
+                sum.g += color.g;
+                sum.b += color.b;
+                return sum;
+            }, { r: 0, g: 0, b: 0 });
+            const count = Math.max(1, colors.length);
+            return {
+                r: Math.round(total.r / count),
+                g: Math.round(total.g / count),
+                b: Math.round(total.b / count)
+            };
+        }
+
+        function averageEdgePixels(gl, x, y, width, height) {
+            const pixelCount = width * height;
+            const byteCount = pixelCount * 4;
+            if (edgeSampleBuffer.length < byteCount) {
+                edgeSampleBuffer = new Uint8Array(byteCount);
+            }
+            const sample = edgeSampleBuffer.subarray(0, byteCount);
+            gl.readPixels(x, y, width, height, gl.RGBA, gl.UNSIGNED_BYTE, sample);
+
+            let r = 0;
+            let g = 0;
+            let b = 0;
+            let count = 0;
+            for (let i = 0; i < byteCount; i += 4) {
+                const alpha = sample[i + 3];
+                if (alpha === 0) continue;
+                r += sample[i];
+                g += sample[i + 1];
+                b += sample[i + 2];
+                count++;
+            }
+            if (count === 0) {
+                return { r: 0, g: 0, b: 0 };
+            }
+            return {
+                r: Math.round(r / count),
+                g: Math.round(g / count),
+                b: Math.round(b / count)
+            };
+        }
+
+        function copyEdgeStrip(targetCanvas, sourceCanvas, sourceX, sourceY, sourceWidth, sourceHeight) {
+            if (!(targetCanvas instanceof HTMLCanvasElement)) return;
+            if (sourceWidth < 1 || sourceHeight < 1) return;
+            if (targetCanvas.width !== sourceWidth || targetCanvas.height !== sourceHeight) {
+                targetCanvas.width = sourceWidth;
+                targetCanvas.height = sourceHeight;
+            }
+            const context = targetCanvas.getContext('2d', { alpha: false });
+            if (!context) return;
+            context.imageSmoothingEnabled = false;
+            context.clearRect(0, 0, sourceWidth, sourceHeight);
+            context.drawImage(
+                sourceCanvas,
+                sourceX,
+                sourceY,
+                sourceWidth,
+                sourceHeight,
+                0,
+                0,
+                sourceWidth,
+                sourceHeight
+            );
+        }
+
+        function copyEndpointEdgeStrip(targetCanvas, sourceCanvas, sourceX, sourceY, sourceHeight) {
+            if (!(targetCanvas instanceof HTMLCanvasElement)) return;
+            if (sourceHeight < 1) return;
+            if (targetCanvas.width !== 1 || targetCanvas.height !== sourceHeight) {
+                targetCanvas.width = 1;
+                targetCanvas.height = sourceHeight;
+            }
+            const context = targetCanvas.getContext('2d', { alpha: false });
+            if (!context) return;
+            context.imageSmoothingEnabled = false;
+            context.clearRect(0, 0, 1, sourceHeight);
+            context.drawImage(
+                sourceCanvas,
+                sourceX,
+                sourceY,
+                1,
+                sourceHeight,
+                0,
+                0,
+                1,
+                sourceHeight
+            );
+        }
+
+        function copyStageEdgeStrips(sourceCanvas, thickness) {
+            const width = sourceCanvas.width;
+            const height = sourceCanvas.height;
+            copyEdgeStrip(edgeStripCanvases.right, sourceCanvas, width - thickness, 0, thickness, height);
+            copyEdgeStrip(edgeStripCanvases.left, sourceCanvas, 0, 0, thickness, height);
+            copyEndpointEdgeStrip(edgeStripCanvases.topLeft, sourceCanvas, 0, 0, thickness);
+            copyEdgeStrip(edgeStripCanvases.top, sourceCanvas, 0, 0, width, thickness);
+            copyEndpointEdgeStrip(edgeStripCanvases.topRight, sourceCanvas, width - 1, 0, thickness);
+            copyEndpointEdgeStrip(edgeStripCanvases.bottomLeft, sourceCanvas, 0, height - thickness, thickness);
+            copyEdgeStrip(edgeStripCanvases.bottom, sourceCanvas, 0, height - thickness, width, thickness);
+            copyEndpointEdgeStrip(edgeStripCanvases.bottomRight, sourceCanvas, width - 1, height - thickness, thickness);
+        }
+
+        function updateStageEdgeGeometry() {
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+            const rect = container.getBoundingClientRect();
+            const rootStyle = document.documentElement.style;
+            rootStyle.setProperty('--stage-render-top', `${clampNumber(rect.top, 0, viewportHeight).toFixed(2)}px`);
+            rootStyle.setProperty('--stage-render-right', `${clampNumber(rect.right, 0, viewportWidth).toFixed(2)}px`);
+            rootStyle.setProperty('--stage-render-bottom', `${clampNumber(rect.bottom, 0, viewportHeight).toFixed(2)}px`);
+            rootStyle.setProperty('--stage-render-left', `${clampNumber(rect.left, 0, viewportWidth).toFixed(2)}px`);
+        }
+
+        function updateStageEdgeFill(time, force = false) {
+            if (transparentBackground || !edgeFill) return;
+            if (!force && time - lastEdgeSampleTime < EDGE_SAMPLE_INTERVAL_MS) return;
+            lastEdgeSampleTime = time;
+            updateStageEdgeGeometry();
+
+            const canvas = renderer.domElement;
+            const width = canvas.width;
+            const height = canvas.height;
+            if (width < 2 || height < 2) return;
+
+            const gl = renderer.getContext();
+            const thickness = Math.min(EDGE_SAMPLE_THICKNESS, width, height);
+            try {
+                copyStageEdgeStrips(canvas, thickness);
+                const bottom = averageEdgePixels(gl, 0, 0, width, thickness);
+                const top = averageEdgePixels(gl, 0, height - thickness, width, thickness);
+                const left = averageEdgePixels(gl, 0, 0, thickness, height);
+                const right = averageEdgePixels(gl, width - thickness, 0, thickness, height);
+                const centerFill = averageColors([top, right, bottom, left]);
+                const rootStyle = document.documentElement.style;
+                rootStyle.setProperty('--stage-edge-top', formatRgbColor(top));
+                rootStyle.setProperty('--stage-edge-right', formatRgbColor(right));
+                rootStyle.setProperty('--stage-edge-bottom', formatRgbColor(bottom));
+                rootStyle.setProperty('--stage-edge-left', formatRgbColor(left));
+                rootStyle.setProperty('--stage-sky-fill', formatRgbColor(centerFill));
+            } catch (error) {
+                if (!edgeSamplingWarningShown) {
+                    console.warn('Stage edge sampling is unavailable.', error);
+                    edgeSamplingWarningShown = true;
+                }
+            }
+        }
+
+        function makeOptionalUiElement() {
+            return {
+                style: {},
+                dataset: {},
+                classList: { add() {}, remove() {}, toggle() {} },
+                addEventListener() {},
+                setAttribute() {},
+                getClientRects() { return []; },
+                getBoundingClientRect() { return { left: 0, top: 0, width: 0, height: 0 }; },
+                value: '',
+                innerText: '',
+                innerHTML: '',
+                textContent: '',
+                title: '',
+                disabled: false
+            };
+        }
+
+        function getUiElement(id) {
+            return document.getElementById(id) || makeOptionalUiElement();
+        }
+
+        const btnPortrait = getUiElement('btn-portrait');
+        const uiBar = getUiElement('ui-bar');
+        const btnLandscape = getUiElement('btn-landscape');
+        const btnFullscreen = getUiElement('btn-fullscreen');
+        const btnLangZh = getUiElement('btn-lang-zh');
+        const btnLangEn = getUiElement('btn-lang-en');
+        const btnResetCam = getUiElement('btn-reset-cam');
+        const btnGrid = getUiElement('btn-grid');
+        const btnCamMode = getUiElement('btn-cam-mode');
+        const targetLabel = getUiElement('target-label');
+        const sliderTropo = getUiElement('slider-tropo');
+        const sliderFreezing = getUiElement('slider-freezing');
+        const freezingReadout = getUiElement('freezing-readout');
+        const sliderShear = getUiElement('slider-shear');
+        const shearReadout = getUiElement('shear-readout');
+        const sliderSun = getUiElement('slider-sun');
+        const sliderSunElevation = getUiElement('slider-sun-elevation');
+        const sunElevationReadout = getUiElement('sun-elevation-readout');
+        const sliderSunAngle = getUiElement('slider-sun-angle');
+        const sunAngleReadout = getUiElement('sun-angle-readout');
+        const sliderTime = getUiElement('slider-time');
+        const timeReadout = getUiElement('time-readout');
+        const sliderQuality = getUiElement('slider-quality');
+        const qualityReadout = getUiElement('quality-readout');
+        const btnAutoQuality = getUiElement('btn-auto-quality');
+        const btnHdr10 = getUiElement('btn-hdr10');
+        const sliderSystems = getUiElement('slider-systems');
+        const systemsReadout = getUiElement('systems-readout');
+        const btnTimeToggle = getUiElement('btn-time-toggle');
+        const btnTimeReset = getUiElement('btn-time-reset');
+        const btnHud = getUiElement('btn-hud');
+        const overlay = getUiElement('overlay');
+        const inputSeed = getUiElement('input-seed');
+        const btnRandomSeed = getUiElement('btn-random-seed');
+        const tropoReadout = getUiElement('tropo-readout');
+        const FLOATING_PANEL_STORAGE_KEY = 'cumulonimbus-live-hdr-floating-panels-v3';
+        const floatingPanelState = (() => {
+            try {
+                return JSON.parse(localStorage.getItem(FLOATING_PANEL_STORAGE_KEY) || '{}');
+            } catch (error) {
+                return {};
+            }
+        })();
+
+        function saveFloatingPanelState() {
+            try {
+                localStorage.setItem(FLOATING_PANEL_STORAGE_KEY, JSON.stringify(floatingPanelState));
+            } catch (error) {
+                console.warn('Unable to persist floating panel state.', error);
+            }
+        }
+
+        function clampFloatingPanelRect(rect) {
+            const viewportPadding = 12;
+            const width = Math.min(rect.width, window.innerWidth);
+            const height = Math.min(rect.height, window.innerHeight);
+            const minLeft = viewportPadding;
+            const maxLeft = Math.max(viewportPadding, window.innerWidth - width - viewportPadding);
+            const minTop = viewportPadding;
+            const maxTop = Math.max(viewportPadding, window.innerHeight - height - viewportPadding);
+            return {
+                left: Math.max(minLeft, Math.min(maxLeft, rect.left)),
+                top: Math.max(minTop, Math.min(maxTop, rect.top)),
+                width,
+                height
+            };
+        }
+
+        function applyFloatingPanelRect(panel, rect) {
+            const nextRect = clampFloatingPanelRect(rect);
+            panel.style.position = 'fixed';
+            panel.style.left = `${nextRect.left}px`;
+            panel.style.top = `${nextRect.top}px`;
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+            panel.style.width = `${nextRect.width}px`;
+            panel.style.height = `${nextRect.height}px`;
+            panel.style.transform = 'none';
+            return nextRect;
+        }
+
+        function persistFloatingPanel(panelKey, panel) {
+            if (!panel || panel.getClientRects().length === 0) return;
+            const rect = panel.getBoundingClientRect();
+            floatingPanelState[panelKey] = {
+                left: Math.round(rect.left),
+                top: Math.round(rect.top),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height)
+            };
+            saveFloatingPanelState();
+        }
+
+        function setupFloatingPanel(panel, panelKey, options = {}) {
+            if (!(panel instanceof Element)) return;
+            const { headerOnly = false } = options;
+            const stored = floatingPanelState[panelKey];
+            if (stored && Number.isFinite(stored.left) && Number.isFinite(stored.top)) {
+                requestAnimationFrame(() => {
+                    applyFloatingPanelRect(panel, stored);
+                    panel.dataset.floatingCustomized = 'true';
+                });
+            }
+
+            let dragging = false;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+            const saveAfterNativeResize = () => {
+                window.removeEventListener('pointerup', saveAfterNativeResize);
+                requestAnimationFrame(() => persistFloatingPanel(panelKey, panel));
+            };
+
+            panel.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) return;
+                const targetElement = event.target instanceof Element ? event.target : event.target?.parentElement;
+                const interactive = targetElement?.closest('button, input, textarea, select, a, label, [role="button"]');
+                if (interactive) {
+                    event.stopPropagation();
+                    return;
+                }
+
+                const rect = panel.getBoundingClientRect();
+                const localX = event.clientX - rect.left;
+                const localY = event.clientY - rect.top;
+                const resizeZone = localX >= rect.width - 18 && localY >= rect.height - 18;
+                const canNativeResize = getComputedStyle(panel).resize !== 'none';
+                if (canNativeResize && resizeZone) {
+                    panel.dataset.floatingCustomized = 'true';
+                    event.stopPropagation();
+                    window.addEventListener('pointerup', saveAfterNativeResize, { once: true });
+                    return;
+                }
+                if (headerOnly && localY > 30) {
+                    event.stopPropagation();
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                const currentRect = panel.getBoundingClientRect();
+                applyFloatingPanelRect(panel, {
+                    left: currentRect.left,
+                    top: currentRect.top,
+                    width: currentRect.width,
+                    height: currentRect.height
+                });
+                dragOffsetX = event.clientX - currentRect.left;
+                dragOffsetY = event.clientY - currentRect.top;
+                dragging = true;
+                panel.dataset.floatingCustomized = 'true';
+                panel.classList.add('floating-panel--dragging');
+                document.body.classList.add('panel-dragging');
+            });
+
+            window.addEventListener('pointermove', (event) => {
+                if (!dragging) return;
+                event.preventDefault();
+                applyFloatingPanelRect(panel, {
+                    left: event.clientX - dragOffsetX,
+                    top: event.clientY - dragOffsetY,
+                    width: panel.getBoundingClientRect().width,
+                    height: panel.getBoundingClientRect().height
+                });
+            });
+
+            window.addEventListener('pointerup', () => {
+                if (!dragging) return;
+                dragging = false;
+                panel.classList.remove('floating-panel--dragging');
+                document.body.classList.remove('panel-dragging');
+                persistFloatingPanel(panelKey, panel);
+            });
+
+            if (window.ResizeObserver) {
+                const observer = new ResizeObserver(() => {
+                    if (dragging || panel.dataset.floatingCustomized !== 'true') return;
+                    requestAnimationFrame(() => persistFloatingPanel(panelKey, panel));
+                });
+                observer.observe(panel);
+            }
+        }
+
+        setupFloatingPanel(overlay, 'overlay');
+        setupFloatingPanel(uiBar, 'uiBar', { headerOnly: true });
+        window.addEventListener('resize', () => {
+            for (const [panelKey, panel] of [['overlay', overlay], ['uiBar', uiBar]]) {
+                if (panel?.dataset.floatingCustomized !== 'true') continue;
+                const rect = panel.getBoundingClientRect();
+                const nextRect = applyFloatingPanelRect(panel, rect);
+                floatingPanelState[panelKey] = {
+                    left: Math.round(nextRect.left),
+                    top: Math.round(nextRect.top),
+                    width: Math.round(nextRect.width),
+                    height: Math.round(nextRect.height)
+                };
+            }
+            saveFloatingPanelState();
+        });
 
         const TRANSLATIONS = {
             en: {
@@ -1070,7 +2676,8 @@
                 'label.freezing': 'Freezing',
                 'label.shear': 'Shear',
                 'label.sun': 'Sun',
-                'label.ambient': 'Ambient',
+                'label.sunElevation': 'Elev',
+                'label.sunAngle': 'Angle',
                 'button.fullscreen': 'Fullscreen',
                 'button.exitFullscreen': 'Exit fullscreen',
                 'button.pause': 'Pause',
@@ -1082,6 +2689,7 @@
                 'button.recenter': 'Recenter',
                 'button.autoQuality': 'Auto power',
                 'button.manualQuality': 'Manual power',
+                'button.hdr10': 'HDR10',
                 'button.hud': 'HUD',
                 'button.hudOff': 'HUD off',
                 'hud.timePaused': 'paused',
@@ -1091,11 +2699,13 @@
                 'title.time': 'Control the lifecycle speed of the cloud field.',
                 'title.quality': 'Internal render scale; lower values reduce raymarch pixel load and improve FPS.',
                 'title.autoQuality': 'Automatically adjusts internal render scale and raymarch steps by average FPS.',
+                'title.hdr10': 'HDR10 reference preview using ST 2084 / PQ response, 203 nit diffuse white, and a 1000 nit mastering target.',
                 'title.tropo': 'Tropopause height in kilometers.',
                 'title.freezing': 'Freezing level, controlling water-to-ice texture transition.',
                 'title.shear': 'Upper-level wind shear controlling anvil outflow asymmetry.',
                 'title.sun': 'Sunlight contribution to cloud scattering and highlights.',
-                'title.ambient': 'Background atmosphere and cloud ambient light.',
+                'title.sunElevation': 'Sun elevation above the horizon; below-zero values move from sunset red into night color.',
+                'title.sunAngle': 'Horizontal angle between the viewer direction and the sun.',
                 'title.fullscreenUnsupported': 'This browser does not support the Fullscreen API.'
             },
             'zh-TW': {
@@ -1123,7 +2733,8 @@
                 'label.freezing': '凍結',
                 'label.shear': '風切',
                 'label.sun': '日光',
-                'label.ambient': '背景',
+                'label.sunElevation': '仰角',
+                'label.sunAngle': '日角',
                 'button.fullscreen': '全螢幕',
                 'button.exitFullscreen': '離開全螢幕',
                 'button.pause': '暫停',
@@ -1135,6 +2746,7 @@
                 'button.recenter': '回復中心',
                 'button.autoQuality': '自動算力',
                 'button.manualQuality': '手動算力',
+                'button.hdr10': 'HDR10',
                 'button.hud': 'HUD',
                 'button.hudOff': 'HUD OFF',
                 'hud.timePaused': '暫停',
@@ -1144,11 +2756,13 @@
                 'title.time': '控制雲系生命週期速度。',
                 'title.quality': '內部渲染解析倍率；降低會減少 raymarch 像素負載並提高 FPS。',
                 'title.autoQuality': '依平均 FPS 自動微調內部渲染解析與 raymarch 步數。',
+                'title.hdr10': 'HDR10 參考預覽：使用 ST 2084 / PQ、203 nit diffuse white 與 1000 nit mastering target。',
                 'title.tropo': '對流層頂高度，單位 km。',
                 'title.freezing': '凍結高度，控制水滴到冰晶纖維質感的過渡高度。',
                 'title.shear': '高空風切，控制砧狀雲迎風/下風不對稱外流。',
                 'title.sun': '日光對雲體散射與高光的影響。',
-                'title.ambient': '背景空間與雲體環境光。',
+                'title.sunElevation': '太陽高於地平線的仰角；低於地平線時會由夕陽紅壓縮過渡到夜色。',
+                'title.sunAngle': '觀者視線與太陽方位的水平正負夾角。',
                 'title.fullscreenUnsupported': '此瀏覽器不支援 Fullscreen API。'
             }
         };
@@ -1195,12 +2809,13 @@
             btnLangEn.classList.toggle('active', currentLanguage === 'en');
             updateViewportLabel();
             updateAutoQualityButton();
+            updateHdr10Button();
             updateTimeReadout();
             setHudVisible(overlay.style.display !== 'none');
             btnCamMode.innerText = isOrthoMode ? t('button.orthographic') : t('button.perspective');
         }
 
-        const timeSpeedQuery = query.get('timeSpeed');
+        const timeSpeedQuery = query.get('timeSpeed') ?? presetSettings?.timeSpeed;
         const timeSpeedParam = Number(timeSpeedQuery);
         if (timeSpeedQuery !== null && timeSpeedQuery !== '' && Number.isFinite(timeSpeedParam)) {
             if (timeSpeedParam === 0) {
@@ -1212,7 +2827,7 @@
             sliderTime.value = String(timeSpeed);
         }
 
-        const qualityQuery = query.get('quality');
+        const qualityQuery = query.get('quality') ?? presetSettings?.quality;
         const qualityParam = Number(qualityQuery);
         if (qualityQuery !== null && qualityQuery !== '' && Number.isFinite(qualityParam)) {
             renderScale = Math.max(0.45, Math.min(1.0, qualityParam));
@@ -1227,27 +2842,102 @@
         }
         sliderSystems.value = String(systemCount);
 
-        const freezingQuery = query.get('freezingLevel') ?? query.get('freezing');
+        const tropoQuery = query.get('tropopause') ?? query.get('tropo') ?? presetSettings?.tropopause;
+        const tropoParam = Number(tropoQuery);
+        if (tropoQuery !== null && tropoQuery !== undefined && tropoQuery !== '' && Number.isFinite(tropoParam)) {
+            currentTropo = Math.max(8, Math.min(18, tropoParam));
+            sliderTropo.value = String(currentTropo);
+            material.uniforms.uTropopause.value = currentTropo;
+            recenterActiveCameraForCurrentTropo();
+        }
+
+        const freezingQuery = query.get('freezingLevel') ?? query.get('freezing') ?? presetSettings?.freezingLevel;
         const freezingParam = Number(freezingQuery);
-        if (freezingQuery !== null && freezingQuery !== '' && Number.isFinite(freezingParam)) {
+        if (freezingQuery !== null && freezingQuery !== undefined && freezingQuery !== '' && Number.isFinite(freezingParam)) {
             freezingLevel = Math.max(3, Math.min(6, freezingParam));
             sliderFreezing.value = String(freezingLevel);
         }
-        const shearQuery = query.get('windShear') ?? query.get('shear');
+        const shearQuery = query.get('windShear') ?? query.get('shear') ?? presetSettings?.windShear;
         const shearParam = Number(shearQuery);
-        if (shearQuery !== null && shearQuery !== '' && Number.isFinite(shearParam)) {
+        if (shearQuery !== null && shearQuery !== undefined && shearQuery !== '' && Number.isFinite(shearParam)) {
             windShear = Math.max(0, Math.min(1, shearParam));
             sliderShear.value = String(windShear);
         }
+        const sunQuery = query.get('sun') ?? presetSettings?.sun;
+        const sunParam = Number(sunQuery);
+        if (sunQuery !== null && sunQuery !== undefined && sunQuery !== '' && Number.isFinite(sunParam)) {
+            sunIntensity = Math.max(0, Math.min(8, sunParam));
+            sliderSun.value = String(sunIntensity);
+        }
+        const ambientQuery = query.get('ambient') ?? query.get('amb') ?? presetSettings?.ambient;
+        const ambientParam = Number(ambientQuery);
+        if (ambientQuery !== null && ambientQuery !== undefined && ambientQuery !== '' && Number.isFinite(ambientParam)) {
+            ambientIntensity = Math.max(0.2, Math.min(1.2, ambientParam));
+        }
+        const sunElevationQuery = query.get('sunElevation') ?? query.get('sunElev') ?? query.get('elevation') ?? presetSettings?.sunElevation;
+        const sunElevationParam = Number(sunElevationQuery);
+        if (sunElevationQuery !== null && sunElevationQuery !== undefined && sunElevationQuery !== '' && Number.isFinite(sunElevationParam)) {
+            sunElevation = Math.max(-18, Math.min(82, sunElevationParam));
+            sliderSunElevation.value = String(sunElevation);
+        }
+        const sunAngleQuery = query.get('sunAngle') ?? query.get('sunViewerAngle') ?? query.get('viewerSunAngle') ?? presetSettings?.sunAngle;
+        const sunAngleParam = Number(sunAngleQuery);
+        if (sunAngleQuery !== null && sunAngleQuery !== undefined && sunAngleQuery !== '' && Number.isFinite(sunAngleParam)) {
+            sunViewerAngle = Math.max(-180, Math.min(180, sunAngleParam));
+            sliderSunAngle.value = String(sunViewerAngle);
+        }
+        material.uniforms.uSunIntensity.value = sunIntensity;
+        material.uniforms.uAmbientIntensity.value = ambientIntensity;
+        material.uniforms.uSunElevation.value = sunElevation;
+        material.uniforms.uSunViewerAngle.value = sunViewerAngle;
+        material.uniforms.uPhotographicStyle.value = photographicStyle ? 1.0 : 0.0;
+        material.uniforms.uLightPreset.value = lightPreset;
+        material.uniforms.uSkyMode.value = skyMode;
         if (query.get('controls') === '0') {
+            document.body.dataset.controlsHidden = 'true';
             uiBar.style.display = 'none';
         }
+
+        function applyLockedPresentationConfig() {
+            currentSeed = LOCKED_PRESENTATION.seed;
+            systemCount = LOCKED_PRESENTATION.systems;
+            timeSpeed = LOCKED_PRESENTATION.timeSpeed;
+            timePaused = false;
+            renderScale = LOCKED_PRESENTATION.renderScale;
+            autoQualityEnabled = LOCKED_PRESENTATION.autoQuality;
+            currentTropo = LOCKED_PRESENTATION.tropopause;
+            freezingLevel = LOCKED_PRESENTATION.freezingLevel;
+            windShear = LOCKED_PRESENTATION.windShear;
+            sunIntensity = LOCKED_PRESENTATION.sunIntensity;
+            ambientIntensity = LOCKED_PRESENTATION.ambientIntensity;
+            sunElevation = LOCKED_PRESENTATION.sunElevation;
+            sunViewerAngle = LOCKED_PRESENTATION.sunViewerAngle;
+            isOrthoMode = LOCKED_PRESENTATION.isOrtho;
+
+            material.uniforms.uSeed.value = currentSeed;
+            material.uniforms.uSystemCount.value = systemCount;
+            material.uniforms.uTropopause.value = currentTropo;
+            material.uniforms.uFreezingLevel.value = freezingLevel;
+            material.uniforms.uWindShear.value = windShear;
+            material.uniforms.uSunIntensity.value = sunIntensity;
+            material.uniforms.uAmbientIntensity.value = ambientIntensity;
+            material.uniforms.uSunElevation.value = sunElevation;
+            material.uniforms.uSunViewerAngle.value = sunViewerAngle;
+            material.uniforms.uIsOrtho.value = 0.0;
+            material.uniforms.uShowGrid.value = 0.0;
+
+            controlsPersp.enabled = true;
+            controlsOrtho.enabled = false;
+            updateOrthoFrameForCurrentTropo();
+            resetActiveCamera();
+        }
+
+        applyLockedPresentationConfig();
 
         function applyRenderScale() {
             const width = Math.max(1, container.clientWidth);
             const height = Math.max(1, container.clientHeight);
             effectiveRenderScale = computeEffectiveRenderScale(width, height);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, effectiveRenderScale));
             const shaderScale = Math.max(0.45, effectiveRenderScale);
             material.uniforms.uStepSize.value = THREE.MathUtils.lerp(0.28, 0.16, shaderScale);
             material.uniforms.uMaxSteps.value = THREE.MathUtils.lerp(84, 156, shaderScale);
@@ -1265,6 +2955,15 @@
         }
 
         updateAutoQualityButton();
+
+        function updateHdr10Button() {
+            material.uniforms.uHdr10Mode.value = hdr10Mode ? 1.0 : 0.0;
+            btnHdr10.classList.toggle('enabled', hdr10Mode);
+            btnHdr10.setAttribute('aria-pressed', hdr10Mode ? 'true' : 'false');
+            document.body.dataset.hdr10 = hdr10Mode ? 'enabled' : 'disabled';
+        }
+
+        updateHdr10Button();
 
         function updateTimeReadout() {
             timeReadout.innerText = `${timeSpeed.toFixed(timeSpeed % 1 === 0 ? 0 : 2)}x`;
@@ -1290,6 +2989,15 @@
 
         updateScienceReadouts();
 
+        function updateSunPositionReadouts() {
+            material.uniforms.uSunElevation.value = sunElevation;
+            material.uniforms.uSunViewerAngle.value = sunViewerAngle;
+            sunElevationReadout.innerText = `${sunElevation.toFixed(0)}deg`;
+            sunAngleReadout.innerText = `${sunViewerAngle > 0 ? '+' : ''}${sunViewerAngle.toFixed(0)}deg`;
+        }
+
+        updateSunPositionReadouts();
+
         function setHudVisible(visible) {
             overlay.style.display = visible ? 'block' : 'none';
             btnHud.classList.toggle('hud-off', !visible);
@@ -1312,6 +3020,11 @@
             let nextLabel;
             if (isFullscreenDisplay) {
                 nextLabel = t('target.fullscreen', {
+                    width: container.clientWidth,
+                    height: container.clientHeight
+                });
+            } else if (windowedTargetKey === 'target.fullscreen') {
+                nextLabel = t(windowedTargetKey, {
                     width: container.clientWidth,
                     height: container.clientHeight
                 });
@@ -1484,11 +3197,18 @@
         });
 
         sliderSun.addEventListener('input', (event) => {
-            material.uniforms.uSunIntensity.value = parseFloat(event.target.value);
+            sunIntensity = parseFloat(event.target.value);
+            material.uniforms.uSunIntensity.value = sunIntensity;
         });
 
-        sliderAmb.addEventListener('input', (event) => {
-            material.uniforms.uAmbientIntensity.value = parseFloat(event.target.value);
+        sliderSunElevation.addEventListener('input', (event) => {
+            sunElevation = parseFloat(event.target.value);
+            updateSunPositionReadouts();
+        });
+
+        sliderSunAngle.addEventListener('input', (event) => {
+            sunViewerAngle = parseFloat(event.target.value);
+            updateSunPositionReadouts();
         });
 
         sliderTime.addEventListener('input', (event) => {
@@ -1510,6 +3230,11 @@
         btnAutoQuality.addEventListener('click', () => {
             autoQualityEnabled = !autoQualityEnabled;
             updateAutoQualityButton();
+        });
+
+        btnHdr10.addEventListener('click', () => {
+            hdr10Mode = !hdr10Mode;
+            updateHdr10Button();
         });
 
         sliderSystems.addEventListener('input', (event) => {
@@ -1550,13 +3275,26 @@
         if (query.get('ortho') === '1' || captureMode === 'ortho-grid') {
             setCameraMode(true);
         }
+        const viewportQuery = (query.get('viewport') || presetSettings?.viewport || '').toLowerCase();
+        if (viewportQuery === 'portrait') {
+            setWindowedViewport('viewport-portrait', 'target.portrait');
+        } else if (viewportQuery === 'landscape') {
+            setWindowedViewport('viewport-landscape', 'target.landscape');
+        } else if (fullBackgroundMode) {
+            setWindowedViewport('viewport-fullscreen', 'target.fullscreen');
+        }
+
+        setGridVisible(false);
+        setCameraMode(false);
+        setWindowedViewport('viewport-fullscreen', 'target.fullscreen');
+        applyLockedPresentationConfig();
 
         let lastTime = performance.now();
         let frames = 0;
         let fpsAccumulator = 0;
         let fpsSamples = 0;
         let autoQualityCooldown = 0;
-        const fpsEl = document.getElementById('fps-counter');
+        const fpsEl = getUiElement('fps-counter');
 
         function applyAutoQualityGovernor(avgFps) {
             if (!autoQualityEnabled || autoQualityCooldown > 0) return;
@@ -1570,9 +3308,6 @@
             } else if (avgFps < AUTO_QUALITY_TARGET_FPS - 8 && renderScale > AUTO_QUALITY_MIN_SCALE) {
                 nextScale = Math.max(AUTO_QUALITY_MIN_SCALE, renderScale - 0.04);
                 autoQualityCooldown = 2;
-            } else if (avgFps > AUTO_QUALITY_TARGET_FPS - 2 && renderScale < qualityCeiling) {
-                nextScale = Math.min(qualityCeiling, renderScale + 0.02);
-                autoQualityCooldown = 3;
             }
             if (Math.abs(nextScale - renderScale) >= 0.001) {
                 renderScale = nextScale;
@@ -1600,6 +3335,7 @@
                 material.uniforms.uOrthoSize.value = orthoFrustumSize / orthoCamera.zoom;
             }
             renderer.render(scene, fullscreenCam);
+            updateStageEdgeFill(time);
             frames++;
             if (deltaMs > 0) {
                 fpsAccumulator += 1000 / deltaMs;
@@ -1613,7 +3349,8 @@
                 renderer.getDrawingBufferSize(drawingBufferSize);
                 const bufferStr = `${drawingBufferSize.x}x${drawingBufferSize.y}`;
                 const fsCapStr = isFullscreenDisplay ? ` | FS cap: ${computeFullscreenRenderScaleCap(container.clientWidth, container.clientHeight).toFixed(2)}x` : '';
-                fpsEl.innerHTML = `FPS: ${frames} | AVG: ${avgFps.toFixed(0)} | RES: ${renderScale.toFixed(2)}x eff ${effectiveRenderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''} | BUF: ${bufferStr}${fsCapStr} | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'} | Tropo: ${currentTropo}km | Freeze: ${freezingLevel.toFixed(1)}km | Shear: ${windShear.toFixed(2)} | Time: ${timePaused ? t('hud.timePaused') : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
+                const hdrStr = hdr10Mode ? ` | HDR10 PQ ${HDR10_REFERENCE_PEAK_NITS}nit` : '';
+                fpsEl.innerHTML = `FPS: ${frames} | AVG: ${avgFps.toFixed(0)} | RES: ${renderScale.toFixed(2)}x eff ${effectiveRenderScale.toFixed(2)}x${autoQualityEnabled ? ' AUTO' : ''} | BUF: ${bufferStr}${fsCapStr} | Aspect: ${aspectStr} | Mode: ${isOrthoMode ? 'Ortho' : 'Persp'}${hdrStr} | Tropo: ${currentTropo}km | Freeze: ${freezingLevel.toFixed(1)}km | Shear: ${windShear.toFixed(2)} | Time: ${timePaused ? t('hud.timePaused') : `${timeSpeed}x`} | T: ${simulationTime.toFixed(1)}`;
                 frames = 0;
                 fpsAccumulator = 0;
                 fpsSamples = 0;

@@ -1,8 +1,5 @@
 import * as THREE from "three";
-import {
-  raymarchCloudFragmentShader,
-  raymarchCloudVertexShader
-} from "./raymarch-cloud-shader.js";
+import { raymarchCloudFragmentShader, raymarchCloudVertexShader } from "./raymarch-cloud-shader.js";
 
 export type RaymarchCloudOptions = {
   seed?: number;
@@ -30,11 +27,11 @@ export type RaymarchCloudOptions = {
 
 const MODEL_BASE_KM = 0.5;
 const RESET_TARGET_HEIGHT_RATIO = 0.5;
-const RESET_CAMERA_HEIGHT_RATIO = 0.93;
+const RESET_CAMERA_HEIGHT_RATIO = 0.68;
 const MODEL_VIEW_OCCUPANCY = 0.44;
 const MOBILE_MODEL_VIEW_OCCUPANCY = 0.38;
 const MIN_ORTHO_FRUSTUM_SIZE = 24;
-const PERSPECTIVE_DISTANCE_SCALE = 1.56;
+const PERSPECTIVE_DISTANCE_SCALE = 0.38;
 const FRAME_VERTICAL_PADDING_KM = 2;
 const ORTHO_VERTICAL_WORLD_SCALE = 1;
 const HDR10_REFERENCE_PEAK_NITS = 1000;
@@ -65,7 +62,7 @@ export class RaymarchCloudRenderer {
       antialias: false,
       alpha: options.transparentBackground ?? false,
       premultipliedAlpha: !(options.transparentBackground ?? false),
-      powerPreference: "high-performance",
+      powerPreference: isIosChrome() ? "default" : "high-performance",
       preserveDrawingBuffer: true
     });
     this.renderer.setClearColor(0x000000, options.transparentBackground ? 0 : 1);
@@ -89,8 +86,8 @@ export class RaymarchCloudRenderer {
         uIsOrtho: { value: options.ortho ? 1 : 0 },
         uOrthoSize: { value: this.orthoFrustumSize },
         uOrthoVerticalScale: { value: ORTHO_VERTICAL_WORLD_SCALE },
-        uStepSize: { value: 0.2 },
-        uMaxSteps: { value: 126 },
+        uStepSize: { value: this.defaultStepSize() },
+        uMaxSteps: { value: this.defaultMaxSteps() },
         uSunIntensity: { value: clampFinite(options.sunIntensity, 4.6, 0, 10) },
         uAmbientIntensity: { value: clampFinite(options.ambientIntensity, 0.75, 0, 2) },
         uSunElevation: { value: clampFinite(options.sunElevation, 35, -20, 90) },
@@ -133,14 +130,11 @@ export class RaymarchCloudRenderer {
   }
 
   private updateCameraFromOptions(): void {
-    const distance = clampFinite(
-      this.options.cameraDistance,
-      this.resetCameraDistance(),
-      8,
-      160
-    );
+    const distance = clampFinite(this.options.cameraDistance, this.resetCameraDistance(), 8, 160);
     const yaw = THREE.MathUtils.degToRad(clampFinite(this.options.cameraYawDegrees, 0, -180, 180));
-    const pitch = THREE.MathUtils.degToRad(clampFinite(this.options.cameraPitchDegrees, 0, -55, 70));
+    const pitch = THREE.MathUtils.degToRad(
+      clampFinite(this.options.cameraPitchDegrees, 0, -55, 70)
+    );
     const horizontal = Math.cos(pitch) * distance;
     this.cameraTarget.set(0, this.heightAtCloudRatio(RESET_TARGET_HEIGHT_RATIO), 0);
     this.cameraPosition.set(
@@ -148,7 +142,10 @@ export class RaymarchCloudRenderer {
       this.cameraTarget.y + Math.sin(pitch) * distance,
       this.cameraTarget.z - Math.cos(yaw) * horizontal
     );
-    if (this.options.cameraYawDegrees === undefined && this.options.cameraPitchDegrees === undefined) {
+    if (
+      this.options.cameraYawDegrees === undefined &&
+      this.options.cameraPitchDegrees === undefined
+    ) {
       this.cameraPosition.set(0, this.heightAtCloudRatio(RESET_CAMERA_HEIGHT_RATIO), -distance);
     }
   }
@@ -165,17 +162,54 @@ export class RaymarchCloudRenderer {
 
   private resetCameraDistance(): number {
     const fovRadians = THREE.MathUtils.degToRad(45);
-    return (this.defaultOrthoFrustumSize() / (2 * Math.tan(fovRadians / 2))) * PERSPECTIVE_DISTANCE_SCALE;
+    return (
+      (this.defaultOrthoFrustumSize() / (2 * Math.tan(fovRadians / 2))) * PERSPECTIVE_DISTANCE_SCALE
+    );
   }
 
   private enforcePixelBudget(width: number, height: number): { width: number; height: number } {
-    const maxPixels = clampFinite(this.options.maxPixels, 1920 * 1080, 128 * 128, 3840 * 2160);
+    const maxPixels = clampFinite(
+      this.options.maxPixels,
+      this.defaultMaxPixels(),
+      128 * 128,
+      3840 * 2160
+    );
     const pixels = Math.max(1, width * height);
     const scale = pixels > maxPixels ? Math.sqrt(maxPixels / pixels) : 1;
     return {
       width: Math.max(2, Math.floor((width * scale) / 2) * 2),
       height: Math.max(2, Math.floor((height * scale) / 2) * 2)
     };
+  }
+
+  private defaultMaxPixels(): number {
+    if (isIosChrome()) {
+      return 960 * 540;
+    }
+    if (isMobileWideView()) {
+      return 1280 * 720;
+    }
+    return 1920 * 1080;
+  }
+
+  private defaultStepSize(): number {
+    if (isIosChrome()) {
+      return 0.34;
+    }
+    if (isMobileWideView()) {
+      return 0.28;
+    }
+    return 0.24;
+  }
+
+  private defaultMaxSteps(): number {
+    if (isIosChrome()) {
+      return 62;
+    }
+    if (isMobileWideView()) {
+      return 76;
+    }
+    return 88;
   }
 }
 
@@ -212,7 +246,16 @@ function isMobileWideView(): boolean {
   return window.matchMedia("(max-width: 760px), (pointer: coarse)").matches;
 }
 
-function clampFinite(value: number | undefined, fallback: number, minimum: number, maximum: number): number {
+function isIosChrome(): boolean {
+  return /\bCriOS\//i.test(navigator.userAgent) && /iP(?:hone|ad|od)/i.test(navigator.userAgent);
+}
+
+function clampFinite(
+  value: number | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number
+): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }

@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { resolveBrowser, runBrowserScreenshot, stopProcessTree } from "./lib/headless-browser-runner.mjs";
+import {
+  resolveBrowser,
+  runBrowserScreenshot,
+  stopProcessTree
+} from "./lib/headless-browser-runner.mjs";
 import { analyzePng } from "./lib/png-analysis.mjs";
 import {
   buildPreviewUrl,
@@ -57,6 +61,7 @@ const url = buildPreviewUrl({
 
 mkdirSync(join(projectRoot, "outputs"), { recursive: true });
 mkdirSync(dirname(outputPath), { recursive: true });
+rmSync(outputPath, { force: true });
 
 const server = startVite(port);
 let serverExit = null;
@@ -72,13 +77,16 @@ try {
     browser,
     [
       "--headless=new",
-      "--disable-gpu",
       "--no-sandbox",
       "--no-first-run",
       "--noerrdialogs",
       "--disable-background-networking",
       "--disable-component-update",
       "--disable-default-apps",
+      "--enable-webgl",
+      "--ignore-gpu-blocklist",
+      "--enable-unsafe-swiftshader",
+      "--use-angle=swiftshader",
       "--run-all-compositor-stages-before-draw",
       `--user-data-dir=${browserProfileDir}`,
       `--window-size=${width},${height}`,

@@ -122,6 +122,10 @@ export const raymarchCloudFragmentShader = String.raw`
                 return normalize(rot * axis);
             }
 
+            float seedHash(float salt) {
+                return hash(uSeed * 0.013 + salt);
+            }
+
             float iceFactorAtHeight(float heightKm) {
                 return smoothstep(uFreezingLevel, uTropopause, heightKm);
             }
@@ -167,10 +171,14 @@ export const raymarchCloudFragmentShader = String.raw`
                 float lowerShelf = smoothstep(0.02, 0.18, h) * (1.0 - smoothstep(0.3, 0.52, h));
                 float towerColumn = smoothstep(0.16, 0.42, h) * (1.0 - smoothstep(0.66, 0.88, h));
                 float crownSpread = smoothstep(0.6, 0.94, h);
+                float morphology = noise(vec3(phase * 1.7 + uSeed * 0.041, ageOffset * 0.31, speedScale * 2.9));
+                float baseSpread = mix(0.62, 1.14, morphology);
+                float towerWaist = mix(0.82, 1.34, noise(vec3(phase + 8.2, ageOffset * 0.17, uSeed * 0.023)));
+                float crownMass = mix(0.78, 1.42, noise(vec3(phase - 4.8, speedScale * 1.9, uSeed * 0.031)));
                 float photo = uPhotographicStyle;
                 float verticalProfile = mix(
-                    0.56 + lowerShelf * 0.34 + towerColumn * 0.08 + crownSpread * 0.34,
-                    0.48 + lowerShelf * 0.22 + towerColumn * 0.2 + crownSpread * 0.3,
+                    0.5 + lowerShelf * 0.2 * baseSpread + towerColumn * 0.16 * towerWaist + crownSpread * 0.42 * crownMass,
+                    0.44 + lowerShelf * 0.14 * baseSpread + towerColumn * 0.24 * towerWaist + crownSpread * 0.38 * crownMass,
                     photo
                 );
                 verticalProfile *= mix(1.0, 0.82, dissipating * smoothstep(0.12, 0.62, h));
@@ -200,7 +208,11 @@ export const raymarchCloudFragmentShader = String.raw`
                 float anvilThickness = mix(0.12, mix(0.68, 0.42, photo), anvilMask) * (0.4 + anvilLife * 0.6);
                 float anvilVertical = abs(p.y - actualTop) - anvilThickness;
                 float anvilShape = smax(anvilSlab - anvil * mix(0.36, 0.3, photo), anvilVertical, mix(0.52, 0.36, photo)) + (1.0 - anvilLife) * 4.0;
-                float bodyTaper = mix(1.0, 0.58 + lowerShelf * 0.2 + towerColumn * 0.22 + crownSpread * 0.1, photo);
+                float bodyTaper = mix(
+                    0.92 + lowerShelf * 0.08 * baseSpread + towerColumn * 0.08 * towerWaist + crownSpread * 0.12 * crownMass,
+                    0.52 + lowerShelf * 0.14 * baseSpread + towerColumn * 0.28 * towerWaist + crownSpread * 0.2 * crownMass,
+                    photo
+                );
                 float towerBranchBand = smoothstep(0.22, 0.48, h) * (1.0 - smoothstep(0.8, 0.96, h)) * mature;
                 float crownLobeBand = smoothstep(0.48, 0.72, h) * (1.0 - smoothstep(0.96, 1.0, h)) * mature;
                 float branchSpoke = convectiveSpokePattern(baseLocal, h, phase + cycleAngle * 0.18, mix(5.0, 7.0, photo));
@@ -358,27 +370,47 @@ export const raymarchCloudFragmentShader = String.raw`
                 float layoutMode = mod(floor(abs(uSeed)), 3.0);
                 float triangleLayout = step(0.5, layoutMode) * (1.0 - step(1.5, layoutMode));
                 float clusterLayout = step(1.5, layoutMode);
+                float layoutTurn = seedHash(2.0) * 6.28318;
+                mat2 layoutRot = mat2(cos(layoutTurn), -sin(layoutTurn), sin(layoutTurn), cos(layoutTurn));
+                vec2 c1Offset = layoutRot * (vec2(seedHash(3.0), seedHash(4.0)) - 0.5) * 0.92;
                 vec2 c2Offset = mix(vec2(3.75, -1.35), vec2(-2.45, -1.28), triangleLayout);
                 c2Offset = mix(c2Offset, vec2(1.1, -0.58), clusterLayout);
+                c2Offset = layoutRot * (c2Offset + (vec2(seedHash(5.0), seedHash(6.0)) - 0.5) * 1.6);
                 vec2 c3Offset = mix(vec2(-3.2, 1.55), vec2(2.5, -1.12), triangleLayout);
                 c3Offset = mix(c3Offset, vec2(-0.86, 0.78), clusterLayout);
-                float c2Blend = mix(mix(1.35, 0.92, photo), mix(1.58, 1.06, photo), triangleLayout);
-                c2Blend = mix(c2Blend, mix(1.8, 1.18, photo), clusterLayout);
-                float c3Blend = mix(mix(1.45, 0.96, photo), mix(1.58, 1.06, photo), triangleLayout);
-                c3Blend = mix(c3Blend, mix(1.82, 1.2, photo), clusterLayout);
+                c3Offset = layoutRot * (c3Offset + (vec2(seedHash(7.0), seedHash(8.0)) - 0.5) * 1.55);
+                float c1Radius = mix(mix(2.65, 3.8, seedHash(9.0)), mix(1.62, 2.42, seedHash(9.0)), photo);
+                float c2Radius = mix(mix(2.05, 3.05, seedHash(10.0)), mix(1.34, 2.0, seedHash(10.0)), photo);
+                float c3Radius = mix(mix(1.85, 2.95, seedHash(11.0)), mix(1.38, 2.08, seedHash(11.0)), photo);
+                float c1Top = mix(4.5, 5.35, seedHash(12.0));
+                float c2Top = mix(3.35, 4.6, seedHash(13.0));
+                float c3Top = mix(3.2, 5.15, seedHash(14.0));
+                float c2Blend = mix(mix(1.2, 1.78, seedHash(15.0)), mix(0.84, 1.12, seedHash(15.0)), photo);
+                c2Blend = mix(c2Blend, c2Blend + 0.22, triangleLayout);
+                c2Blend = mix(c2Blend, c2Blend + 0.36, clusterLayout);
+                float c3Blend = mix(mix(1.18, 1.82, seedHash(16.0)), mix(0.86, 1.18, seedHash(16.0)), photo);
+                c3Blend = mix(c3Blend, c3Blend + 0.2, triangleLayout);
+                c3Blend = mix(c3Blend, c3Blend + 0.34, clusterLayout);
 
-                float c1 = getCell01(modelP, vec2(0.0, 0.0), mix(3.2, 1.95, photo), 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
+                float c1 = getCell01(
+                    modelP,
+                    c1Offset,
+                    c1Radius,
+                    seedHash(17.0) * 6.28318,
+                    c1Top,
+                    mix(0.82, 1.22, seedHash(18.0)),
+                    seedHash(19.0) * 6.28318,
+                    mix(0.0, 0.18, seedHash(20.0)),
+                    mix(0.58, 1.38, seedHash(21.0))
+                );
                 float macro = c1;
-                macro = addConvectiveBranchCluster(macro, modelP, vec2(0.0, 0.0), mix(0.92, 0.78, photo), 0.8, photo);
                 if (uSystemCount >= 1.5) {
-                    float c2 = getCell01(modelP, c2Offset, mix(2.8, 1.65, photo), 2.0, mix(3.75, 3.35, photo), 0.82, 1.12, 0.28, mix(0.8, 0.48, photo));
+                    float c2 = getCell01(modelP, c2Offset, c2Radius, 2.0 + seedHash(24.0) * 4.2, c2Top, mix(0.72, 1.18, seedHash(25.0)), seedHash(26.0) * 6.28318, mix(0.05, 0.34, seedHash(27.0)), mix(0.46, 1.08, seedHash(28.0)) * mix(0.8, 0.48, photo));
                     macro = smin(macro, c2, c2Blend);
-                    macro = addConvectiveBranchCluster(macro, modelP, c2Offset, mix(0.72, 0.58, photo), 3.1, photo);
                 }
                 if (uSystemCount >= 2.5) {
-                    float c3 = getCell01(modelP, c3Offset, mix(2.65, 1.75, photo), 4.0, 4.55, 1.26, 4.85, 0.1, mix(1.14, 0.74, photo));
+                    float c3 = getCell01(modelP, c3Offset, c3Radius, 4.0 + seedHash(31.0) * 4.2, c3Top, mix(0.86, 1.36, seedHash(32.0)), seedHash(33.0) * 6.28318, mix(0.0, 0.28, seedHash(34.0)), mix(0.62, 1.28, seedHash(35.0)) * mix(1.14, 0.74, photo));
                     macro = smin(macro, c3, c3Blend);
-                    macro = addConvectiveBranchCluster(macro, modelP, c3Offset, mix(0.68, 0.54, photo), 5.2, photo);
                 }
                 for (int i = 3; i < 10; i++) {
                     float fi = float(i);
@@ -512,6 +544,21 @@ export const raymarchCloudFragmentShader = String.raw`
             vec3 ACESFilm(vec3 x) {
                 float a = 2.51; float b = 0.03; float c = 2.43; float d = 0.59; float e = 0.14;
                 return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+            }
+
+            float starField(vec3 rd) {
+                vec3 n = normalize(rd);
+                vec2 uv = vec2(atan(n.z, n.x) * 0.15915494 + 0.5, asin(clamp(n.y, -1.0, 1.0)) * 0.31830989 + 0.5);
+                vec2 grid = uv * vec2(260.0, 130.0);
+                vec2 cell = floor(grid);
+                vec2 local = fract(grid) - 0.5;
+                float starSeed = hash(cell.x + cell.y * 251.7 + uSeed * 0.017);
+                float starGate = step(0.986, starSeed);
+                float size = mix(0.038, 0.12, hash(cell.x * 11.3 + cell.y * 7.7 + uSeed * 0.021));
+                float point = (1.0 - smoothstep(size, size + 0.028, length(local))) * starGate;
+                float horizonGate = smoothstep(0.02, 0.34, n.y);
+                float twinkle = mix(0.62, 1.0, hash(cell.x * 3.1 + cell.y * 19.9 + floor(uTime * 1.6)));
+                return point * horizonGate * twinkle;
             }
 
             vec3 nitsToPq(vec3 nits) {
@@ -800,6 +847,8 @@ export const raymarchCloudFragmentShader = String.raw`
                 col = mix(col, sunsetSky, sunsetMask);
                 col = mix(col, moonSky, moonMask);
                 col = mix(col, atmosphereSky, atmosphereMask);
+                float stars = starField(rd) * night01 * max(moonMask, atmosphereMask);
+                col += vec3(0.72, 0.84, 1.0) * stars * mix(0.9, 1.8, uPhotographicStyle);
                 if (uTransparentBackground < 0.5) {
                     col = surfaceOverlay(col, ro, rd, lightDir);
                     col = gridOverlay(col, ro, rd);
@@ -819,8 +868,8 @@ export const raymarchCloudFragmentShader = String.raw`
                     float cosTheta = dot(rd, lightDir);
                     float heightRange = max(0.1, uTropopause - MODEL_BASE_KM);
 
-                    // OPTIMIZATION: Reduced max steps slightly from 168 to 144
-                    for(int i = 0; i < 144; i++) {
+                    // Keep the static loop below mobile Chrome's shader watchdog while uMaxSteps owns quality.
+                    for(int i = 0; i < 96; i++) {
                         // OPTIMIZATION: Early exit threshold lowered to 0.92 for faster rendering
                         if (float(i) > uMaxSteps || t > maxT || densityAcc > 0.92) break;
                         vec3 p = ro + rd * t;

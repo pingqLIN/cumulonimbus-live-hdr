@@ -1,95 +1,90 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { resolveBrowser, runBrowserScreenshot } from "./lib/headless-browser-runner.mjs";
-import { analyzePng } from "./lib/png-analysis.mjs";
+import { spawnSync } from "node:child_process";
+import { rmSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
 const width = readIntegerArg(args, "width", 900);
 const height = readIntegerArg(args, "height", 506);
-const waitMs = readIntegerArg(args, "waitMs", 7000);
-const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(30000, waitMs + 20000));
 const outputPath = resolve(
   projectRoot,
-  args.out ?? join("outputs", "analysis", "06-html-smoke.png")
+  args.out ?? join("outputs", "analysis", "mainline-html-smoke.png")
 );
-const browserProfileDir = mkdtempSync(join(tmpdir(), "cumulonimbus-06-headless-"));
-const url = pathToFileURL(join(projectRoot, "06.html"));
-url.searchParams.set("seed", args.seed ?? "574");
-url.searchParams.set("time", args.time ?? "2.2");
-url.searchParams.set("timeSpeed", "0");
-url.searchParams.set("quality", args.quality ?? "0.72");
-url.searchParams.set("hud", args.hud ?? "1");
-url.searchParams.set("grid", args.grid ?? "1");
-url.searchParams.set("ortho", args.ortho ?? "1");
+rmSync(outputPath, { force: true });
 
-for (const key of ["cameraYawDegrees", "cameraPitchDegrees", "cameraDistance"]) {
+const captureArgs = [
+  join(projectRoot, "scripts", "capture-3d-still.mjs"),
+  "--source",
+  "live",
+  "--orientation",
+  width >= height ? "landscape" : "portrait",
+  "--width",
+  String(width),
+  "--height",
+  String(height),
+  "--waitMs",
+  String(readIntegerArg(args, "waitMs", 4000)),
+  "--browserTimeoutMs",
+  String(readIntegerArg(args, "browserTimeoutMs", 90000)),
+  "--out",
+  outputPath,
+  "--look",
+  args.look ?? "demo-like",
+  "--preset",
+  args.preset ?? "demo",
+  "--simPreset",
+  args.simPreset ?? "mid",
+  "--captureFrames",
+  args.captureFrames ?? "1",
+  "--seed",
+  args.seed ?? "574"
+];
+
+for (const key of [
+  "browser",
+  "fps",
+  "cameraYawDegrees",
+  "cameraPitchDegrees",
+  "cameraDistanceScale",
+  "cameraTargetOffsetX",
+  "cameraTargetOffsetY",
+  "cameraTargetOffsetZ",
+  "sunAzimuthDegrees",
+  "sunElevationDegrees",
+  "sunIntensityScale",
+  "lightContrast",
+  "exposureScale"
+]) {
   if (args[key] !== undefined && args[key] !== "") {
-    url.searchParams.set(key, args[key]);
+    captureArgs.push(`--${key}`, String(args[key]));
   }
 }
 
-for (const key of ["systems", "controls", "lang"]) {
-  if (args[key] !== undefined && args[key] !== "") {
-    url.searchParams.set(key, args[key]);
-  }
-}
+const capture = spawnSync(process.execPath, captureArgs, {
+  cwd: projectRoot,
+  encoding: "utf8",
+  timeout: readIntegerArg(args, "browserTimeoutMs", 90000) + 15000,
+  windowsHide: true
+});
 
-mkdirSync(dirname(outputPath), { recursive: true });
-
-let result = null;
-let cleanupWarning = null;
-try {
-  const browser = resolveBrowser(args.browser);
-  result = await runBrowserScreenshot(
-    browser,
-    [
-      "--headless=new",
-      "--disable-gpu",
-      "--no-sandbox",
-      "--no-first-run",
-      "--noerrdialogs",
-      "--disable-background-networking",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--allow-file-access-from-files",
-      "--run-all-compositor-stages-before-draw",
-      `--user-data-dir=${browserProfileDir}`,
-      `--window-size=${width},${height}`,
-      `--timeout=${waitMs}`,
-      `--screenshot=${outputPath}`,
-      url.toString()
-    ],
-    { cwd: projectRoot, timeoutMs: browserTimeoutMs }
+if (capture.status !== 0) {
+  throw new Error(
+    `Cloud-only smoke screenshot failed with exit code ${capture.status}.\n${capture.stderr || capture.stdout}`
   );
-
-  if (result.status !== 0) {
-    throw new Error(
-      `06.html smoke screenshot failed with exit code ${result.status}.\n${result.stderr || result.stdout}`
-    );
-  }
-} finally {
-  try {
-    rmSync(browserProfileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-  } catch (error) {
-    cleanupWarning = error instanceof Error ? error.message : String(error);
-  }
 }
 
-const png = readPngHeader(outputPath);
-const analysis = analyzePng(outputPath, { brightThreshold: 80 });
-assert.equal(png.width, width);
-assert.equal(png.height, height);
-assert.equal(analysis.width, width);
-assert.equal(analysis.height, height);
-assert.ok(analysis.maxLuma > 42, `expected visible 06.html highlights, got ${analysis.maxLuma}`);
-assert.ok(analysis.lumaStdDev > 4, `expected non-flat 06.html output, got ${analysis.lumaStdDev}`);
+const result = JSON.parse(capture.stdout);
+assert.equal(result.ok, true);
+assert.equal(result.png.width, width);
+assert.equal(result.png.height, height);
+assert.ok(result.analysis.maxLuma > 42, `expected visible cloud highlights, got ${result.analysis.maxLuma}`);
+assert.ok(result.analysis.lumaStdDev > 4, `expected non-flat cloud output, got ${result.analysis.lumaStdDev}`);
 assert.ok(
-  analysis.cloudBounds.coverage > 0.01,
-  `expected visible 06.html cloud coverage, got ${analysis.cloudBounds.coverage}`
+  result.analysis.cloudBounds.coverage > 0.01,
+  `expected visible cloud coverage, got ${result.analysis.cloudBounds.coverage}`
 );
 
 console.log(
@@ -97,11 +92,10 @@ console.log(
     {
       ok: true,
       outputPath,
-      url: url.toString(),
-      bytes: statSync(outputPath).size,
-      processCleanup: { browser: result?.processCleanup ?? null },
-      cleanupWarning,
-      analysis
+      url: result.url,
+      bytes: result.bytes,
+      processCleanup: result.processCleanup,
+      analysis: result.analysis
     },
     null,
     2
@@ -131,16 +125,4 @@ function readIntegerArg(parsed, name, fallback) {
     return fallback;
   }
   return Math.round(value);
-}
-
-function readPngHeader(path) {
-  const buffer = readFileSync(path);
-  const signature = buffer.subarray(0, 8).toString("hex");
-  if (signature !== "89504e470d0a1a0a") {
-    throw new Error(`Capture output is not a PNG: ${path}`);
-  }
-  return {
-    width: buffer.readUInt32BE(16),
-    height: buffer.readUInt32BE(20)
-  };
 }

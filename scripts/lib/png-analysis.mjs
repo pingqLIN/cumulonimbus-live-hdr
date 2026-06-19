@@ -12,6 +12,9 @@ export function analyzePng(path, options = {}) {
   let maxLuma = Number.NEGATIVE_INFINITY;
   let sum = 0;
   let sumSquares = 0;
+  let redSum = 0;
+  let greenSum = 0;
+  let blueSum = 0;
   let brightPixels = 0;
 
   for (let offset = 0, pixel = 0; offset < png.pixels.length; offset += channels, pixel += 1) {
@@ -20,6 +23,9 @@ export function analyzePng(path, options = {}) {
     const blue = png.pixels[offset + 2] ?? 0;
     const luma = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
     lumaValues[pixel] = luma;
+    redSum += red;
+    greenSum += green;
+    blueSum += blue;
     minLuma = Math.min(minLuma, luma);
     maxLuma = Math.max(maxLuma, luma);
     sum += luma;
@@ -33,6 +39,12 @@ export function analyzePng(path, options = {}) {
   const variance = sumSquares / pixelCount - averageLuma * averageLuma;
   const lumaStdDev = Math.sqrt(Math.max(0, variance));
   const cloudThreshold = lumaThreshold ?? Math.max(32, averageLuma + lumaStdDev * 0.28);
+  const cloudBounds = measureBounds(lumaValues, png.width, png.height, cloudThreshold);
+  const averageRed = redSum / pixelCount;
+  const averageGreen = greenSum / pixelCount;
+  const averageBlue = blueSum / pixelCount;
+  const averageLumaSafe = Math.max(1, averageLuma);
+  const warmCoolBalance = roundMetric((averageRed - averageBlue) / averageLumaSafe, 3);
 
   return {
     width: png.width,
@@ -43,7 +55,15 @@ export function analyzePng(path, options = {}) {
     lumaStdDev: roundMetric(lumaStdDev),
     brightPixelRatio: roundMetric(brightPixels / pixelCount, 6),
     cloudThreshold: roundMetric(cloudThreshold),
-    cloudBounds: measureBounds(lumaValues, png.width, png.height, cloudThreshold)
+    averageRgb: {
+      red: roundMetric(averageRed),
+      green: roundMetric(averageGreen),
+      blue: roundMetric(averageBlue)
+    },
+    warmCoolBalance,
+    edgeDetailDensity: measureEdgeDetail(lumaValues, png.width, png.height, cloudThreshold),
+    morphology: measureMorphology(cloudBounds),
+    cloudBounds
   };
 }
 
@@ -159,6 +179,54 @@ function measureBounds(lumaValues, width, height, threshold) {
     bottom: roundMetric(maxY / Math.max(1, height - 1), 6),
     width: roundMetric((maxX - minX + 1) / width, 6),
     height: roundMetric((maxY - minY + 1) / height, 6)
+  };
+}
+
+function measureEdgeDetail(lumaValues, width, height, threshold) {
+  let cloudPixels = 0;
+  let edgePixels = 0;
+  let gradientSum = 0;
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const center = lumaValues[y * width + x] ?? 0;
+      if (center <= threshold) {
+        continue;
+      }
+      cloudPixels += 1;
+      const gradientX = Math.abs((lumaValues[y * width + x + 1] ?? 0) - (lumaValues[y * width + x - 1] ?? 0));
+      const gradientY = Math.abs((lumaValues[(y + 1) * width + x] ?? 0) - (lumaValues[(y - 1) * width + x] ?? 0));
+      const gradient = gradientX + gradientY;
+      gradientSum += gradient;
+      if (gradient >= 20) {
+        edgePixels += 1;
+      }
+    }
+  }
+
+  if (cloudPixels === 0) {
+    return {
+      ratio: 0,
+      averageGradient: 0
+    };
+  }
+
+  return {
+    ratio: roundMetric(edgePixels / cloudPixels, 6),
+    averageGradient: roundMetric(gradientSum / cloudPixels)
+  };
+}
+
+function measureMorphology(bounds) {
+  const width = Math.max(bounds.width, 0.001);
+  const height = Math.max(bounds.height, 0.001);
+  const topMass = Math.max(0, 0.34 - bounds.top);
+  const bottomReach = bounds.bottom;
+  return {
+    towerHeightRatio: roundMetric(height / width, 6),
+    anvilSpreadRatio: roundMetric(width / height, 6),
+    bottomPosition: roundMetric(bottomReach, 6),
+    topLift: roundMetric(topMass, 6)
   };
 }
 

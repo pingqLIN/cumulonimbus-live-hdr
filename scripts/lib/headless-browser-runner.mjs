@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 
 export function resolveBrowser(explicitBrowser) {
@@ -48,6 +48,29 @@ export function runBrowserScreenshot(browser, browserArgs, options) {
     let stderr = "";
     let settled = false;
     let visibleWindowTimer = null;
+    let screenshotFileTimer = null;
+    const screenshotPath = getScreenshotPath(browserArgs);
+    let lastScreenshotSize = 0;
+    let stableScreenshotTicks = 0;
+    const settle = (status, stderrSuffix = "", processCleanup = null) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      if (visibleWindowTimer) {
+        clearInterval(visibleWindowTimer);
+      }
+      if (screenshotFileTimer) {
+        clearInterval(screenshotFileTimer);
+      }
+      resolveRun({
+        status,
+        stdout,
+        stderr: `${stderr}${stderrSuffix ? `\n${stderrSuffix}` : ""}`.trim(),
+        processCleanup
+      });
+    };
     if (process.platform === "win32") {
       visibleWindowTimer = setInterval(() => {
         if (settled || !child.pid) {
@@ -57,33 +80,43 @@ export function runBrowserScreenshot(browser, browserArgs, options) {
         if (visibleWindows.length === 0) {
           return;
         }
-        settled = true;
-        clearTimeout(timer);
-        clearInterval(visibleWindowTimer);
         const processCleanup = stopProcessTree(child);
-        resolveRun({
-          status: 125,
-          stdout,
-          stderr: `${stderr}\nHeadless browser opened visible windows; killed process tree. ${JSON.stringify(visibleWindows)}`.trim(),
+        settle(
+          125,
+          `Headless browser opened visible windows; killed process tree. ${JSON.stringify(visibleWindows)}`,
           processCleanup
-        });
+        );
+      }, 250);
+    }
+    if (screenshotPath) {
+      screenshotFileTimer = setInterval(() => {
+        if (settled || !existsSync(screenshotPath)) {
+          return;
+        }
+        let size = 0;
+        try {
+          size = statSync(screenshotPath).size;
+        } catch {
+          return;
+        }
+        if (size <= 0) {
+          return;
+        }
+        stableScreenshotTicks = size === lastScreenshotSize ? stableScreenshotTicks + 1 : 0;
+        lastScreenshotSize = size;
+        if (stableScreenshotTicks < 2) {
+          return;
+        }
+        const processCleanup = stopProcessTree(child);
+        settle(0, "", processCleanup);
       }, 250);
     }
     const timer = setTimeout(() => {
       if (settled) {
         return;
       }
-      settled = true;
-      if (visibleWindowTimer) {
-        clearInterval(visibleWindowTimer);
-      }
       const processCleanup = stopProcessTree(child);
-      resolveRun({
-        status: 124,
-        stdout,
-        stderr: `${stderr}\nBrowser screenshot timed out after ${timeoutMs}ms`.trim(),
-        processCleanup
-      });
+      settle(124, `Browser screenshot timed out after ${timeoutMs}ms`, processCleanup);
     }, timeoutMs);
 
     child.stdout?.on("data", (chunk) => {
@@ -96,32 +129,23 @@ export function runBrowserScreenshot(browser, browserArgs, options) {
       if (settled) {
         return;
       }
-      settled = true;
-      clearTimeout(timer);
-      if (visibleWindowTimer) {
-        clearInterval(visibleWindowTimer);
-      }
       const processCleanup = stopProcessTree(child);
-      resolveRun({
-        status: 1,
-        stdout,
-        stderr: `${stderr}\n${error.message}`.trim(),
-        processCleanup
-      });
+      settle(1, error.message, processCleanup);
     });
     child.once("exit", (code) => {
       if (settled) {
         return;
       }
-      settled = true;
-      clearTimeout(timer);
-      if (visibleWindowTimer) {
-        clearInterval(visibleWindowTimer);
-      }
       const processCleanup = stopProcessTree(child);
-      resolveRun({ status: code ?? 1, stdout, stderr, processCleanup });
+      settle(code ?? 1, "", processCleanup);
     });
   });
+}
+
+function getScreenshotPath(browserArgs) {
+  const prefix = "--screenshot=";
+  const arg = browserArgs.find((value) => value.startsWith(prefix));
+  return arg ? arg.slice(prefix.length) : null;
 }
 
 export function stopProcessTree(child) {

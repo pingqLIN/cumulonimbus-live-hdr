@@ -12,12 +12,14 @@
     "render:quick": "npm run build:core && node scripts/render-test-video.mjs --quick",
     "render:test": "npm run build:core && node scripts/render-test-video.mjs",
     "render:demo-loop": "npm run build:core && node scripts/render-demo-loop.mjs",
+    "colab:render": "node scripts/colab-runner.mjs",
     "live:url": "node scripts/print-live-url.mjs",
     "capture:field-still": "npm run build && node scripts/capture-3d-still.mjs --view field --renderer cpu --simPreset low",
     "capture:3d-still": "npm run build && node scripts/capture-3d-still.mjs",
     "spike:raymarch": "node scripts/raymarch-density-spike.mjs",
     "spike:cml-lite": "node scripts/cml-lite-density-grid-spike.mjs",
     "report:3d-looks": "npm run build && node scripts/report-3d-looks.mjs",
+    "report:06-reference-match": "node scripts/report-06-reference-match.mjs",
     "tune:demo": "npm run build:core && node scripts/tune-demo-params.mjs",
     "format": "prettier --write .",
     "check": "tsc --noEmit",
@@ -25,6 +27,9 @@
     "test:links": "node scripts/smoke-project-links.mjs",
     "test:06": "node scripts/smoke-06-html.mjs && node scripts/smoke-06-visual-freeze.mjs",
     "test:06-smoke": "node scripts/smoke-06-html.mjs",
+    "test:06-mobile": "npm run test:06-mobile-console && npm run test:06-mobile-layout",
+    "test:06-mobile-console": "node scripts/smoke-06-mobile-console.mjs",
+    "test:06-mobile-layout": "node scripts/smoke-06-mobile-layout.mjs",
     "test:06-visual-freeze": "node scripts/smoke-06-visual-freeze.mjs",
     "test:hdr": "npm run build:core && node scripts/smoke-hdr-calibration.mjs",
     "test:smoke": "npm run build:core && node scripts/smoke-render.mjs",
@@ -45,7 +50,7 @@
     "@types/three": "^0.184.1",
     "prettier": "^3.5.3",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^6.4.3"
   },
   "dependencies": {
     "three": "^0.184.0"

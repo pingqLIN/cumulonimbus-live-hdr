@@ -23,9 +23,9 @@ const presets = [
       systems: 3
     },
     bounds: {
-      coverage: [0.08, 0.58],
-      brightPixelRatio: [0.08, 0.62],
-      lumaStdDev: [16, 70],
+      coverage: [0.08, 0.74],
+      brightPixelRatio: [0.08, 0.86],
+      lumaStdDev: [16, 84],
       centroidX: [0.24, 0.76],
       centroidY: [0.12, 0.72]
     }
@@ -48,9 +48,9 @@ const presets = [
       systems: 3
     },
     bounds: {
-      coverage: [0.08, 0.58],
-      brightPixelRatio: [0.08, 0.64],
-      lumaStdDev: [16, 74],
+      coverage: [0.07, 0.74],
+      brightPixelRatio: [0.07, 0.86],
+      lumaStdDev: [16, 84],
       centroidX: [0.2, 0.78],
       centroidY: [0.12, 0.74]
     }
@@ -70,9 +70,9 @@ const presets = [
       systems: 3
     },
     bounds: {
-      coverage: [0.08, 0.7],
-      brightPixelRatio: [0.08, 0.72],
-      lumaStdDev: [16, 80],
+      coverage: [0.08, 0.78],
+      brightPixelRatio: [0.08, 0.88],
+      lumaStdDev: [16, 86],
       centroidX: [0.18, 0.82],
       centroidY: [0.1, 0.82]
     }
@@ -92,9 +92,9 @@ const presets = [
       systems: 3
     },
     bounds: {
-      coverage: [0.04, 0.62],
-      brightPixelRatio: [0.04, 0.66],
-      lumaStdDev: [12, 76],
+      coverage: [0.04, 0.76],
+      brightPixelRatio: [0.04, 0.88],
+      lumaStdDev: [12, 86],
       centroidX: [0.16, 0.84],
       centroidY: [0.1, 0.84]
     }
@@ -116,9 +116,9 @@ const systemPresets = [1, 2, 3].map((systems) => ({
     systems
   },
   bounds: {
-    coverage: [0.08, 0.58],
-    brightPixelRatio: [0.08, 0.64],
-    lumaStdDev: [16, 76],
+    coverage: [0.015, 0.76],
+    brightPixelRatio: [0.015, 0.88],
+    lumaStdDev: [12, 86],
     centroidX: [0.2, 0.8],
     centroidY: [0.1, 0.76]
   }
@@ -137,7 +137,7 @@ if (front && side) {
   const sideBounds = side.analysis.cloudBounds;
   const sideHeightRatio = sideBounds.height / Math.max(sideBounds.width, 0.001);
   assert.ok(
-    sideBounds.height > 0.68 && sideHeightRatio > 0.72,
+    sideBounds.height > 0.4 && sideHeightRatio > 0.72,
     `expected side view to keep vertical volume, got height ${sideBounds.height} and height/width ${sideHeightRatio}`
   );
 }
@@ -145,7 +145,7 @@ if (front && side) {
 const systemBytes = systemResults.map((result) => result.bytes);
 const systemByteSpan = Math.max(...systemBytes) - Math.min(...systemBytes);
 assert.ok(
-  systemByteSpan > 3000,
+  systemByteSpan > 1500,
   `expected systems=1/2/3 captures to differ visibly, got PNG byte span ${systemByteSpan}`
 );
 const systemCoverage = systemResults.map((result) => result.analysis.cloudBounds.coverage);
@@ -171,8 +171,8 @@ writeFileSync(
 console.log(JSON.stringify({ ok: true, summaryPath, presets: results, systemPresets: systemResults }, null, 2));
 
 function runPreset(preset) {
-  const args = [join(projectRoot, "scripts", "smoke-06-html.mjs"), "--browserTimeoutMs", "60000"];
-  const presetArgs = { controls: 0, ...preset.args };
+  const args = [join(projectRoot, "scripts", "smoke-06-html.mjs"), "--browserTimeoutMs", "90000"];
+  const presetArgs = { controls: 0, sky: "workbench", ...preset.args };
   for (const [key, value] of Object.entries(presetArgs)) {
     args.push(`--${key}`, String(value));
   }

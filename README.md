@@ -1,6 +1,8 @@
+![Cumulonimbus Live HDR banner](assets/caief-banner.jpg)
+
 # Cumulonimbus Live HDR
 
-積雨雲視覺模型原型。現階段主線維護目標是 standalone 的 `06.html` 模型：以 Three.js shader/raymarch 做出具物理模擬外觀的雲體觀察狀態，但不宣稱是真實物理還原。
+積雨雲視覺模型原型。現階段主線維護目標是 standalone 的 `cumulonimbus-live-hdr-mainline.html` 模型：以 Three.js shader/raymarch 做出具物理模擬外觀的雲體觀察狀態，但不宣稱是真實物理還原。
 
 ## Bootstrap Decisions
 
@@ -35,13 +37,29 @@ Both render commands generate 16-bit PPM frames and encode them with FFmpeg as 1
 
 `live:url` prints the canonical local `live=1` Browser Source URL plus suggested OBS Browser Source dimensions.
 
-`06.html` 是目前主線模型入口，可直接開啟：
+`cumulonimbus-live-hdr-mainline.html` 是目前主線模型入口，可直接開啟：
 
 ```text
-file:///Q:/Projects/cumulonimbus-live-hdr/06.html
+file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-mainline.html
 ```
 
-`test:06` 會以 headless browser 開啟同一個 file URL，確認 06 主線畫面能渲染出非空雲體。
+無背景合成版本可直接開啟：
+
+```text
+file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-transparent.html
+```
+
+It redirects to the same mainline renderer with `background=0`, `sky=transparent`, `controls=0`, `hud=0`, and `grid=0`, so the cloud output can be composited over another page, OBS scene, or video layer.
+
+全螢幕背景版本可直接開啟：
+
+```text
+file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-fullscreen.html
+```
+
+It starts from the mainline renderer with `background=1`, `sky=transparent`, `controls=0`, `hud=1`, `grid=0`, `autoQuality=1`, `quality=0.72`, `timeSpeed=1`, `viewport=background`, and `ui=tracing-paper`. The `viewport=background` mode removes the original render frame and expands the cloud/sky canvas to the full browser viewport.
+
+`test:06` 會以 headless browser 開啟同一個 file URL，確認主線畫面能渲染出非空雲體，也會檢查手機 tracing-paper 控制台的貼底幾何、44px 觸控目標與手機 wide-view 預設。
 
 `capture:field-still` launches a local browser-backed CPU field preview capture and writes `outputs/cumulonimbus-field-still.png` unless `--out` is provided.
 
@@ -75,6 +93,13 @@ file:///Q:/Projects/cumulonimbus-live-hdr/06.html
 
 The first source-backed research pass is in [docs/research-notes.md](docs/research-notes.md). It covers atmospheric science, procedural volumetric cloud rendering, HDR standards, and science-art precedents.
 
+## Procedural image generation
+
+The project procedural generation and output pipeline is documented in:
+
+- [Project image generation pipeline](docs/image-generation-pipeline.md) (English)
+- [專案影像程式化生成與流水線](docs/image-generation-pipeline.zh-tw.md) (中文)
+
 ## Project Assets
 
 Reference and prototype files copied into this repository:
@@ -92,15 +117,15 @@ Reference and prototype files copied into this repository:
 
 ## Current State
 
-目前主線是 [06.html](06.html)。它是單檔 Three.js shader/raymarch 模型，具備 seed、time、quality、tropopause、freezing level、wind shear、sun、ambient、grid、orthographic/perspective 與 HUD 控制；可用 `file:///Q:/Projects/cumulonimbus-live-hdr/06.html` 直接觀察。
+目前主線是 [`cumulonimbus-live-hdr-mainline.html`](cumulonimbus-live-hdr-mainline.html)。它是單檔 Three.js shader/raymarch 模型，具備 seed、time、quality、tropopause、freezing level、wind shear、sun、ambient、grid、orthographic/perspective 與 HUD 控制；可用 `file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-mainline.html` 直接觀察。
 
-定位：`06.html` 不是科學驗證過的物理模擬，而是視覺/可觀察狀態的 volumetric approximation。目標是讓雲體在多角度觀察時維持同一個主線模型的結構一致性，而不是每個角度重新生成不同雲圖。
+定位：`cumulonimbus-live-hdr-mainline.html` 不是科學驗證過的物理模擬，而是視覺/可觀察狀態的 volumetric approximation。目標是讓雲體在多角度觀察時維持同一個主線模型的結構一致性，而不是每個角度重新生成不同雲圖。
 
 `src/` 內的 Vite/TypeScript preview、`view=3d` bubble model 與離線 render scripts 仍保留為歷史原型與工具鏈，但現階段不再視為主線模型核心。
 
 ## Next Steps
 
-1. 先以 `06.html` 作為單一 source of truth，調整雲塔、砧狀雲、tropopause scale、光照與觀察角度。
+1. 先以 `cumulonimbus-live-hdr-mainline.html` 作為單一 source of truth，調整雲塔、砧狀雲、tropopause scale、光照與觀察角度。
 2. 若要工程化，再把 06 的 shader/raymarch 結構拆回可測的 TypeScript/Vite 模組。
 3. 後續再接 OBS/NDI/Spout、streaming 或 HDR capture/export path。
 
@@ -194,6 +219,7 @@ npm run spike:raymarch -- --width 180 --height 320 --steps 56
 - `captureFrames=<正整數>`：只給 browser-backed smoke/capture 使用；渲染到指定幀數後暫停，避免 headless screenshot 等待無止境動畫。
 - `freezingLevel=<3..6>` 或 `freezing=<3..6>`：調整水滴到冰晶纖維質感的高度過渡，單位 km。
 - `windShear=<0..1>` 或 `shear=<0..1>`：調整砧狀雲迎風/下風不對稱外流強度。
+- `ambient=<0.2..1.2>` 或 `amb=<0.2..1.2>`：調整主線 shader 的環境光強度，可用於固定 photographic capture preset 的亮度基準。
 - `--source ui`：給 `capture:3d-still`/smoke 腳本使用；不加 `live=1` 或 `capture=1`，保留完整控制面板以檢查 UI。
 - `preset=billow` 或 `cloudPreset=billow`：使用 demo-like 積雨雲起手樣態；目前會自動走 CPU preview，避免 WebGPU preview 與 CPU 模型不同步。
 - `view=3d` 或 `model=3d-billow`：使用 Three.js InstancedMesh 3D bubble model，保留相同參數控制語意。

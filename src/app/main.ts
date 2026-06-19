@@ -102,28 +102,51 @@ function resolveOptions(params: URLSearchParams): RaymarchCloudOptions {
     windShear: readNumber(
       params,
       ["windShear", "shear"],
-      randomAtmosphere.windShear ?? preset.windShear ?? 0.7,
+      randomAtmosphere.windShear ?? preset.windShear ?? 0.82,
       0,
       1
     ),
+    fbmOctaves: readNumber(
+      params,
+      ["fbmOctaves", "octaves", "cloudOctaves"],
+      preset.fbmOctaves ?? 5,
+      4,
+      6
+    ),
+    cloudCurl: readNumber(
+      params,
+      ["cloudCurl", "curl", "curliness"],
+      preset.cloudCurl ?? 0.8,
+      0,
+      1.2
+    ),
+    horizonStrength: readNumber(
+      params,
+      ["horizon", "horizonStrength", "horizonFog"],
+      preset.horizonStrength ?? 1,
+      0,
+      1
+    ),
+    stepSize: readNumber(params, ["stepSize", "rayStep"], preset.stepSize ?? 0.2, 0.08, 0.6),
+    maxSteps: readNumber(params, ["maxSteps", "steps"], preset.maxSteps ?? 126, 24, 144),
     sunIntensity: readNumber(
       params,
       ["sun", "sunIntensity"],
-      randomAtmosphere.sunIntensity ?? preset.sunIntensity ?? 4.6,
+      randomAtmosphere.sunIntensity ?? preset.sunIntensity ?? 5.2,
       0,
       10
     ),
     ambientIntensity: readNumber(
       params,
       ["ambient", "amb", "ambientIntensity"],
-      randomAtmosphere.ambientIntensity ?? preset.ambientIntensity ?? 0.75,
+      randomAtmosphere.ambientIntensity ?? preset.ambientIntensity ?? 0.58,
       0,
       2
     ),
     sunElevation: readNumber(
       params,
       ["sunElevation", "sunElev", "elevation"],
-      randomAtmosphere.sunElevation ?? preset.sunElevation ?? 35,
+      randomAtmosphere.sunElevation ?? preset.sunElevation ?? 18,
       -20,
       90
     ),
@@ -137,7 +160,7 @@ function resolveOptions(params: URLSearchParams): RaymarchCloudOptions {
     photographicStyle: readBoolean(
       params,
       ["photographic", "photo"],
-      randomAtmosphere.photographicStyle ?? preset.photographicStyle ?? false
+      randomAtmosphere.photographicStyle ?? preset.photographicStyle ?? true
     ),
     lightPreset:
       resolveLightPreset(params.get("light") ?? params.get("lighting")) ??
@@ -146,7 +169,8 @@ function resolveOptions(params: URLSearchParams): RaymarchCloudOptions {
     skyMode:
       resolveSkyMode(params.get("sky") ?? params.get("background") ?? params.get("bg")) ??
       randomAtmosphere.skyMode ??
-      preset.skyMode,
+      preset.skyMode ??
+      "atmosphere",
     transparentBackground: readTransparentBackground(params),
     hdr10: readBoolean(params, ["hdr10", "hdr", "hdrMode"], preset.hdr10 ?? false),
     ortho: readBoolean(params, ["ortho"], false),
@@ -242,9 +266,86 @@ function mix(left: number, right: number, amount: number): number {
 
 function resolvePreset(name: string | null): RaymarchCloudOptions {
   switch (name?.toLowerCase()) {
+    case "mobile":
+    case "mobile-horizon":
+    case "portrait-horizon":
+      return {
+        seed: 574,
+        time: 2.2,
+        systems: 5,
+        tropopause: 13.2,
+        freezingLevel: 4.4,
+        windShear: 0.92,
+        fbmOctaves: 5,
+        cloudCurl: 1,
+        horizonStrength: 1,
+        stepSize: 0.22,
+        maxSteps: 108,
+        sunIntensity: 4.9,
+        ambientIntensity: 0.52,
+        sunElevation: 8,
+        sunViewerAngle: -32,
+        skyMode: "atmosphere",
+        lightPreset: "golden-side",
+        photographicStyle: true,
+        cameraPitchDegrees: 4,
+        cameraDistance: 30
+      };
+    case "sunrise-horizon":
+      return {
+        seed: 574,
+        time: 2.2,
+        systems: 5,
+        tropopause: 13.2,
+        freezingLevel: 4.4,
+        windShear: 0.92,
+        fbmOctaves: 5,
+        cloudCurl: 1,
+        horizonStrength: 1,
+        sunIntensity: 4.7,
+        ambientIntensity: 0.5,
+        sunElevation: 5,
+        sunViewerAngle: -35,
+        skyMode: "atmosphere",
+        lightPreset: "golden-side",
+        photographicStyle: true,
+        cameraPitchDegrees: 4,
+        cameraDistance: 30
+      };
+    case "noon-blue":
+      return {
+        seed: 574,
+        time: 2.2,
+        systems: 3,
+        tropopause: 13.5,
+        freezingLevel: 4.4,
+        windShear: 0.82,
+        fbmOctaves: 5,
+        cloudCurl: 0.72,
+        horizonStrength: 0.72,
+        sunIntensity: 7.8,
+        ambientIntensity: 0.72,
+        sunElevation: 70,
+        sunViewerAngle: 18,
+        skyMode: "atmosphere",
+        lightPreset: "daylight",
+        photographicStyle: true
+      };
     case "model-landscape":
     case "model-portrait":
-      return { seed: 574, time: 2.2, systems: 3, tropopause: 12, freezingLevel: 5, windShear: 0.7 };
+      return {
+        seed: 574,
+        time: 2.2,
+        systems: 3,
+        tropopause: 12,
+        freezingLevel: 5,
+        windShear: 0.82,
+        fbmOctaves: 5,
+        cloudCurl: 0.78,
+        horizonStrength: 0.82,
+        skyMode: "atmosphere",
+        photographicStyle: true
+      };
     case "high-sun-daylight":
       return {
         seed: 574,

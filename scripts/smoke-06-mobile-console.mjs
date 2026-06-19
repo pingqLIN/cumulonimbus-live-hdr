@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
+import { get } from "node:http";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { resolveBrowser, stopProcessTree } from "./lib/headless-browser-runner.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -12,39 +14,74 @@ const width = readIntegerArg(args, "width", 390);
 const height = readIntegerArg(args, "height", 844);
 const waitMs = readIntegerArg(args, "waitMs", 2200);
 const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(60000, waitMs + 25000));
-const remoteDebuggingPort = readIntegerArg(args, "port", 9300 + Math.floor(Math.random() * 400));
+const appPort = readIntegerArg(args, "appPort", 0) || await getFreePort();
+const remoteDebuggingPort = readIntegerArg(args, "port", 0) || await getFreePort();
 const browserProfileDir = mkdtempSync(join(tmpdir(), "cumulonimbus-mobile-console-"));
-const url = pathToFileURL(join(projectRoot, "cumulonimbus-live-hdr-mainline.html"));
+const origin = `http://127.0.0.1:${appPort}`;
+const url = new URL("/", origin);
+
+url.searchParams.set("live", "1");
+url.searchParams.set("orientation", "portrait");
+url.searchParams.set("simWidth", String(width));
+url.searchParams.set("simHeight", String(height));
+url.searchParams.set("captureFrames", args.captureFrames ?? "1");
+url.searchParams.set("preset", args.preset ?? "mobile-horizon");
 url.searchParams.set("seed", args.seed ?? "574");
 url.searchParams.set("time", args.time ?? "2.2");
-url.searchParams.set("timeSpeed", args.timeSpeed ?? "0");
-url.searchParams.set("quality", args.quality ?? "0.72");
-url.searchParams.set("grid", args.grid ?? "0");
-url.searchParams.set("ortho", args.ortho ?? "0");
+url.searchParams.set("maxPixels", args.maxPixels ?? String(width * height));
 
+for (const key of [
+  "systems",
+  "windShear",
+  "sunElevation",
+  "sunViewerAngle",
+  "sunAngle",
+  "fbmOctaves",
+  "octaves",
+  "cloudCurl",
+  "curl",
+  "horizon",
+  "horizonStrength",
+  "stepSize",
+  "maxSteps",
+  "sky",
+  "light"
+]) {
+  if (args[key] !== undefined && args[key] !== "") {
+    url.searchParams.set(key, String(args[key]));
+  }
+}
+
+const server = startVite(appPort);
 let browserProcess = null;
-let webSocket = null;
+let client = null;
 let cleanupWarning = null;
+let serverExit = null;
+server.once("exit", (code, signal) => {
+  serverExit = { code, signal };
+});
 
 try {
+  await waitForServer(origin, 20000, () => serverExit);
   const browser = resolveBrowser(args.browser);
   browserProcess = spawn(
     browser,
     [
       "--headless=new",
       "--disable-gpu",
+      "--use-angle=swiftshader",
+      "--enable-unsafe-swiftshader",
       "--no-sandbox",
       "--no-first-run",
       "--noerrdialogs",
       "--disable-background-networking",
       "--disable-component-update",
       "--disable-default-apps",
-      "--allow-file-access-from-files",
       "--run-all-compositor-stages-before-draw",
       `--user-data-dir=${browserProfileDir}`,
       `--remote-debugging-port=${remoteDebuggingPort}`,
       `--window-size=${width},${height}`,
-      url.toString()
+      "about:blank"
     ],
     { cwd: projectRoot, stdio: ["ignore", "pipe", "pipe"], windowsHide: true }
   );
@@ -53,37 +90,63 @@ try {
   const targets = await readJsonEndpoint(`http://127.0.0.1:${remoteDebuggingPort}/json/list`, browserTimeoutMs);
   const pageTarget = targets.find((target) => target.type === "page");
   if (!pageTarget?.webSocketDebuggerUrl) {
-    throw new Error("No mobile console page target was exposed by the browser.");
+    throw new Error("No mobile canvas page target was exposed by the browser.");
   }
 
-  webSocket = await openWebSocket(pageTarget.webSocketDebuggerUrl);
-  const send = createCdpSender(webSocket);
-  await send("Runtime.enable");
-  await waitForRuntimeCondition(send, waitMs, browserTimeoutMs);
-  const geometry = await evaluateGeometry(send);
+  client = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+  const runtimeErrors = [];
+  client.on("Runtime.exceptionThrown", (params) => {
+    runtimeErrors.push(params.exceptionDetails?.text || params.exceptionDetails?.exception?.description || "runtime exception");
+  });
+  client.on("Log.entryAdded", (params) => {
+    if (params.entry?.level === "error") {
+      runtimeErrors.push(params.entry.text || "log error");
+    }
+  });
+  client.on("Runtime.consoleAPICalled", (params) => {
+    if (params.type === "error") {
+      runtimeErrors.push(
+        params.args
+          ?.map((arg) => arg.value || arg.description || "")
+          .filter(Boolean)
+          .join(" ") || "console error"
+      );
+    }
+  });
 
-  assert.ok(
-    geometry.viewport.width <= 760,
-    `expected mobile media-query width, got ${geometry.viewport.width}`
-  );
-  assert.ok(geometry.ui.fitsViewport, `mobile console exceeded viewport: ${JSON.stringify(geometry.ui.rect)}`);
-  assert.equal(geometry.bodyOverflow.x, 0, `expected no document horizontal overflow, got ${geometry.bodyOverflow.x}`);
-  assert.equal(geometry.bodyOverflow.y, 0, `expected no document vertical overflow, got ${geometry.bodyOverflow.y}`);
-  assert.ok(geometry.scroll.x, "expected mobile console modules to be horizontally scrollable");
-  assert.equal(geometry.scroll.y, false, "expected the console shell itself not to vertically scroll");
-  assert.ok(geometry.minControlHeight >= 44, `expected >=44px touch targets, got ${geometry.minControlHeight}`);
-  assert.ok(
-    geometry.consoleLabel.includes("MOBILE CONTROL"),
-    `expected tracing-paper mobile label, got ${geometry.consoleLabel}`
-  );
-  assert.ok(
-    geometry.mobileWideView.resetCameraDistance >= 68,
-    `expected mobile camera distance >=68, got ${geometry.mobileWideView.resetCameraDistance}`
-  );
-  assert.ok(
-    geometry.mobileWideView.orthoFrustumSize >= 28,
-    `expected widened mobile ortho frame, got ${geometry.mobileWideView.orthoFrustumSize}`
-  );
+  await client.send("Page.enable");
+  await client.send("Runtime.enable");
+  await client.send("Log.enable");
+  await client.send("Emulation.setDeviceMetricsOverride", {
+    width,
+    height,
+    deviceScaleFactor: 1,
+    mobile: true
+  });
+  await client.send("Page.navigate", { url: url.toString() });
+  await waitForRuntimeCondition(client, browserTimeoutMs, width, height);
+  await delay(waitMs);
+
+  const metricsResult = await client.send("Runtime.evaluate", {
+    expression: `(${collectMobileCanvasMetrics.toString()})()`,
+    returnByValue: true
+  });
+  const metrics = metricsResult.result?.value;
+
+  assert.notEqual(metrics?.readyState, "loading");
+  assert.equal(metrics.title, "Cumulonimbus Live HDR");
+  assert.equal(metrics.renderMode, "canvas");
+  assert.equal(metrics.orientation, "portrait");
+  assert.equal(metrics.viewport.width, width);
+  assert.equal(metrics.viewport.height, height);
+  assert.equal(metrics.webglAvailable, true);
+  assert.equal(metrics.canvasPixels.width, width);
+  assert.equal(metrics.canvasPixels.height, height);
+  assert.ok(metrics.canvasRect.width >= width - 2, `expected full-width canvas, got ${metrics.canvasRect.width}`);
+  assert.ok(metrics.canvasRect.height >= height - 2, `expected full-height canvas, got ${metrics.canvasRect.height}`);
+  assert.ok(metrics.bodyOverflow.x <= 1, `expected no document horizontal overflow, got ${metrics.bodyOverflow.x}`);
+  assert.ok(metrics.bodyOverflow.y <= 1, `expected no document vertical overflow, got ${metrics.bodyOverflow.y}`);
+  assert.deepEqual(runtimeErrors, []);
 
   console.log(
     JSON.stringify(
@@ -91,9 +154,8 @@ try {
         ok: true,
         url: url.toString(),
         browserProtocol: version.Protocol_Version,
-        processCleanup: null,
-        cleanupWarning,
-        geometry
+        runtimeErrors,
+        metrics
       },
       null,
       2
@@ -101,11 +163,12 @@ try {
   );
 } finally {
   try {
-    webSocket?.close();
+    await client?.close();
   } catch {
     // Ignore close races while tearing down the temporary browser.
   }
-  const processCleanup = browserProcess ? stopProcessTree(browserProcess) : null;
+  const browserCleanup = browserProcess ? stopProcessTree(browserProcess) : null;
+  const serverCleanup = stopProcessTree(server);
   await delay(600);
   try {
     rmSync(browserProfileDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 });
@@ -115,9 +178,40 @@ try {
   if (cleanupWarning) {
     console.warn(`Temporary browser profile cleanup warning: ${cleanupWarning}`);
   }
-  if (processCleanup && !processCleanup.stopped) {
-    console.warn(`Temporary browser process cleanup warning: ${JSON.stringify(processCleanup)}`);
+  if (browserCleanup && !browserCleanup.stopped) {
+    console.warn(`Temporary browser process cleanup warning: ${JSON.stringify(browserCleanup)}`);
   }
+  if (!serverCleanup.stopped) {
+    console.warn(`Temporary Vite process cleanup warning: ${JSON.stringify(serverCleanup)}`);
+  }
+}
+
+function collectMobileCanvasMetrics() {
+  const canvas = document.querySelector("#cloud-canvas");
+  const rect = canvas.getBoundingClientRect();
+  const gl = canvas.getContext("webgl2") || canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+  const rectData = (box) => ({
+    left: Math.round(box.left),
+    top: Math.round(box.top),
+    right: Math.round(box.right),
+    bottom: Math.round(box.bottom),
+    width: Math.round(box.width),
+    height: Math.round(box.height)
+  });
+  return {
+    readyState: document.readyState,
+    title: document.title,
+    renderMode: document.documentElement.dataset.renderMode || "",
+    orientation: document.documentElement.dataset.orientation || "",
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    canvasRect: rectData(rect),
+    canvasPixels: { width: canvas.width, height: canvas.height },
+    webglAvailable: Boolean(gl),
+    bodyOverflow: {
+      x: Math.max(0, document.documentElement.scrollWidth - window.innerWidth),
+      y: Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+    }
+  };
 }
 
 function parseArgs(rawArgs) {
@@ -139,6 +233,52 @@ function readIntegerArg(parsed, name, fallback) {
   return Math.round(value);
 }
 
+function startVite(targetPort) {
+  const viteBin = join(projectRoot, "node_modules", "vite", "bin", "vite.js");
+  return spawn(process.execPath, [viteBin, "--host", "127.0.0.1", "--port", String(targetPort), "--strictPort"], {
+    cwd: projectRoot,
+    stdio: "ignore",
+    windowsHide: true
+  });
+}
+
+function waitForServer(serverOrigin, timeoutMs, readServerExit) {
+  const startedAt = performance.now();
+  return new Promise((resolveServer, rejectServer) => {
+    const tick = () => {
+      const exit = readServerExit();
+      if (exit) {
+        rejectServer(new Error(`Vite exited before mobile server became ready: ${JSON.stringify(exit)}`));
+        return;
+      }
+
+      const request = get(serverOrigin, (response) => {
+        response.resume();
+        if (response.statusCode && response.statusCode < 500) {
+          resolveServer();
+          return;
+        }
+        retry();
+      });
+      request.setTimeout(1000, () => {
+        request.destroy();
+        retry();
+      });
+      request.on("error", retry);
+    };
+
+    const retry = () => {
+      if (performance.now() - startedAt > timeoutMs) {
+        rejectServer(new Error(`Timed out waiting for Vite at ${serverOrigin}`));
+        return;
+      }
+      setTimeout(tick, 250);
+    };
+
+    tick();
+  });
+}
+
 async function readJsonEndpoint(endpoint, timeoutMs) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
@@ -153,109 +293,128 @@ async function readJsonEndpoint(endpoint, timeoutMs) {
   throw new Error(`Timed out waiting for ${endpoint}`);
 }
 
-async function openWebSocket(url) {
-  const socket = new WebSocket(url);
-  await new Promise((resolveOpen, rejectOpen) => {
-    socket.addEventListener("open", resolveOpen, { once: true });
-    socket.addEventListener("error", rejectOpen, { once: true });
-  });
-  return socket;
-}
-
-function createCdpSender(socket) {
-  let id = 0;
-  return (method, params = {}) =>
-    new Promise((resolveSend, rejectSend) => {
-      const messageId = ++id;
-      const onMessage = (event) => {
-        const message = JSON.parse(event.data);
-        if (message.id !== messageId) return;
-        socket.removeEventListener("message", onMessage);
-        if (message.error) {
-          rejectSend(new Error(JSON.stringify(message.error)));
-        } else {
-          resolveSend(message.result);
-        }
-      };
-      socket.addEventListener("message", onMessage);
-      socket.send(JSON.stringify({ id: messageId, method, params }));
-    });
-}
-
-async function waitForRuntimeCondition(send, waitMs, timeoutMs) {
+async function waitForRuntimeCondition(client, timeoutMs, width, height) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const result = await send("Runtime.evaluate", {
-      returnByValue: true,
-      expression: `(() => {
-        const canvas = document.querySelector('#render-container canvas');
-        return document.readyState !== 'loading'
-          && typeof resetCameraDistance === 'function'
-          && typeof defaultOrthoFrustumSize === 'function'
-          && canvas
-          && canvas.width > 0
-          && canvas.height > 0;
-      })()`
-    });
-    if (result.result.value) {
-      await delay(waitMs);
-      return;
+    try {
+      const result = await client.send("Runtime.evaluate", {
+        returnByValue: true,
+        expression: `(() => {
+          const canvas = document.querySelector('#cloud-canvas');
+          return document.readyState !== 'loading'
+            && document.documentElement.dataset.renderMode === 'canvas'
+            && Boolean(canvas)
+            && canvas.width === ${JSON.stringify(width)}
+            && canvas.height === ${JSON.stringify(height)};
+        })()`
+      });
+      if (result.result?.value) {
+        return;
+      }
+    } catch {
+      // Keep polling while Vite serves and the module graph evaluates.
     }
     await delay(250);
   }
-  throw new Error("Timed out waiting for mobile console runtime readiness.");
+  throw new Error("Timed out waiting for mobile canvas runtime readiness.");
 }
 
-async function evaluateGeometry(send) {
-  const result = await send("Runtime.evaluate", {
-    returnByValue: true,
-    expression: `(() => {
-      const rect = (element) => {
-        const r = element.getBoundingClientRect();
-        return {
-          left: r.left,
-          top: r.top,
-          right: r.right,
-          bottom: r.bottom,
-          width: r.width,
-          height: r.height
-        };
-      };
-      const ui = document.querySelector('#ui-bar');
-      const render = document.querySelector('#render-container');
-      const controls = [...document.querySelectorAll('#ui-bar button, #ui-bar input')];
-      const uiRect = rect(ui);
-      return {
-        viewport: { width: innerWidth, height: innerHeight },
-        ui: {
-          rect: uiRect,
-          fitsViewport: uiRect.left >= 0 && uiRect.right <= innerWidth && uiRect.bottom <= innerHeight && uiRect.top >= 0
-        },
-        render: rect(render),
-        scroll: {
-          x: ui.scrollWidth > ui.clientWidth,
-          y: ui.scrollHeight > ui.clientHeight,
-          scrollWidth: ui.scrollWidth,
-          clientWidth: ui.clientWidth,
-          scrollHeight: ui.scrollHeight,
-          clientHeight: ui.clientHeight
-        },
-        minControlHeight: Math.min(...controls.map((element) => element.getBoundingClientRect().height)),
-        bodyOverflow: {
-          x: document.documentElement.scrollWidth - innerWidth,
-          y: document.documentElement.scrollHeight - innerHeight
-        },
-        consoleLabel: getComputedStyle(ui, '::before').content,
-        mobileWideView: {
-          resetCameraDistance: resetCameraDistance(),
-          orthoFrustumSize: defaultOrthoFrustumSize()
+function createCdpClient(webSocketUrl) {
+  return new Promise((resolveClient, rejectClient) => {
+    const socket = new WebSocket(webSocketUrl);
+    let nextId = 1;
+    const pending = new Map();
+    const eventWaiters = new Map();
+    const eventHandlers = new Map();
+
+    const client = {
+      send(method, params = {}) {
+        const id = nextId++;
+        socket.send(JSON.stringify({ id, method, params }));
+        return new Promise((resolveSend, rejectSend) => {
+          pending.set(id, { resolve: resolveSend, reject: rejectSend });
+        });
+      },
+      waitForEvent(method, timeoutMs) {
+        return new Promise((resolveEvent, rejectEvent) => {
+          const timer = setTimeout(() => {
+            rejectEvent(new Error(`Timed out waiting for CDP event ${method}`));
+          }, timeoutMs);
+          const waiters = eventWaiters.get(method) ?? [];
+          waiters.push((params) => {
+            clearTimeout(timer);
+            resolveEvent(params);
+          });
+          eventWaiters.set(method, waiters);
+        });
+      },
+      on(method, handler) {
+        const handlers = eventHandlers.get(method) ?? [];
+        handlers.push(handler);
+        eventHandlers.set(method, handlers);
+      },
+      close() {
+        try {
+          socket.close();
+        } catch {
+          // Ignore close races during browser teardown.
         }
-      };
-    })()`
+      }
+    };
+
+    socket.addEventListener("open", () => resolveClient(client), { once: true });
+    socket.addEventListener("error", () => rejectClient(new Error(`Unable to connect to ${webSocketUrl}`)), {
+      once: true
+    });
+    socket.addEventListener("message", (event) => {
+      const message = JSON.parse(event.data);
+      if (message.id && pending.has(message.id)) {
+        const entry = pending.get(message.id);
+        pending.delete(message.id);
+        if (message.error) {
+          entry.reject(new Error(`${message.error.message}: ${message.error.data || ""}`.trim()));
+        } else {
+          entry.resolve(message.result ?? {});
+        }
+        return;
+      }
+      if (message.method && eventWaiters.has(message.method)) {
+        const waiters = eventWaiters.get(message.method);
+        eventWaiters.delete(message.method);
+        for (const waiter of waiters) {
+          waiter(message.params ?? {});
+        }
+      }
+      if (message.method && eventHandlers.has(message.method)) {
+        for (const handler of eventHandlers.get(message.method)) {
+          handler(message.params ?? {});
+        }
+      }
+    });
+    socket.addEventListener(
+      "close",
+      () => {
+        for (const { reject } of pending.values()) {
+          reject(new Error("CDP WebSocket closed"));
+        }
+        pending.clear();
+      },
+      { once: true }
+    );
   });
-  return result.result.value;
 }
 
 function delay(ms) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+
+function getFreePort() {
+  return new Promise((resolvePort, rejectPort) => {
+    const probe = createServer();
+    probe.once("error", rejectPort);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      probe.close(() => resolvePort(address.port));
+    });
+  });
 }

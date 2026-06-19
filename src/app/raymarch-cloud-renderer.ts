@@ -9,6 +9,11 @@ export type RaymarchCloudOptions = {
   tropopause?: number;
   freezingLevel?: number;
   windShear?: number;
+  fbmOctaves?: number;
+  cloudCurl?: number;
+  horizonStrength?: number;
+  stepSize?: number;
+  maxSteps?: number;
   sunIntensity?: number;
   ambientIntensity?: number;
   sunElevation?: number;
@@ -46,6 +51,7 @@ export class RaymarchCloudRenderer {
   private readonly resolution = new THREE.Vector2();
   private width = 0;
   private height = 0;
+  private readonly mobileWideView: boolean;
   private tropopause: number;
   private orthoFrustumSize: number;
 
@@ -53,6 +59,7 @@ export class RaymarchCloudRenderer {
     private readonly canvas: HTMLCanvasElement,
     private readonly options: RaymarchCloudOptions = {}
   ) {
+    this.mobileWideView = isMobileWideView();
     this.tropopause = clampFinite(options.tropopause, 12, 4, 20);
     this.orthoFrustumSize = this.defaultOrthoFrustumSize();
     this.updateCameraFromOptions();
@@ -82,21 +89,24 @@ export class RaymarchCloudRenderer {
         uSurfaceVisible: { value: 0 },
         uSurfaceMode: { value: 0 },
         uSeed: { value: Math.floor(clampFinite(options.seed, 574, 1, Number.MAX_SAFE_INTEGER)) },
+        uFbmOctaves: { value: clampFinite(options.fbmOctaves, 5, 4, 6) },
+        uCloudCurl: { value: clampFinite(options.cloudCurl, this.mobileWideView ? 0.86 : 0.78, 0, 1.2) },
         uSystemCount: { value: Math.round(clampFinite(options.systems, 3, 1, 10)) },
         uIsOrtho: { value: options.ortho ? 1 : 0 },
         uOrthoSize: { value: this.orthoFrustumSize },
         uOrthoVerticalScale: { value: ORTHO_VERTICAL_WORLD_SCALE },
-        uStepSize: { value: this.defaultStepSize() },
-        uMaxSteps: { value: this.defaultMaxSteps() },
+        uStepSize: { value: clampFinite(options.stepSize, this.defaultStepSize(), 0.08, 0.6) },
+        uMaxSteps: { value: clampFinite(options.maxSteps, this.defaultMaxSteps(), 24, 144) },
         uSunIntensity: { value: clampFinite(options.sunIntensity, 4.6, 0, 10) },
         uAmbientIntensity: { value: clampFinite(options.ambientIntensity, 0.75, 0, 2) },
         uSunElevation: { value: clampFinite(options.sunElevation, 35, -20, 90) },
         uSunViewerAngle: { value: clampFinite(options.sunViewerAngle, 25, -180, 180) },
         uFreezingLevel: { value: clampFinite(options.freezingLevel, 5, 0, 16) },
-        uWindShear: { value: clampFinite(options.windShear, 0.7, 0, 1) },
+        uWindShear: { value: clampFinite(options.windShear, this.mobileWideView ? 0.9 : 0.82, 0, 1) },
         uPhotographicStyle: { value: options.photographicStyle ? 1 : 0 },
         uLightPreset: { value: resolveLightPresetValue(options.lightPreset) },
         uSkyMode: { value: resolveSkyModeValue(options.skyMode, options.photographicStyle) },
+        uHorizonStrength: { value: clampFinite(options.horizonStrength, 1, 0, 1) },
         uTransparentBackground: { value: options.transparentBackground ? 1 : 0 },
         uHdr10Mode: { value: options.hdr10 ? 1 : 0 },
         uHdrReferencePeakNits: { value: HDR10_REFERENCE_PEAK_NITS }
@@ -156,7 +166,7 @@ export class RaymarchCloudRenderer {
 
   private defaultOrthoFrustumSize(): number {
     const baseSize = this.tropopause + FRAME_VERTICAL_PADDING_KM * 2;
-    const occupancy = isMobileWideView() ? MOBILE_MODEL_VIEW_OCCUPANCY : MODEL_VIEW_OCCUPANCY;
+    const occupancy = this.mobileWideView ? MOBILE_MODEL_VIEW_OCCUPANCY : MODEL_VIEW_OCCUPANCY;
     return Math.max(MIN_ORTHO_FRUSTUM_SIZE, baseSize / occupancy);
   }
 

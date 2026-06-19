@@ -12,6 +12,8 @@ export const raymarchCloudFragmentShader = String.raw`
             uniform float uSurfaceVisible;
             uniform float uSurfaceMode;
             uniform float uSeed;
+            uniform float uFbmOctaves;
+            uniform float uCloudCurl;
             uniform float uSystemCount;
             uniform float uIsOrtho;
             uniform float uOrthoSize;
@@ -27,35 +29,64 @@ export const raymarchCloudFragmentShader = String.raw`
             uniform float uPhotographicStyle;
             uniform float uLightPreset;
             uniform float uSkyMode;
+            uniform float uHorizonStrength;
             uniform float uTransparentBackground;
             uniform float uHdr10Mode;
             uniform float uHdrReferencePeakNits;
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
+            float hash31(vec3 p) {
+                p = fract(p * vec3(0.1031, 0.11369, 0.13787));
+                p += dot(p, p.yzx + 19.19);
+                return fract((p.x + p.y) * p.z);
+            }
+
+            float seedTrait(float salt) {
+                return hash(floor(abs(uSeed)) * 0.013 + salt);
+            }
+
             float noise(vec3 x) {
                 vec3 p = floor(x);
                 vec3 f = fract(x);
                 f = f * f * (3.0 - 2.0 * f);
-                float n = p.x + p.y * 57.0 + 113.0 * p.z + uSeed * 17.0;
+                vec3 s = vec3(uSeed * 0.013, uSeed * 0.017, uSeed * 0.019);
                 return mix(
-                    mix(mix(hash(n + 0.0), hash(n + 1.0), f.x), mix(hash(n + 57.0), hash(n + 58.0), f.x), f.y),
-                    mix(mix(hash(n + 113.0), hash(n + 114.0), f.x), mix(hash(n + 170.0), hash(n + 171.0), f.x), f.y),
+                    mix(
+                        mix(hash31(p + s + vec3(0.0, 0.0, 0.0)), hash31(p + s + vec3(1.0, 0.0, 0.0)), f.x),
+                        mix(hash31(p + s + vec3(0.0, 1.0, 0.0)), hash31(p + s + vec3(1.0, 1.0, 0.0)), f.x),
+                        f.y
+                    ),
+                    mix(
+                        mix(hash31(p + s + vec3(0.0, 0.0, 1.0)), hash31(p + s + vec3(1.0, 0.0, 1.0)), f.x),
+                        mix(hash31(p + s + vec3(0.0, 1.0, 1.0)), hash31(p + s + vec3(1.0, 1.0, 1.0)), f.x),
+                        f.y
+                    ),
                     f.z
                 );
             }
 
             float fbm(vec3 p) {
                 float f = 0.0;
-                float weight = 0.5;
-                for (int i = 0; i < 4; i++) {
-                    f += weight * (1.0 - abs(noise(p * 2.0 - 1.0)));
+                float weight = mix(0.43, 0.56, seedTrait(1.7));
+                float octaveLimit = clamp(floor(uFbmOctaves + 0.5), 4.0, 6.0);
+                float lacunarity = mix(1.56, 2.08, seedTrait(2.9));
+                float curl = mix(0.68, 1.32, clamp(uCloudCurl, 0.0, 1.2));
+                for (int i = 0; i < 6; i++) {
+                    if (float(i) >= octaveLimit) break;
+                    float fi = float(i);
+                    vec3 curlP = p + vec3(
+                        sin(p.z * 0.37 + fi * 1.7),
+                        cos(p.x * 0.29 - fi * 1.3),
+                        sin(p.y * 0.31 + fi * 0.9)
+                    ) * 0.045 * curl * fi;
+                    f += weight * (1.0 - abs(noise(curlP * 2.0 - 1.0)));
                     p = vec3(
-                        p.x * 1.74 + p.z * 0.31,
-                        p.y * 1.91 + p.x * 0.17,
-                        p.z * 1.63 - p.y * 0.23
+                        p.x * (lacunarity * 0.88) + p.z * (0.20 + 0.21 * curl),
+                        p.y * (lacunarity * 0.96) + p.x * (0.10 + 0.12 * curl),
+                        p.z * (lacunarity * 0.82) - p.y * (0.13 + 0.14 * curl)
                     );
-                    weight *= 0.5;
+                    weight *= mix(0.42, 0.57, seedTrait(4.1 + fi * 0.37));
                 }
                 return f;
             }
@@ -69,9 +100,11 @@ export const raymarchCloudFragmentShader = String.raw`
             }
 
             float domainWarp(vec3 p, float phase) {
-                vec3 a = detailDomain(p * 0.18 + vec3(phase, 3.1, 7.7));
-                vec3 b = detailDomain(p * 0.31 + vec3(9.4, phase * 0.7, 1.8));
-                return (fbm(a) - 0.5) * 0.9 + (noise(b) - 0.5) * 0.55;
+                float curl = mix(0.74, 1.36, clamp(uCloudCurl, 0.0, 1.2));
+                float shearWarp = mix(0.82, 1.58, clamp(uWindShear, 0.0, 1.0));
+                vec3 a = detailDomain(p * mix(0.15, 0.23, curl) + vec3(phase, 3.1, 7.7));
+                vec3 b = detailDomain(p * mix(0.27, 0.38, curl) + vec3(9.4, phase * 0.7, 1.8));
+                return ((fbm(a) - 0.5) * 0.9 + (noise(b) - 0.5) * 0.55) * shearWarp;
             }
 
             float smin(float a, float b, float k) {
@@ -364,6 +397,9 @@ export const raymarchCloudFragmentShader = String.raw`
                 float widthStretch = mix(1.0, 1.2, smoothstep(0.5, 2.0, uAspect));
                 vec3 layoutP = p;
                 layoutP.x /= widthStretch;
+                vec2 shearAxis = windShearAxis(uSeed * 0.004 + 1.8);
+                float shearHeight = smoothstep(MODEL_BASE_KM, uTropopause + 1.2, layoutP.y);
+                layoutP.xz -= shearAxis * shearHeight * shearHeight * uWindShear * mix(0.55, 2.25, clamp(uCloudCurl, 0.0, 1.0));
 
                 vec3 modelP = worldToModelSpace(layoutP);
                 float photo = uPhotographicStyle;
@@ -474,6 +510,11 @@ export const raymarchCloudFragmentShader = String.raw`
                         noise(vec3(q.x * 0.18 - uTime * 0.015, q.z * 0.22 + uSeed * 0.05, q.y * 0.11))
                     );
                     float photo = uPhotographicStyle;
+                    vec2 shearAxis = windShearAxis(uSeed * 0.004 + 1.8);
+                    vec2 crossAxis = vec2(-shearAxis.y, shearAxis.x);
+                    float shearCurl = uWindShear * mix(0.42, 1.15, clamp(uCloudCurl, 0.0, 1.0));
+                    q.xz += shearAxis * height01 * height01 * shearCurl * 0.72;
+                    q.y += sin(dot(q.xz, crossAxis) * 0.46 + uSeed * 0.011) * shearCurl * 0.08;
                     // INCREASED CARVING FOR LIGHTER FLUFFIER LOOK
                     float carving = noise(q * 0.4 + uTime * 0.1) * mix(1.8, 1.45, photo);
                     float details = fbm(q * 1.2) * 1.0;
@@ -757,6 +798,26 @@ export const raymarchCloudFragmentShader = String.raw`
                 return col;
             }
 
+            vec3 atmosphericHorizon(vec3 col, vec3 rd, vec3 daylightDir, float sunSin, float sunHeight01, float night01) {
+                vec3 flatRay = vec3(rd.x, 0.0, rd.z);
+                flatRay = dot(flatRay, flatRay) < 0.0001 ? vec3(0.0, 0.0, -1.0) : normalize(flatRay);
+                vec3 flatSun = vec3(daylightDir.x, 0.0, daylightDir.z);
+                flatSun = dot(flatSun, flatSun) < 0.0001 ? vec3(0.0, 0.0, -1.0) : normalize(flatSun);
+                float lowSun = 1.0 - smoothstep(0.12, 0.52, sunSin);
+                float horizonBand = 1.0 - smoothstep(0.015, 0.18, abs(rd.y));
+                float belowHorizon = smoothstep(0.035, -0.18, rd.y);
+                float sunAlongHorizon = pow(max(0.0, dot(flatRay, flatSun)), mix(4.0, 12.0, sunHeight01)) * lowSun;
+                vec3 coolHaze = mix(vec3(0.40, 0.52, 0.60), vec3(0.62, 0.73, 0.84), sunHeight01);
+                vec3 warmHaze = mix(vec3(0.82, 0.30, 0.12), vec3(0.96, 0.58, 0.28), smoothstep(-0.04, 0.16, sunSin));
+                vec3 horizonFog = mix(coolHaze, warmHaze, clamp(lowSun * 0.55 + sunAlongHorizon * 0.95, 0.0, 1.0));
+                horizonFog = mix(horizonFog, vec3(0.04, 0.055, 0.10), night01 * 0.85);
+                vec3 groundDistant = mix(vec3(0.035, 0.052, 0.058), vec3(0.105, 0.120, 0.105), sunHeight01);
+                groundDistant = mix(groundDistant, warmHaze * 0.34, lowSun * sunAlongHorizon);
+                vec3 horizonLayer = mix(horizonFog, groundDistant, belowHorizon * 0.82);
+                float fogAlpha = clamp(horizonBand * mix(0.28, 0.72, lowSun) + belowHorizon * 0.68, 0.0, 0.88);
+                return mix(col, horizonLayer, fogAlpha);
+            }
+
             void main() {
                 vec2 res = max(uResolution, vec2(1.0));
                 vec2 uv = (gl_FragCoord.xy - 0.5 * res.xy) / res.y;
@@ -849,6 +910,8 @@ export const raymarchCloudFragmentShader = String.raw`
                 col = mix(col, atmosphereSky, atmosphereMask);
                 float stars = starField(rd) * night01 * max(moonMask, atmosphereMask);
                 col += vec3(0.72, 0.84, 1.0) * stars * mix(0.9, 1.8, uPhotographicStyle);
+                float horizonActive = (1.0 - uTransparentBackground) * clamp(uHorizonStrength, 0.0, 1.0) * max(atmosphereMask, uPhotographicStyle * 0.75);
+                col = mix(col, atmosphericHorizon(col, rd, daylightDir, sunSin, sunHeight01, night01), horizonActive);
                 if (uTransparentBackground < 0.5) {
                     col = surfaceOverlay(col, ro, rd, lightDir);
                     col = gridOverlay(col, ro, rd);

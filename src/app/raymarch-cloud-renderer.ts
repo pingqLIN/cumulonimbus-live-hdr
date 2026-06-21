@@ -29,6 +29,7 @@ export type RaymarchCloudOptions = {
   cameraPitchDegrees?: number;
   cameraDistance?: number;
   maxPixels?: number;
+  preserveDrawingBuffer?: boolean;
 };
 
 export type BrowserDisplayProfile = {
@@ -72,13 +73,21 @@ export class RaymarchCloudRenderer {
     this.orthoFrustumSize = this.defaultOrthoFrustumSize();
     this.updateCameraFromOptions();
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
+    const rendererAttributes = {
       antialias: false,
       alpha: options.transparentBackground ?? false,
       premultipliedAlpha: !(options.transparentBackground ?? false),
       powerPreference: this.displayProfile.iosChrome ? "default" : "high-performance",
-      preserveDrawingBuffer: true
+      preserveDrawingBuffer: options.preserveDrawingBuffer ?? false
+    } satisfies WebGLContextAttributes;
+    const context = createWebGLContext(canvas, rendererAttributes);
+    if (!context) {
+      throw new Error("WebGL is unavailable in this browser context.");
+    }
+
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      context
     });
     this.renderer.setClearColor(0x000000, options.transparentBackground ? 0 : 1);
     this.renderer.setPixelRatio(1);
@@ -273,6 +282,17 @@ export function detectBrowserDisplayProfile(): BrowserDisplayProfile {
     mobileWideView: narrowViewport || coarsePointer,
     iosChrome: /\bCriOS\//i.test(navigator.userAgent) && /iP(?:hone|ad|od)/i.test(navigator.userAgent)
   };
+}
+
+function createWebGLContext(
+  canvas: HTMLCanvasElement,
+  attributes: WebGLContextAttributes
+): WebGLRenderingContext | WebGL2RenderingContext | null {
+  return (
+    canvas.getContext("webgl2", attributes) ??
+    canvas.getContext("webgl", attributes) ??
+    (canvas.getContext("experimental-webgl", attributes) as WebGLRenderingContext | null)
+  );
 }
 
 function clampFinite(

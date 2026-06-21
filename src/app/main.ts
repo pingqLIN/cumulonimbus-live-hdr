@@ -33,34 +33,61 @@ const options = resolveOptions(query, displayProfile);
 if (shouldExposeRuntimeDebug(query)) {
   window.__cumulonimbusRuntime = { displayProfile, options };
 }
-const renderer = new RaymarchCloudRenderer(canvas, options);
+const renderer = createRenderer(canvas, options);
 const frameIntervalMs = 1000 / readNumber(query, ["fps", "simFps"], 30, 1, 360);
 const captureFrameLimit = Math.round(readNumber(query, ["captureFrames"], 0, 0, 600));
 let renderedFrameCount = 0;
 let startTime = performance.now() - (options.time ?? 0) * 1000;
 let nextFrameTime = startTime;
 let animationFrame = 0;
+let resizeObserver: ResizeObserver | undefined;
 
 document.documentElement.dataset.renderMode =
   query.get("capture") === "1" || query.get("live") === "1" ? "canvas" : "page";
 document.documentElement.dataset.orientation = resolveOrientation(query);
 document.documentElement.dataset.deviceProfile = displayProfile.mobileWideView ? "mobile" : "desktop";
 
-const resizeObserver = new ResizeObserver(() => {
-  resize();
-});
-resizeObserver.observe(canvas);
+if (renderer) {
+  resizeObserver = new ResizeObserver(() => {
+    resize();
+  });
+  resizeObserver.observe(canvas);
+}
 
 window.addEventListener("beforeunload", () => {
   cancelAnimationFrame(animationFrame);
-  resizeObserver.disconnect();
-  renderer.dispose();
+  resizeObserver?.disconnect();
+  renderer?.dispose();
 });
 
-resize();
-animationFrame = requestAnimationFrame(renderFrame);
+if (renderer) {
+  resize();
+  animationFrame = requestAnimationFrame(renderFrame);
+}
+
+function createRenderer(
+  targetCanvas: HTMLCanvasElement,
+  rendererOptions: RaymarchCloudOptions
+): RaymarchCloudRenderer | undefined {
+  try {
+    document.documentElement.dataset.renderStatus = "starting";
+    const cloudRenderer = new RaymarchCloudRenderer(targetCanvas, rendererOptions);
+    document.documentElement.dataset.renderStatus = "ready";
+    return cloudRenderer;
+  } catch (error) {
+    document.documentElement.dataset.renderStatus = "webgl-unavailable";
+    targetCanvas.setAttribute("aria-label", "WebGL renderer unavailable");
+    if (shouldExposeRuntimeDebug(query)) {
+      console.warn("Cumulonimbus renderer startup skipped:", error);
+    }
+    return undefined;
+  }
+}
 
 function renderFrame(now: number): void {
+  if (!renderer) {
+    return;
+  }
   if (now < nextFrameTime) {
     animationFrame = requestAnimationFrame(renderFrame);
     return;
@@ -78,6 +105,9 @@ function renderFrame(now: number): void {
 }
 
 function resize(): void {
+  if (!renderer) {
+    return;
+  }
   const rect = canvas.getBoundingClientRect();
   const orientation = resolveOrientation(query);
   const fallback =
@@ -157,8 +187,8 @@ function resolveOptions(
       0,
       1
     ),
-    stepSize: readNumber(params, ["stepSize", "rayStep"], preset.stepSize ?? 0.2, 0.08, 0.6),
-    maxSteps: readNumber(params, ["maxSteps", "steps"], preset.maxSteps ?? 126, 24, 144),
+    stepSize: readOptionalNumberWithFallback(params, ["stepSize", "rayStep"], preset.stepSize, 0.08, 0.6),
+    maxSteps: readOptionalNumberWithFallback(params, ["maxSteps", "steps"], preset.maxSteps, 24, 144),
     sunIntensity: readNumber(
       params,
       ["sun", "sunIntensity"],
@@ -207,7 +237,8 @@ function resolveOptions(
     cameraYawDegrees: readOptionalNumber(params, ["cameraYawDegrees", "yawDegrees", "yaw"]),
     cameraPitchDegrees: readOptionalNumber(params, ["cameraPitchDegrees", "pitchDegrees", "pitch"]),
     cameraDistance: readOptionalNumber(params, ["cameraDistance", "distance"]),
-    maxPixels: readOptionalClampedNumber(params, ["maxPixels"], 128 * 128, 3840 * 2160)
+    maxPixels: readOptionalClampedNumber(params, ["maxPixels"], 128 * 128, 3840 * 2160),
+    preserveDrawingBuffer: shouldPreserveDrawingBuffer(params)
   };
 }
 
@@ -235,6 +266,10 @@ function shouldExposeRuntimeDebug(params: URLSearchParams): boolean {
     params.has("captureFrames") ||
     params.get("capture") === "1"
   );
+}
+
+function shouldPreserveDrawingBuffer(params: URLSearchParams): boolean {
+  return params.has("captureFrames") || params.get("capture") === "1";
 }
 
 function shouldUseRandomAtmosphere(preset: RaymarchCloudOptions): boolean {
@@ -581,6 +616,17 @@ function readOptionalClampedNumber(
   maximum: number
 ): number | undefined {
   const value = readOptionalNumber(params, names);
+  return value === undefined ? undefined : clamp(value, minimum, maximum);
+}
+
+function readOptionalNumberWithFallback(
+  params: URLSearchParams,
+  names: readonly string[],
+  fallback: number | undefined,
+  minimum: number,
+  maximum: number
+): number | undefined {
+  const value = readOptionalNumber(params, names) ?? fallback;
   return value === undefined ? undefined : clamp(value, minimum, maximum);
 }
 

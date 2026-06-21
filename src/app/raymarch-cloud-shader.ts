@@ -34,6 +34,10 @@ export const raymarchCloudFragmentShader = String.raw`
             uniform float uHdr10Mode;
             uniform float uHdrReferencePeakNits;
 
+            #ifndef CUMULONIMBUS_MAX_RAY_STEPS
+            #define CUMULONIMBUS_MAX_RAY_STEPS 64
+            #endif
+
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
             float hash31(vec3 p) {
@@ -932,7 +936,7 @@ export const raymarchCloudFragmentShader = String.raw`
                     float heightRange = max(0.1, uTropopause - MODEL_BASE_KM);
 
                     // Keep the static loop below mobile Chrome's shader watchdog while uMaxSteps owns quality.
-                    for(int i = 0; i < 96; i++) {
+                    for(int i = 0; i < CUMULONIMBUS_MAX_RAY_STEPS; i++) {
                         // OPTIMIZATION: Early exit threshold lowered to 0.92 for faster rendering
                         if (float(i) > uMaxSteps || t > maxT || densityAcc > 0.92) break;
                         vec3 p = ro + rd * t;

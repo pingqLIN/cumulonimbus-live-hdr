@@ -157,7 +157,8 @@ try {
   assert.equal(metrics.runtime.options.presetName, args.preset ?? "mobile-horizon");
   assert.equal(metrics.runtime.options.presetSource, args.preset === undefined ? "browser-profile" : "query");
   assert.equal(metrics.runtime.options.systems, 5);
-  assert.equal(metrics.runtime.options.maxSteps, 108);
+  assert.equal(metrics.runtime.options.maxSteps, 64);
+  assert.equal(metrics.runtime.options.staticMaxSteps, 64);
   assert.equal(metrics.runtime.options.cloudCurl, 1);
   assert.deepEqual(runtimeErrors, []);
 

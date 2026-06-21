@@ -30,6 +30,8 @@ export type RaymarchCloudOptions = {
   cameraDistance?: number;
   maxPixels?: number;
   preserveDrawingBuffer?: boolean;
+  staticMaxSteps?: number;
+  debugShaderDiagnostics?: boolean;
 };
 
 export type BrowserDisplayProfile = {
@@ -89,10 +91,14 @@ export class RaymarchCloudRenderer {
       canvas,
       context
     });
+    this.renderer.debug.checkShaderErrors = options.debugShaderDiagnostics ?? false;
     this.renderer.setClearColor(0x000000, options.transparentBackground ? 0 : 1);
     this.renderer.setPixelRatio(1);
 
     this.material = new THREE.ShaderMaterial({
+      defines: {
+        CUMULONIMBUS_MAX_RAY_STEPS: this.staticRayStepLimit()
+      },
       vertexShader: raymarchCloudVertexShader,
       fragmentShader: raymarchCloudFragmentShader,
       uniforms: {
@@ -235,12 +241,17 @@ export class RaymarchCloudRenderer {
 
   private defaultMaxSteps(): number {
     if (this.displayProfile.iosChrome) {
-      return 62;
+      return 44;
     }
     if (this.displayProfile.mobileWideView) {
-      return 76;
+      return 56;
     }
-    return 88;
+    return 64;
+  }
+
+  private staticRayStepLimit(): number {
+    const fallback = this.displayProfile.iosChrome ? 48 : this.displayProfile.mobileWideView ? 64 : 72;
+    return Math.round(clampFinite(this.options.staticMaxSteps, fallback, 24, 96));
   }
 }
 
@@ -288,11 +299,28 @@ function createWebGLContext(
   canvas: HTMLCanvasElement,
   attributes: WebGLContextAttributes
 ): WebGLRenderingContext | WebGL2RenderingContext | null {
-  return (
-    canvas.getContext("webgl2", attributes) ??
-    canvas.getContext("webgl", attributes) ??
-    (canvas.getContext("experimental-webgl", attributes) as WebGLRenderingContext | null)
-  );
+  const fallbacks: WebGLContextAttributes[] = [
+    attributes,
+    { ...attributes, powerPreference: "default" },
+    { ...attributes, powerPreference: "low-power" },
+    {
+      alpha: attributes.alpha,
+      premultipliedAlpha: attributes.premultipliedAlpha,
+      preserveDrawingBuffer: attributes.preserveDrawingBuffer
+    }
+  ];
+
+  for (const candidate of fallbacks) {
+    const context =
+      canvas.getContext("webgl2", candidate) ??
+      canvas.getContext("webgl", candidate) ??
+      (canvas.getContext("experimental-webgl", candidate) as WebGLRenderingContext | null);
+    if (context) {
+      return context;
+    }
+  }
+
+  return null;
 }
 
 function clampFinite(

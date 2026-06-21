@@ -77,11 +77,40 @@ function createRenderer(
   } catch (error) {
     document.documentElement.dataset.renderStatus = "webgl-unavailable";
     targetCanvas.setAttribute("aria-label", "WebGL renderer unavailable");
+    paintUnavailableFallback(targetCanvas);
     if (shouldExposeRuntimeDebug(query)) {
       console.warn("Cumulonimbus renderer startup skipped:", error);
     }
     return undefined;
   }
+}
+
+function paintUnavailableFallback(targetCanvas: HTMLCanvasElement): void {
+  const rect = targetCanvas.getBoundingClientRect();
+  const width = Math.max(2, Math.round(rect.width || window.innerWidth || 540));
+  const height = Math.max(2, Math.round(rect.height || window.innerHeight || 960));
+  targetCanvas.width = width;
+  targetCanvas.height = height;
+  const context = targetCanvas.getContext("2d");
+  if (!context) {
+    return;
+  }
+
+  const gradient = context.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, "#020304");
+  gradient.addColorStop(0.62, "#071011");
+  gradient.addColorStop(1, "#415057");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+
+  context.fillStyle = "rgba(243, 246, 251, 0.92)";
+  context.font = "600 18px Segoe UI, system-ui, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("WebGL renderer unavailable", width / 2, height / 2 - 14);
+  context.fillStyle = "rgba(218, 229, 236, 0.74)";
+  context.font = "14px Segoe UI, system-ui, sans-serif";
+  context.fillText("Close old GPU-heavy tabs or restart Chrome, then reload.", width / 2, height / 2 + 18);
 }
 
 function renderFrame(now: number): void {
@@ -189,6 +218,13 @@ function resolveOptions(
     ),
     stepSize: readOptionalNumberWithFallback(params, ["stepSize", "rayStep"], preset.stepSize, 0.08, 0.6),
     maxSteps: readOptionalNumberWithFallback(params, ["maxSteps", "steps"], preset.maxSteps, 24, 144),
+    staticMaxSteps: readOptionalNumberWithFallback(
+      params,
+      ["staticMaxSteps", "compileSteps", "shaderSteps"],
+      preset.staticMaxSteps,
+      24,
+      96
+    ),
     sunIntensity: readNumber(
       params,
       ["sun", "sunIntensity"],
@@ -238,7 +274,8 @@ function resolveOptions(
     cameraPitchDegrees: readOptionalNumber(params, ["cameraPitchDegrees", "pitchDegrees", "pitch"]),
     cameraDistance: readOptionalNumber(params, ["cameraDistance", "distance"]),
     maxPixels: readOptionalClampedNumber(params, ["maxPixels"], 128 * 128, 3840 * 2160),
-    preserveDrawingBuffer: shouldPreserveDrawingBuffer(params)
+    preserveDrawingBuffer: shouldPreserveDrawingBuffer(params),
+    debugShaderDiagnostics: readBoolean(params, ["debugShaders", "shaderDiagnostics"], false)
   };
 }
 
@@ -370,8 +407,9 @@ function resolvePreset(name: string | null): RaymarchCloudOptions {
         fbmOctaves: 5,
         cloudCurl: 1,
         horizonStrength: 1,
-        stepSize: 0.22,
-        maxSteps: 108,
+        stepSize: 0.28,
+        maxSteps: 64,
+        staticMaxSteps: 64,
         sunIntensity: 4.9,
         ambientIntensity: 0.52,
         sunElevation: 8,

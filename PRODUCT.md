@@ -19,11 +19,11 @@ attention away from the cloud itself.
 
 ## Product Purpose
 
-Cumulonimbus Live HDR is an interactive standalone cloud observatory for
-developing a visually consistent cumulonimbus approximation. The current source
-of truth is `cumulonimbus-live-hdr-mainline.html`, a Three.js shader/raymarch
-surface with controls for seed, time, quality, tropopause height, freezing
-level, wind shear, light, camera mode, grid, HUD, and viewport aspect.
+Cumulonimbus Live HDR is a single-canvas Vite cloud observatory for developing a
+visually consistent cumulonimbus approximation. The current source of truth is
+`index.html` loading `src/app/main.ts`, backed by a Three.js shader/raymarch
+surface with URL-driven controls for seed, time, tropopause height, freezing
+level, wind shear, light, camera mode, output size, and capture behavior.
 
 Success means a user can quickly understand the rendered storm, adjust the
 scene, and produce a credible live preview or test capture without wondering

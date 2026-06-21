@@ -10,12 +10,12 @@
 flowchart TD
   A["開發者執行指令"] --> B{選擇路徑}
 
-  B --> C["cumulonimbus-live-hdr-mainline.html 單檔主線入口"]
+  B --> C["index.html Vite 單一 canvas 入口"]
   B --> D["npm run render:test / render:quick / render:demo-loop"]
   B --> E["npm run capture:* 或 test:browser"]
 
-  C --> C1["直接開啟 cumulonimbus-live-hdr-mainline.html 或附帶 query"]
-  C1 --> C2["即時 WebGL 預覽與互動參數"]
+  C --> C1["開啟 Vite dev/preview URL 並附帶 query"]
+  C1 --> C2["即時 WebGL 預覽與 URL 參數"]
   C2 --> C3["手動截圖 / 外部串流擷取"]
 
   D --> D1["npm run build:core（tsc -> dist/core）"]
@@ -40,7 +40,7 @@ flowchart TD
 
 ## 主線路徑（目前使用）
 
-- 主線視覺入口：`cumulonimbus-live-hdr-mainline.html`
+- 主線視覺入口：`index.html` -> `src/app/main.ts`
 - 主線輸出腳本：`npm run render:quick`, `npm run render:test`, `npm run render:demo-loop`
 - 主要抓圖路徑：`npm run capture:field-still`, `npm run capture:3d-still`
 - 主要驗證：

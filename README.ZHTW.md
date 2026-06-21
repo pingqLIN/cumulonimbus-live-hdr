@@ -2,77 +2,102 @@
 
 # Cumulonimbus Live HDR
 
-積雨雲視覺模型原型。主線入口是 standalone 的 [`cumulonimbus-live-hdr-mainline.html`](cumulonimbus-live-hdr-mainline.html)，以 Three.js shader/raymarch 呈現可觀察、可調參的積雨雲體積近似。此專案重點是視覺一致性與直播/預覽工作流，不宣稱是真實大氣物理驗證模型。
+Cumulonimbus Live HDR 是 Vite/TypeScript 的單一 canvas WebGL 積雨雲視覺 renderer。
+目前公開網站與本機預覽的入口是 [`index.html`](index.html)，由
+`src/app/main.ts` 載入 raymarch cloud renderer。它是用於視覺迭代、截圖與瀏覽器呈現的體積近似模型，不宣稱是真實大氣物理模擬。
+
+英文權威版：[README.md](README.md)
+
+## 目前主線
+
+- Runtime 入口：`index.html`
+- App 模組：`src/app/main.ts`
+- 雲體 renderer：`src/app/raymarch-cloud-renderer.ts`
+- Shader source：`src/app/raymarch-cloud-shader.ts`
+- 公開網站建置：`npm run build` -> `dist/`，由
+  `.github/workflows/deploy-pages.yml` 部署到 GitHub Pages
+
+舊的 standalone HTML 入口已不是 source of truth。請以 Vite app 與 URL query
+參數作為本機預覽、smoke 測試與網站輸出的主線。
 
 ## 快速啟動
 
 ```powershell
 npm install
 npm run dev
+npm run check
 npm run test:06
 npm run test:browser
 ```
 
-`cumulonimbus-live-hdr-mainline.html` 也可直接用本機檔案開啟：
+本機預覽：
 
 ```text
-file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-mainline.html
+http://127.0.0.1:5173/
 ```
 
-無背景合成版本：
+`test:06` 是歷史命名；目前會透過 browser-backed smoke 檢查現行單一 canvas
+雲體 renderer。
+
+## 常用 URL
+
+Live canvas：
 
 ```text
-file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-transparent.html
+http://127.0.0.1:5173/?live=1
 ```
 
-此入口會導到同一份主線 renderer，並預設使用 `background=0`、`sky=transparent`、`controls=0`、`hud=0`、`grid=0`，方便疊到其他網頁、OBS 場景或影片圖層上。
-
-全螢幕背景版本：
+手機 horizon preset：
 
 ```text
-file:///Q:/Projects/cumulonimbus-live-hdr/cumulonimbus-live-hdr-fullscreen.html
+http://127.0.0.1:5173/?live=1&orientation=portrait&preset=mobile-horizon&simWidth=390&simHeight=844
 ```
 
-此入口會以 `background=1`、`sky=transparent`、`controls=0`、`hud=1`、`grid=0`、`autoQuality=1`、`quality=0.72`、`timeSpeed=1`、`viewport=background`、`ui=tracing-paper` 啟動。`viewport=background` 會移除原本雲與天空畫面的外框，讓 render canvas 填滿整個瀏覽器視窗。
+固定截圖：
 
-## 目前主線
-
-[`cumulonimbus-live-hdr-mainline.html`](cumulonimbus-live-hdr-mainline.html) 是目前的單一 source of truth。它提供 seed、time、quality、tropopause、freezing level、wind shear、sun、ambient、grid、orthographic/perspective 與 HUD 控制。
-
-重點控制：
-
-- `頂高`：對流層頂高度，影響雲塔壓平位置與砧狀雲高度。
-- `凍結`：凍結高度，影響中高層水滴到冰晶纖維質感的過渡。
-- `風切`：高空風切，影響砧狀雲迎風/下風不對稱外流。
-- `算力` / `自動算力`：調整內部渲染解析度與 raymarch 步數，用於平衡畫質與 FPS。
+```text
+http://127.0.0.1:5173/?capture=1&captureFrames=1&seed=574&time=2.2&preset=mobile-horizon
+```
 
 常用 query 參數：
 
-```text
-http://127.0.0.1:5173/?seed=574&time=2.2&timeSpeed=0&quality=0.72
-http://127.0.0.1:5173/?freezingLevel=5&windShear=0.7
-```
+- `seed`, `time`, `fps`
+- `orientation=portrait|landscape`
+- `simWidth`, `simHeight`, `maxPixels`
+- `preset=mobile-horizon|sunrise-horizon|noon-blue|model-landscape|model-portrait`
+- `systems`, `tropopause`, `freezingLevel`, `windShear`
+- `cloudCurl`, `fbmOctaves`, `stepSize`, `maxSteps`
+- `sunIntensity`, `ambientIntensity`, `sunElevation`, `sunViewerAngle`
+- `sky=atmosphere|clear|sunset|moonlight|workbench`
+- `light=daylight|golden-side|backlit-edge`
 
-## 驗證
+## 行動裝置行為
 
-最小高訊號驗證：
+Runtime 會用窄螢幕偵測選擇手機視覺預設，並用粗指標觸控與 iOS Chrome 訊號調整較低風險的
+renderer 預算預設。手機預設會降低 pixel budget 與 raymarch 工作量，同時放寬模型視野，讓
+portrait layout 仍能看見完整雲體。手機 smoke scripts 會檢查全視窗 canvas 幾何、WebGL、
+runtime error 與非空雲體輸出。
 
-```powershell
-npm run test:06
-npm run test:links
-```
-
-## 專案影像程式化生成
-
-影像生成與輸出流水線文件：
-
-- [Project image generation pipeline](docs/image-generation-pipeline.md)（英文）
-- [專案影像程式化生成與流水線](docs/image-generation-pipeline.zh-tw.md)
-
-完整瀏覽器 smoke：
+## 截圖與驗證
 
 ```powershell
+npm run capture:3d-still
+npm run test:06-mobile
+npm run test:raymarch
 npm run test:browser
 ```
 
-輸出檔案通常寫入 `outputs/`；該資料夾是本機產物，不作為主要原始碼維護面。
+輸出通常寫入 `outputs/`。除非明確指定 demo artifact，`outputs/` 內容視為本機產物。
+
+## 文件
+
+- [Project image generation pipeline](docs/image-generation-pipeline.md)
+- [專案影像程式化生成與流水線](docs/image-generation-pipeline.zh-tw.md)
+- [Research notes](docs/research-notes.md)
+- [Colab render workflow](docs/colab-render.md)
+
+## 開發注意事項
+
+除非任務明確需要臨時 branch 或 worktree，`main` 是 canonical working branch。開發計畫、
+audit packet、reviewer raw output 與 generated analysis 檔案預設保留在 local-only 位置，
+除非使用者明確要求發布。

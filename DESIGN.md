@@ -130,7 +130,7 @@ backgrounds.
 
 ## Implementation Notes
 
-The current active standalone surface is `cumulonimbus-live-hdr-mainline.html`.
-The Vite/TypeScript preview and `src/styles/app.css` are retained as supporting
-or historical surfaces. When redesigning, keep the active entrypoint and README
-claims aligned.
+The current active surface is the Vite single-canvas app: `index.html` loads
+`src/app/main.ts` and uses `src/styles/app.css` for the browser frame. When
+redesigning, keep the active entrypoint, GitHub Pages build, and README claims
+aligned.

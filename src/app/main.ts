@@ -1,5 +1,25 @@
 import "../styles/app.css";
-import { RaymarchCloudRenderer, type RaymarchCloudOptions } from "./raymarch-cloud-renderer.js";
+import {
+  RaymarchCloudRenderer,
+  detectBrowserDisplayProfile,
+  type BrowserDisplayProfile,
+  type RaymarchCloudOptions
+} from "./raymarch-cloud-renderer.js";
+
+type RuntimeOptions = RaymarchCloudOptions & {
+  readonly presetName?: string;
+  readonly presetSource: "query" | "browser-profile" | "random-default";
+  readonly displayProfile: BrowserDisplayProfile;
+};
+
+declare global {
+  interface Window {
+    __cumulonimbusRuntime?: {
+      displayProfile: BrowserDisplayProfile;
+      options: RuntimeOptions;
+    };
+  }
+}
 
 const canvasElement = document.querySelector<HTMLCanvasElement>("#cloud-canvas");
 if (!canvasElement) {
@@ -8,7 +28,11 @@ if (!canvasElement) {
 const canvas: HTMLCanvasElement = canvasElement;
 
 const query = new URLSearchParams(window.location.search);
-const options = resolveOptions(query);
+const displayProfile = detectBrowserDisplayProfile();
+const options = resolveOptions(query, displayProfile);
+if (shouldExposeRuntimeDebug(query)) {
+  window.__cumulonimbusRuntime = { displayProfile, options };
+}
 const renderer = new RaymarchCloudRenderer(canvas, options);
 const frameIntervalMs = 1000 / readNumber(query, ["fps", "simFps"], 30, 1, 360);
 const captureFrameLimit = Math.round(readNumber(query, ["captureFrames"], 0, 0, 600));
@@ -19,8 +43,8 @@ let animationFrame = 0;
 
 document.documentElement.dataset.renderMode =
   query.get("capture") === "1" || query.get("live") === "1" ? "canvas" : "page";
-document.documentElement.dataset.orientation =
-  query.get("orientation") === "landscape" ? "landscape" : "portrait";
+document.documentElement.dataset.orientation = resolveOrientation(query);
+document.documentElement.dataset.deviceProfile = displayProfile.mobileWideView ? "mobile" : "desktop";
 
 const resizeObserver = new ResizeObserver(() => {
   resize();
@@ -55,7 +79,7 @@ function renderFrame(now: number): void {
 
 function resize(): void {
   const rect = canvas.getBoundingClientRect();
-  const orientation = query.get("orientation") === "landscape" ? "landscape" : "portrait";
+  const orientation = resolveOrientation(query);
   const fallback =
     orientation === "landscape" ? { width: 960, height: 540 } : { width: 540, height: 960 };
   const width = readNumber(
@@ -75,8 +99,12 @@ function resize(): void {
   renderer.resize(Math.round(width), Math.round(height));
 }
 
-function resolveOptions(params: URLSearchParams): RaymarchCloudOptions {
-  const preset = resolvePreset(params.get("preset") ?? params.get("capturePreset"));
+function resolveOptions(
+  params: URLSearchParams,
+  displayProfile: BrowserDisplayProfile
+): RuntimeOptions {
+  const presetSelection = resolvePresetSelection(params, displayProfile);
+  const preset = presetSelection.presetName ? resolvePreset(presetSelection.presetName) : {};
   const seed = Math.floor(
     readNumber(params, ["seed"], preset.seed ?? createRuntimeSeed(), 1, Number.MAX_SAFE_INTEGER)
   );
@@ -87,6 +115,8 @@ function resolveOptions(params: URLSearchParams): RaymarchCloudOptions {
   return {
     ...preset,
     ...randomAtmosphere,
+    ...presetSelection,
+    displayProfile,
     seed,
     time: readNumber(params, ["time"], randomAtmosphere.time ?? preset.time ?? 0, 0, 1_000_000),
     fps: readNumber(params, ["fps", "simFps"], 30, 1, 360),
@@ -179,6 +209,32 @@ function resolveOptions(params: URLSearchParams): RaymarchCloudOptions {
     cameraDistance: readOptionalNumber(params, ["cameraDistance", "distance"]),
     maxPixels: readOptionalClampedNumber(params, ["maxPixels"], 128 * 128, 3840 * 2160)
   };
+}
+
+function resolvePresetSelection(
+  params: URLSearchParams,
+  displayProfile: BrowserDisplayProfile
+): Pick<RuntimeOptions, "presetName" | "presetSource"> {
+  const requestedPreset = params.get("preset") ?? params.get("capturePreset");
+  if (requestedPreset !== null && requestedPreset !== "") {
+    return { presetName: requestedPreset, presetSource: "query" };
+  }
+  if (displayProfile.narrowViewport) {
+    return { presetName: "mobile-horizon", presetSource: "browser-profile" };
+  }
+  return { presetSource: "random-default" };
+}
+
+function resolveOrientation(params: URLSearchParams): "landscape" | "portrait" {
+  return params.get("orientation") === "landscape" ? "landscape" : "portrait";
+}
+
+function shouldExposeRuntimeDebug(params: URLSearchParams): boolean {
+  return (
+    readBoolean(params, ["debug", "debugRuntime"], false) ||
+    params.has("captureFrames") ||
+    params.get("capture") === "1"
+  );
 }
 
 function shouldUseRandomAtmosphere(preset: RaymarchCloudOptions): boolean {

@@ -23,7 +23,7 @@
     "tune:demo": "npm run build:core && node scripts/tune-demo-params.mjs",
     "format": "prettier --write .",
     "check": "tsc --noEmit",
-    "test": "npm run test:links && npm run test:06 && npm run test:hdr && npm run test:smoke && npm run test:bubble && npm run test:raymarch && npm run test:webgpu-uniforms && npm run test:cml-lite",
+    "test": "npm run test:links && npm run test:06 && npm run test:06-mobile && npm run test:hdr && npm run test:smoke && npm run test:bubble && npm run test:raymarch && npm run test:webgpu-uniforms && npm run test:cml-lite",
     "test:links": "node scripts/smoke-project-links.mjs",
     "test:06": "node scripts/smoke-06-html.mjs && node scripts/smoke-06-visual-freeze.mjs",
     "test:06-smoke": "node scripts/smoke-06-html.mjs",

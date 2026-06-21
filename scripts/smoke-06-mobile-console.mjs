@@ -25,10 +25,15 @@ url.searchParams.set("orientation", "portrait");
 url.searchParams.set("simWidth", String(width));
 url.searchParams.set("simHeight", String(height));
 url.searchParams.set("captureFrames", args.captureFrames ?? "1");
-url.searchParams.set("preset", args.preset ?? "mobile-horizon");
 url.searchParams.set("seed", args.seed ?? "574");
 url.searchParams.set("time", args.time ?? "2.2");
-url.searchParams.set("maxPixels", args.maxPixels ?? String(width * height));
+
+if (args.preset !== undefined && args.preset !== "") {
+  url.searchParams.set("preset", args.preset);
+}
+if (args.maxPixels !== undefined && args.maxPixels !== "") {
+  url.searchParams.set("maxPixels", args.maxPixels);
+}
 
 for (const key of [
   "systems",
@@ -137,6 +142,7 @@ try {
   assert.equal(metrics.title, "Cumulonimbus Live HDR");
   assert.equal(metrics.renderMode, "canvas");
   assert.equal(metrics.orientation, "portrait");
+  assert.equal(metrics.deviceProfile, "mobile");
   assert.equal(metrics.viewport.width, width);
   assert.equal(metrics.viewport.height, height);
   assert.equal(metrics.webglAvailable, true);
@@ -146,6 +152,13 @@ try {
   assert.ok(metrics.canvasRect.height >= height - 2, `expected full-height canvas, got ${metrics.canvasRect.height}`);
   assert.ok(metrics.bodyOverflow.x <= 1, `expected no document horizontal overflow, got ${metrics.bodyOverflow.x}`);
   assert.ok(metrics.bodyOverflow.y <= 1, `expected no document vertical overflow, got ${metrics.bodyOverflow.y}`);
+  assert.equal(metrics.runtime.displayProfile.mobileWideView, true);
+  assert.equal(metrics.runtime.displayProfile.narrowViewport, true);
+  assert.equal(metrics.runtime.options.presetName, args.preset ?? "mobile-horizon");
+  assert.equal(metrics.runtime.options.presetSource, args.preset === undefined ? "browser-profile" : "query");
+  assert.equal(metrics.runtime.options.systems, 5);
+  assert.equal(metrics.runtime.options.maxSteps, 108);
+  assert.equal(metrics.runtime.options.cloudCurl, 1);
   assert.deepEqual(runtimeErrors, []);
 
   console.log(
@@ -203,6 +216,8 @@ function collectMobileCanvasMetrics() {
     title: document.title,
     renderMode: document.documentElement.dataset.renderMode || "",
     orientation: document.documentElement.dataset.orientation || "",
+    deviceProfile: document.documentElement.dataset.deviceProfile || "",
+    runtime: window.__cumulonimbusRuntime || null,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     canvasRect: rectData(rect),
     canvasPixels: { width: canvas.width, height: canvas.height },

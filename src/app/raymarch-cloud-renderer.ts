@@ -5,6 +5,7 @@ export type RaymarchCloudOptions = {
   seed?: number;
   time?: number;
   fps?: number;
+  displayProfile?: BrowserDisplayProfile;
   systems?: number;
   tropopause?: number;
   freezingLevel?: number;
@@ -30,6 +31,13 @@ export type RaymarchCloudOptions = {
   maxPixels?: number;
 };
 
+export type BrowserDisplayProfile = {
+  readonly narrowViewport: boolean;
+  readonly coarsePointer: boolean;
+  readonly mobileWideView: boolean;
+  readonly iosChrome: boolean;
+};
+
 const MODEL_BASE_KM = 0.5;
 const RESET_TARGET_HEIGHT_RATIO = 0.5;
 const RESET_CAMERA_HEIGHT_RATIO = 0.68;
@@ -51,7 +59,7 @@ export class RaymarchCloudRenderer {
   private readonly resolution = new THREE.Vector2();
   private width = 0;
   private height = 0;
-  private readonly mobileWideView: boolean;
+  private readonly displayProfile: BrowserDisplayProfile;
   private tropopause: number;
   private orthoFrustumSize: number;
 
@@ -59,7 +67,7 @@ export class RaymarchCloudRenderer {
     private readonly canvas: HTMLCanvasElement,
     private readonly options: RaymarchCloudOptions = {}
   ) {
-    this.mobileWideView = isMobileWideView();
+    this.displayProfile = options.displayProfile ?? detectBrowserDisplayProfile();
     this.tropopause = clampFinite(options.tropopause, 12, 4, 20);
     this.orthoFrustumSize = this.defaultOrthoFrustumSize();
     this.updateCameraFromOptions();
@@ -69,7 +77,7 @@ export class RaymarchCloudRenderer {
       antialias: false,
       alpha: options.transparentBackground ?? false,
       premultipliedAlpha: !(options.transparentBackground ?? false),
-      powerPreference: isIosChrome() ? "default" : "high-performance",
+      powerPreference: this.displayProfile.iosChrome ? "default" : "high-performance",
       preserveDrawingBuffer: true
     });
     this.renderer.setClearColor(0x000000, options.transparentBackground ? 0 : 1);
@@ -90,7 +98,9 @@ export class RaymarchCloudRenderer {
         uSurfaceMode: { value: 0 },
         uSeed: { value: Math.floor(clampFinite(options.seed, 574, 1, Number.MAX_SAFE_INTEGER)) },
         uFbmOctaves: { value: clampFinite(options.fbmOctaves, 5, 4, 6) },
-        uCloudCurl: { value: clampFinite(options.cloudCurl, this.mobileWideView ? 0.86 : 0.78, 0, 1.2) },
+        uCloudCurl: {
+          value: clampFinite(options.cloudCurl, this.displayProfile.mobileWideView ? 0.86 : 0.78, 0, 1.2)
+        },
         uSystemCount: { value: Math.round(clampFinite(options.systems, 3, 1, 10)) },
         uIsOrtho: { value: options.ortho ? 1 : 0 },
         uOrthoSize: { value: this.orthoFrustumSize },
@@ -102,7 +112,9 @@ export class RaymarchCloudRenderer {
         uSunElevation: { value: clampFinite(options.sunElevation, 35, -20, 90) },
         uSunViewerAngle: { value: clampFinite(options.sunViewerAngle, 25, -180, 180) },
         uFreezingLevel: { value: clampFinite(options.freezingLevel, 5, 0, 16) },
-        uWindShear: { value: clampFinite(options.windShear, this.mobileWideView ? 0.9 : 0.82, 0, 1) },
+        uWindShear: {
+          value: clampFinite(options.windShear, this.displayProfile.mobileWideView ? 0.9 : 0.82, 0, 1)
+        },
         uPhotographicStyle: { value: options.photographicStyle ? 1 : 0 },
         uLightPreset: { value: resolveLightPresetValue(options.lightPreset) },
         uSkyMode: { value: resolveSkyModeValue(options.skyMode, options.photographicStyle) },
@@ -166,7 +178,7 @@ export class RaymarchCloudRenderer {
 
   private defaultOrthoFrustumSize(): number {
     const baseSize = this.tropopause + FRAME_VERTICAL_PADDING_KM * 2;
-    const occupancy = this.mobileWideView ? MOBILE_MODEL_VIEW_OCCUPANCY : MODEL_VIEW_OCCUPANCY;
+    const occupancy = this.displayProfile.mobileWideView ? MOBILE_MODEL_VIEW_OCCUPANCY : MODEL_VIEW_OCCUPANCY;
     return Math.max(MIN_ORTHO_FRUSTUM_SIZE, baseSize / occupancy);
   }
 
@@ -193,30 +205,30 @@ export class RaymarchCloudRenderer {
   }
 
   private defaultMaxPixels(): number {
-    if (isIosChrome()) {
+    if (this.displayProfile.iosChrome) {
       return 960 * 540;
     }
-    if (isMobileWideView()) {
+    if (this.displayProfile.mobileWideView) {
       return 1280 * 720;
     }
     return 1920 * 1080;
   }
 
   private defaultStepSize(): number {
-    if (isIosChrome()) {
+    if (this.displayProfile.iosChrome) {
       return 0.34;
     }
-    if (isMobileWideView()) {
+    if (this.displayProfile.mobileWideView) {
       return 0.28;
     }
     return 0.24;
   }
 
   private defaultMaxSteps(): number {
-    if (isIosChrome()) {
+    if (this.displayProfile.iosChrome) {
       return 62;
     }
-    if (isMobileWideView()) {
+    if (this.displayProfile.mobileWideView) {
       return 76;
     }
     return 88;
@@ -252,12 +264,15 @@ function resolveSkyModeValue(
   return 0;
 }
 
-function isMobileWideView(): boolean {
-  return window.matchMedia("(max-width: 760px), (pointer: coarse)").matches;
-}
-
-function isIosChrome(): boolean {
-  return /\bCriOS\//i.test(navigator.userAgent) && /iP(?:hone|ad|od)/i.test(navigator.userAgent);
+export function detectBrowserDisplayProfile(): BrowserDisplayProfile {
+  const narrowViewport = window.matchMedia("(max-width: 760px)").matches;
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  return {
+    narrowViewport,
+    coarsePointer,
+    mobileWideView: narrowViewport || coarsePointer,
+    iosChrome: /\bCriOS\//i.test(navigator.userAgent) && /iP(?:hone|ad|od)/i.test(navigator.userAgent)
+  };
 }
 
 function clampFinite(

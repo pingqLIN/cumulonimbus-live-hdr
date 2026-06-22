@@ -49,8 +49,13 @@ for (const key of [
   "horizonStrength",
   "stepSize",
   "maxSteps",
+  "staticMaxSteps",
+  "compileSteps",
+  "shaderSteps",
   "sky",
-  "light"
+  "light",
+  "debugShaders",
+  "shaderDiagnostics"
 ]) {
   if (args[key] !== undefined && args[key] !== "") {
     url.searchParams.set(key, String(args[key]));
@@ -157,8 +162,8 @@ try {
   assert.equal(metrics.runtime.options.presetName, args.preset ?? "mobile-horizon");
   assert.equal(metrics.runtime.options.presetSource, args.preset === undefined ? "browser-profile" : "query");
   assert.equal(metrics.runtime.options.systems, 5);
-  assert.equal(metrics.runtime.options.maxSteps, 64);
-  assert.equal(metrics.runtime.options.staticMaxSteps, 64);
+  assert.equal(metrics.runtime.options.maxSteps, 48);
+  assert.equal(metrics.runtime.options.staticMaxSteps, 48);
   assert.equal(metrics.runtime.options.cloudCurl, 1);
   assert.deepEqual(runtimeErrors, []);
 

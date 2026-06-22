@@ -73,12 +73,17 @@ for (const key of [
   "horizonStrength",
   "stepSize",
   "maxSteps",
+  "staticMaxSteps",
+  "compileSteps",
+  "shaderSteps",
   "sky",
   "light",
   "photographic",
   "photo",
   "ortho",
-  "maxPixels"
+  "maxPixels",
+  "debugShaders",
+  "shaderDiagnostics"
 ]) {
   if (args[key] !== undefined && args[key] !== "") {
     captureArgs.push(`--${key}`, String(args[key]));

@@ -52,8 +52,13 @@ for (const key of [
   "horizonStrength",
   "stepSize",
   "maxSteps",
+  "staticMaxSteps",
+  "compileSteps",
+  "shaderSteps",
   "sky",
-  "light"
+  "light",
+  "debugShaders",
+  "shaderDiagnostics"
 ]) {
   if (args[key] !== undefined && args[key] !== "") {
     smokeArgs.push(`--${key}`, String(args[key]));

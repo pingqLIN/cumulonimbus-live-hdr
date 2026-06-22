@@ -82,12 +82,17 @@ export const raymarchTuningKeys = [
   "horizonStrength",
   "stepSize",
   "maxSteps",
+  "staticMaxSteps",
+  "compileSteps",
+  "shaderSteps",
   "sky",
   "light",
   "photographic",
   "photo",
   "ortho",
-  "maxPixels"
+  "maxPixels",
+  "debugShaders",
+  "shaderDiagnostics"
 ];
 
 export const previewTuningKeys = [...threeBubbleTuningKeys, ...raymarchTuningKeys];

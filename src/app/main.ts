@@ -1,5 +1,11 @@
 import "../styles/app.css";
 import {
+  defaultCloudParams,
+  sampleCloudPixel,
+  tonemapSdr,
+  type CloudParams
+} from "../core/cloud-field.js";
+import {
   RaymarchCloudRenderer,
   detectBrowserDisplayProfile,
   type BrowserDisplayProfile,
@@ -33,7 +39,16 @@ const options = resolveOptions(query, displayProfile);
 if (shouldExposeRuntimeDebug(query)) {
   window.__cumulonimbusRuntime = { displayProfile, options };
 }
-const renderer = createRenderer(canvas, options);
+let fallbackActivated = false;
+canvas.addEventListener(
+  "webglcontextlost",
+  (event) => {
+    event.preventDefault();
+    activateCpuFallback("context-lost");
+  },
+  { once: true }
+);
+const renderer = shouldUseCpuRenderer(query) ? createCpuRenderer(canvas, options) : createRenderer(canvas, options);
 const frameIntervalMs = 1000 / readNumber(query, ["fps", "simFps"], 30, 1, 360);
 const captureFrameLimit = Math.round(readNumber(query, ["captureFrames"], 0, 0, 600));
 let renderedFrameCount = 0;
@@ -77,7 +92,7 @@ function createRenderer(
   } catch (error) {
     document.documentElement.dataset.renderStatus = "webgl-unavailable";
     targetCanvas.setAttribute("aria-label", "WebGL renderer unavailable");
-    paintUnavailableFallback(targetCanvas);
+    paintCpuFallback(targetCanvas, rendererOptions, "webgl-unavailable", false);
     if (shouldExposeRuntimeDebug(query)) {
       console.warn("Cumulonimbus renderer startup skipped:", error);
     }
@@ -85,32 +100,90 @@ function createRenderer(
   }
 }
 
-function paintUnavailableFallback(targetCanvas: HTMLCanvasElement): void {
+function createCpuRenderer(
+  targetCanvas: HTMLCanvasElement,
+  rendererOptions: RaymarchCloudOptions
+): undefined {
+  fallbackActivated = true;
+  document.documentElement.dataset.renderStatus = "fallback-2d";
+  paintCpuFallback(targetCanvas, rendererOptions, "cpu-requested", false);
+  return undefined;
+}
+
+function activateCpuFallback(reason: string): void {
+  if (fallbackActivated) {
+    return;
+  }
+  fallbackActivated = true;
+  cancelAnimationFrame(animationFrame);
+  resizeObserver?.disconnect();
+  document.documentElement.dataset.renderStatus = "fallback-2d";
+  paintCpuFallback(canvas, options, reason, true);
+}
+
+function paintCpuFallback(
+  targetCanvas: HTMLCanvasElement,
+  rendererOptions: RaymarchCloudOptions,
+  reason: string,
+  replaceCanvas: boolean
+): void {
+  const fallbackCanvas = replaceCanvas ? cloneCanvasForFallback(targetCanvas) : targetCanvas;
   const rect = targetCanvas.getBoundingClientRect();
-  const width = Math.max(2, Math.round(rect.width || window.innerWidth || 540));
-  const height = Math.max(2, Math.round(rect.height || window.innerHeight || 960));
-  targetCanvas.width = width;
-  targetCanvas.height = height;
-  const context = targetCanvas.getContext("2d");
+  const cssWidth = Math.max(2, Math.round(rect.width || window.innerWidth || 540));
+  const cssHeight = Math.max(2, Math.round(rect.height || window.innerHeight || 960));
+  const maxFallbackPixels = rendererOptions.displayProfile?.mobileWideView ? 180_000 : 260_000;
+  const scale = Math.min(1, Math.sqrt(maxFallbackPixels / Math.max(1, cssWidth * cssHeight)));
+  const width = Math.max(2, Math.floor(cssWidth * scale));
+  const height = Math.max(2, Math.floor(cssHeight * scale));
+  fallbackCanvas.width = width;
+  fallbackCanvas.height = height;
+  fallbackCanvas.setAttribute("aria-label", "2D cumulonimbus fallback renderer");
+  fallbackCanvas.dataset.fallbackReason = reason;
+  const context = fallbackCanvas.getContext("2d");
   if (!context) {
     return;
   }
 
-  const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "#020304");
-  gradient.addColorStop(0.62, "#071011");
-  gradient.addColorStop(1, "#415057");
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, width, height);
+  const image = context.createImageData(width, height);
+  const data = image.data;
+  const fallbackParams = createFallbackCloudParams(rendererOptions);
+  const fallbackTime = rendererOptions.time ?? 2.2;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const pixel = sampleCloudPixel(x / Math.max(1, width - 1), y / Math.max(1, height - 1), fallbackTime, fallbackParams);
+      const index = (y * width + x) * 4;
+      data[index] = Math.round(tonemapSdr(pixel.r) * 255);
+      data[index + 1] = Math.round(tonemapSdr(pixel.g) * 255);
+      data[index + 2] = Math.round(tonemapSdr(pixel.b) * 255);
+      data[index + 3] = 255;
+    }
+  }
+  context.putImageData(image, 0, 0);
+}
 
-  context.fillStyle = "rgba(243, 246, 251, 0.92)";
-  context.font = "600 18px Segoe UI, system-ui, sans-serif";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText("WebGL renderer unavailable", width / 2, height / 2 - 14);
-  context.fillStyle = "rgba(218, 229, 236, 0.74)";
-  context.font = "14px Segoe UI, system-ui, sans-serif";
-  context.fillText("Close old GPU-heavy tabs or restart Chrome, then reload.", width / 2, height / 2 + 18);
+function cloneCanvasForFallback(targetCanvas: HTMLCanvasElement): HTMLCanvasElement {
+  const fallbackCanvas = document.createElement("canvas");
+  fallbackCanvas.id = targetCanvas.id;
+  fallbackCanvas.className = targetCanvas.className;
+  fallbackCanvas.setAttribute("role", targetCanvas.getAttribute("role") ?? "img");
+  targetCanvas.replaceWith(fallbackCanvas);
+  return fallbackCanvas;
+}
+
+function createFallbackCloudParams(rendererOptions: RaymarchCloudOptions): CloudParams {
+  const params = structuredClone(defaultCloudParams) as CloudParams;
+  params.seed = Math.floor(rendererOptions.seed ?? params.seed);
+  params.stormLifecycle.stormAge = clamp((rendererOptions.time ?? 2.2) / 5, 0.34, 0.78);
+  params.humidityUplift.upliftStrength = clamp((rendererOptions.tropopause ?? 12) / 18, 0.44, 0.82);
+  params.humidityUplift.humidity = clamp((rendererOptions.ambientIntensity ?? 0.58) * 0.9, 0.42, 0.78);
+  params.anvilWind.windShear = clamp(rendererOptions.windShear ?? params.anvilWind.windShear, 0.12, 0.92);
+  params.anvilWind.anvilOutflow = clamp(rendererOptions.cloudCurl ?? 0.72, 0.42, 0.92);
+  params.anvilWind.anvilPersistence = clamp(rendererOptions.horizonStrength ?? 0.68, 0.42, 0.86);
+  params.anvilWind.tropopauseHeight = clamp((rendererOptions.tropopause ?? 12) / 18, 0.54, 0.86);
+  params.lightingHdr.silverLining = clamp((rendererOptions.sunIntensity ?? 5.2) / 8, 0.42, 0.9);
+  params.billowMorphology.edgeScallop = clamp(rendererOptions.cloudCurl ?? 0.72, 0.36, 0.9);
+  params.billowMorphology.skyDarkness = rendererOptions.skyMode === "moonlight" ? 0.86 : 0.58;
+  return params;
 }
 
 function renderFrame(now: number): void {
@@ -123,7 +196,15 @@ function renderFrame(now: number): void {
   }
 
   resize();
-  renderer.render((now - startTime) / 1000);
+  try {
+    renderer.render((now - startTime) / 1000);
+  } catch (error) {
+    activateCpuFallback("render-error");
+    if (shouldExposeRuntimeDebug(query)) {
+      console.warn("Cumulonimbus renderer render failed:", error);
+    }
+    return;
+  }
   renderedFrameCount += 1;
   if (captureFrameLimit > 0 && renderedFrameCount >= captureFrameLimit) {
     return;
@@ -309,6 +390,11 @@ function shouldPreserveDrawingBuffer(params: URLSearchParams): boolean {
   return params.has("captureFrames") || params.get("capture") === "1";
 }
 
+function shouldUseCpuRenderer(params: URLSearchParams): boolean {
+  const rendererName = params.get("renderer") ?? params.get("render");
+  return rendererName === "cpu" || rendererName === "2d" || params.get("webgl") === "0";
+}
+
 function shouldUseRandomAtmosphere(preset: RaymarchCloudOptions): boolean {
   return Object.keys(preset).length === 0;
 }
@@ -407,9 +493,9 @@ function resolvePreset(name: string | null): RaymarchCloudOptions {
         fbmOctaves: 5,
         cloudCurl: 1,
         horizonStrength: 1,
-        stepSize: 0.28,
-        maxSteps: 64,
-        staticMaxSteps: 64,
+        stepSize: 0.34,
+        maxSteps: 48,
+        staticMaxSteps: 48,
         sunIntensity: 4.9,
         ambientIntensity: 0.52,
         sunElevation: 8,

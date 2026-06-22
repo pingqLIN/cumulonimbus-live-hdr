@@ -241,16 +241,16 @@ export class RaymarchCloudRenderer {
 
   private defaultMaxSteps(): number {
     if (this.displayProfile.iosChrome) {
-      return 44;
+      return 36;
     }
     if (this.displayProfile.mobileWideView) {
-      return 56;
+      return 44;
     }
-    return 64;
+    return 48;
   }
 
   private staticRayStepLimit(): number {
-    const fallback = this.displayProfile.iosChrome ? 48 : this.displayProfile.mobileWideView ? 64 : 72;
+    const fallback = this.displayProfile.iosChrome ? 40 : this.displayProfile.mobileWideView ? 48 : 48;
     return Math.round(clampFinite(this.options.staticMaxSteps, fallback, 24, 96));
   }
 }

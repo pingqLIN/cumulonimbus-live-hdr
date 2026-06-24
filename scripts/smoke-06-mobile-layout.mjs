@@ -10,7 +10,7 @@ const width = readIntegerArg(args, "width", 390);
 const height = readIntegerArg(args, "height", 844);
 const outputPath = resolve(
   projectRoot,
-  args.out ?? join("outputs", "analysis", "mainline-mobile-horizon-smoke.png")
+  args.out ?? join("outputs", "analysis", "mainline-mobile-cumulus-smoke.png")
 );
 
 const smokeArgs = [
@@ -22,11 +22,11 @@ const smokeArgs = [
   "--waitMs",
   String(readIntegerArg(args, "waitMs", 4000)),
   "--browserTimeoutMs",
-  String(readIntegerArg(args, "browserTimeoutMs", 90000)),
+  String(readIntegerArg(args, "browserTimeoutMs", 120000)),
   "--out",
   outputPath,
   "--preset",
-  args.preset ?? "mobile-horizon",
+  args.preset ?? "mobile-cumulus",
   "--captureFrames",
   args.captureFrames ?? "1",
   "--seed",
@@ -68,7 +68,7 @@ for (const key of [
 const smoke = spawnSync(process.execPath, smokeArgs, {
   cwd: projectRoot,
   encoding: "utf8",
-  timeout: readIntegerArg(args, "browserTimeoutMs", 90000) + 60000,
+  timeout: readIntegerArg(args, "browserTimeoutMs", 120000) + 60000,
   windowsHide: true
 });
 
@@ -84,7 +84,7 @@ const url = new URL(result.url);
 assert.equal(url.searchParams.get("orientation"), "portrait");
 assert.equal(url.searchParams.get("simWidth"), String(width));
 assert.equal(url.searchParams.get("simHeight"), String(height));
-assert.equal(url.searchParams.get("preset"), args.preset ?? "mobile-horizon");
+assert.equal(url.searchParams.get("preset"), args.preset ?? "mobile-cumulus");
 assert.equal(url.searchParams.get("live"), "1");
 assert.equal(result.analysis.width, width);
 assert.equal(result.analysis.height, height);

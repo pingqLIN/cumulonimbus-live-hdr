@@ -37,6 +37,9 @@ export const raymarchCloudFragmentShader = String.raw`
             #ifndef CUMULONIMBUS_MAX_RAY_STEPS
             #define CUMULONIMBUS_MAX_RAY_STEPS 64
             #endif
+            #ifndef CUMULONIMBUS_SINGLE_CLOUD
+            #define CUMULONIMBUS_SINGLE_CLOUD 0
+            #endif
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
@@ -93,22 +96,6 @@ export const raymarchCloudFragmentShader = String.raw`
                     weight *= mix(0.42, 0.57, seedTrait(4.1 + fi * 0.37));
                 }
                 return f;
-            }
-
-            vec3 detailDomain(vec3 p) {
-                return vec3(
-                    p.x * 0.82 + p.z * 0.57,
-                    p.y * 1.05 + p.x * 0.13 - p.z * 0.08,
-                    p.z * 0.76 - p.x * 0.42 + p.y * 0.11
-                );
-            }
-
-            float domainWarp(vec3 p, float phase) {
-                float curl = mix(0.74, 1.36, clamp(uCloudCurl, 0.0, 1.2));
-                float shearWarp = mix(0.82, 1.58, clamp(uWindShear, 0.0, 1.0));
-                vec3 a = detailDomain(p * mix(0.15, 0.23, curl) + vec3(phase, 3.1, 7.7));
-                vec3 b = detailDomain(p * mix(0.27, 0.38, curl) + vec3(9.4, phase * 0.7, 1.8));
-                return ((fbm(a) - 0.5) * 0.9 + (noise(b) - 0.5) * 0.55) * shearWarp;
             }
 
             float smin(float a, float b, float k) {
@@ -178,6 +165,7 @@ export const raymarchCloudFragmentShader = String.raw`
                 return spoke * gate;
             }
 
+            #if CUMULONIMBUS_SINGLE_CLOUD == 0
             float getCell01(
                 vec3 p,
                 vec2 offset,
@@ -286,84 +274,7 @@ export const raymarchCloudFragmentShader = String.raw`
                 shape += dissipating * lowerDowndraft * (1.0 - mature * 0.35) * 0.18;
                 return smax(shape, verticalDist, mix(1.2, 0.86, photo));
             }
-
-            float getCell00(vec3 p, vec2 offset, float maxR, float phase, float maxH) {
-                float r = length(p.xz - offset);
-                float cycle = sin(uTime * 0.2 + phase) * 0.5 + 0.5;
-                float currentR = maxR * (0.7 + 0.3 * cycle);
-                float currentTop = mix(0.5, maxH, cycle);
-                float anvil = smoothstep(currentTop - 1.5, currentTop + 0.5, p.y) * cycle * maxR * 1.5;
-                float shape = r - currentR - anvil;
-                float topDist = p.y - currentTop;
-                vec2 baseLocal = p.xz - offset;
-                float baseWave =
-                    (noise(vec3(baseLocal * 0.24 + phase, uSeed * 0.17)) - 0.5) * 0.86 +
-                    sin(baseLocal.x * 1.08 + phase * 1.7) * 0.18 +
-                    cos(baseLocal.y * 0.82 - phase * 1.2) * 0.13;
-                float undersideNoise = noise(vec3(baseLocal * 0.46 + phase * 0.7, uSeed * 0.31));
-                float lowerPouch = smoothstep(maxR * 0.92, maxR * 0.12, r)
-                    * max(0.0, undersideNoise - 0.28) * 0.72;
-                float localBase = -1.5 + baseWave - max(0.0, lowerPouch);
-                float bottomDist = localBase - p.y;
-                float verticalDist = smax(topDist, bottomDist, 0.62);
-                return smax(shape, verticalDist, 1.0);
-            }
-
-            float getCbCellKm(
-                vec3 p,
-                vec2 offset,
-                float baseH,
-                float topPotential,
-                float baseR,
-                float towerR,
-                float anvilR,
-                float phase,
-                float maturity
-            ) {
-                float pulse = sin(uTime * 0.055 + phase) * 0.5 + 0.5;
-                float topH = min(uTropopause, mix(baseH + 2.4, topPotential, maturity) + (pulse - 0.5) * 0.42);
-                float height = max(1.0, topH - baseH);
-                float h = clamp((p.y - baseH) / height, 0.0, 1.0);
-                vec2 lean = vec2(sin(phase * 1.73), cos(phase * 1.17)) * mix(0.15, 0.82, h);
-                vec2 local = p.xz - offset - lean;
-                float twist = sin(p.y * 0.28 + phase) * 0.2;
-                mat2 rot = mat2(cos(twist), -sin(twist), sin(twist), cos(twist));
-                local = rot * local;
-
-                float lower = smoothstep(0.0, 0.2, h) * (1.0 - smoothstep(0.46, 0.76, h));
-                float tower = smoothstep(0.12, 0.42, h) * (1.0 - smoothstep(0.78, 0.98, h));
-                float crown = smoothstep(0.68, 0.98, h);
-                float cap = smoothstep(0.84, 1.0, h);
-                float anvilSkew = mix(1.0, 0.68, cap);
-                float towerDepthSkew = mix(0.96, 0.72, tower);
-                float crownDepthSkew = mix(towerDepthSkew, 0.6, cap);
-                vec2 shapedLocal = vec2(local.x * anvilSkew, local.y * crownDepthSkew);
-                float r = length(shapedLocal);
-
-                float radius = mix(baseR, towerR, smoothstep(0.06, 0.42, h));
-                radius += lower * baseR * 0.18;
-                radius += crown * anvilR * mix(0.32, 1.0, cap);
-                radius += domainWarp(vec3(local.x * 0.32, p.y * 0.24, local.y * 0.32), phase) * mix(0.34, 1.08, tower + crown);
-                radius *= 0.96 + pulse * 0.08;
-
-                float baseWave =
-                    (noise(vec3(local * 0.18 + phase, uSeed * 0.11)) - 0.5) * 0.72 +
-                    sin(local.x * 0.42 + phase) * 0.18 +
-                    cos(local.y * 0.36 - phase * 0.7) * 0.16;
-                float basePouch = lower * max(0.0, noise(vec3(local * 0.38, phase + uSeed * 0.07)) - 0.3) * 0.72;
-                float localBase = baseH + baseWave - basePouch;
-                float coreDistance = length(local);
-                float coreTopLift = (1.0 - smoothstep(towerR * 0.65, towerR * 2.25, coreDistance)) * 0.95 * maturity;
-                float outerAnvilDrop = smoothstep(towerR * 1.25, towerR + anvilR + baseR * 0.72, coreDistance) * cap * 0.96;
-                float topWave = (noise(vec3(local * 0.18 + phase * 0.4, uSeed * 0.19)) - 0.5) * mix(0.28, 0.96, crown);
-                float localTop = min(uTropopause + 0.55, topH + topWave + coreTopLift - outerAnvilDrop);
-
-                float shape = r - radius;
-                float bottomDist = localBase - p.y;
-                float topDist = p.y - localTop;
-                float verticalDist = smax(topDist, bottomDist, 0.72);
-                return smax(shape, verticalDist, 1.16);
-            }
+            #endif
 
             float ellipsoidSdf(vec3 p, vec3 center, vec3 radius) {
                 vec3 q = (p - center) / radius;
@@ -385,16 +296,27 @@ export const raymarchCloudFragmentShader = String.raw`
                 return smin(field, cbLobe(p, center, radius, phase, roughness), blend);
             }
 
-            float addConvectiveBranchCluster(float field, vec3 p, vec2 offset, float scale, float phase, float photo) {
-                float branchBlend = mix(0.58, 0.42, photo);
-                float capBlend = mix(0.48, 0.34, photo);
-                field = addLobe(field, p, vec3(offset.x - 0.9 * scale, 0.75, offset.y + 0.16 * scale), vec3(0.58, 2.05, 0.52) * scale, phase + 0.4, 0.72, branchBlend);
-                field = addLobe(field, p, vec3(offset.x + 0.2 * scale, 1.0, offset.y - 0.12 * scale), vec3(0.62, 2.35, 0.58) * scale, phase + 1.7, 0.76, branchBlend);
-                field = addLobe(field, p, vec3(offset.x + 1.08 * scale, 0.82, offset.y + 0.18 * scale), vec3(0.54, 1.88, 0.5) * scale, phase + 2.8, 0.72, branchBlend);
-                field = addLobe(field, p, vec3(offset.x - 1.35 * scale, 2.86, offset.y - 0.12 * scale), vec3(0.88, 0.72, 0.72) * scale, phase + 3.6, 0.82, capBlend);
-                field = addLobe(field, p, vec3(offset.x - 0.24 * scale, 3.28, offset.y + 0.22 * scale), vec3(0.96, 0.78, 0.78) * scale, phase + 4.9, 0.86, capBlend);
-                field = addLobe(field, p, vec3(offset.x + 0.92 * scale, 2.96, offset.y - 0.18 * scale), vec3(0.84, 0.68, 0.7) * scale, phase + 6.1, 0.82, capBlend);
-                return field;
+            float mapSingleCumulusMacro(vec3 p, float photo) {
+                float phase = uSeed * 0.017 + uTime * 0.035;
+                float curl = clamp(uCloudCurl, 0.0, 1.2);
+                float spread = mix(1.0, 1.18, curl);
+                float softBlend = mix(0.78, 0.58, photo);
+                float field = 24.0;
+
+                field = addLobe(field, p, vec3(-1.42, -1.05, -0.05), vec3(1.82, 0.58, 1.08) * spread, phase + 0.2, 0.42, softBlend);
+                field = addLobe(field, p, vec3(0.08, -1.18, 0.08), vec3(2.18, 0.62, 1.18) * spread, phase + 1.4, 0.46, softBlend);
+                field = addLobe(field, p, vec3(1.46, -1.02, -0.08), vec3(1.72, 0.56, 1.02) * spread, phase + 2.2, 0.42, softBlend);
+                field = addLobe(field, p, vec3(-0.86, -0.28, 0.02), vec3(1.48, 0.86, 1.02) * spread, phase + 3.1, 0.58, softBlend * 0.86);
+                field = addLobe(field, p, vec3(0.62, -0.18, -0.02), vec3(1.56, 0.92, 1.05) * spread, phase + 4.5, 0.58, softBlend * 0.86);
+                field = addLobe(field, p, vec3(-0.18, 0.68, 0.08), vec3(1.18, 0.72, 0.9) * spread, phase + 5.8, 0.64, softBlend * 0.78);
+                field = addLobe(field, p, vec3(0.92, 0.52, -0.06), vec3(0.98, 0.6, 0.82) * spread, phase + 6.4, 0.58, softBlend * 0.82);
+
+                float undersideWave =
+                    (noise(vec3(p.xz * 0.58 + vec2(phase, -phase), uSeed * 0.041)) - 0.5) * 0.22 +
+                    sin(p.x * 1.25 + phase) * 0.06;
+                float bottomDist = (-1.64 + undersideWave) - p.y;
+                float topDist = p.y - (1.78 + (noise(vec3(p.xz * 0.35, phase)) - 0.5) * 0.28);
+                return smax(smax(field, bottomDist, 0.58), topDist, 0.5);
             }
 
             float mapCloudMacro(vec3 p) {
@@ -407,6 +329,12 @@ export const raymarchCloudFragmentShader = String.raw`
 
                 vec3 modelP = worldToModelSpace(layoutP);
                 float photo = uPhotographicStyle;
+                #if CUMULONIMBUS_SINGLE_CLOUD == 1
+                float single = mapSingleCumulusMacro(modelP, photo);
+                float singleCapLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.12 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
+                float singleGroundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
+                return smax(smax(single, singleCapLimiter, 0.18), singleGroundLimiter, 0.22);
+                #else
                 float layoutMode = mod(floor(abs(uSeed)), 3.0);
                 float triangleLayout = step(0.5, layoutMode) * (1.0 - step(1.5, layoutMode));
                 float clusterLayout = step(1.5, layoutMode);
@@ -477,6 +405,7 @@ export const raymarchCloudFragmentShader = String.raw`
                 float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
                 float groundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
                 return smax(smax(macro, capLimiter, 0.18), groundLimiter, 0.22);
+                #endif
             }
 
             float mapCloudFromMacro(vec3 p, float macro) {
@@ -575,10 +504,6 @@ export const raymarchCloudFragmentShader = String.raw`
                     d -= dissipating * anvilBand * settlingAnvil * 0.16;
                 }
                 return clamp(d, 0.0, 1.0);
-            }
-
-            float mapCloud(vec3 p) {
-                return mapCloudFromMacro(p, mapCloudMacro(p));
             }
 
             float phaseHG(float cosTheta, float g) {

@@ -1,4 +1,8 @@
 import * as THREE from "three";
+import {
+  detectBrowserDisplayProfile,
+  type BrowserDisplayProfile
+} from "./display-profile.js";
 import { raymarchCloudFragmentShader, raymarchCloudVertexShader } from "./raymarch-cloud-shader.js";
 
 export type RaymarchCloudOptions = {
@@ -25,6 +29,8 @@ export type RaymarchCloudOptions = {
   transparentBackground?: boolean;
   hdr10?: boolean;
   ortho?: boolean;
+  showGrid?: boolean;
+  surfaceMode?: "none" | "ocean" | "hills";
   cameraYawDegrees?: number;
   cameraPitchDegrees?: number;
   cameraDistance?: number;
@@ -32,13 +38,6 @@ export type RaymarchCloudOptions = {
   preserveDrawingBuffer?: boolean;
   staticMaxSteps?: number;
   debugShaderDiagnostics?: boolean;
-};
-
-export type BrowserDisplayProfile = {
-  readonly narrowViewport: boolean;
-  readonly coarsePointer: boolean;
-  readonly mobileWideView: boolean;
-  readonly iosChrome: boolean;
 };
 
 const MODEL_BASE_KM = 0.5;
@@ -51,6 +50,8 @@ const PERSPECTIVE_DISTANCE_SCALE = 0.38;
 const FRAME_VERTICAL_PADDING_KM = 2;
 const ORTHO_VERTICAL_WORLD_SCALE = 1;
 const HDR10_REFERENCE_PEAK_NITS = 1000;
+const SAFE_DESKTOP_MAX_PIXELS = 1280 * 720;
+const EMPTY_SHADER_LOG = "(empty shader log)";
 
 export class RaymarchCloudRenderer {
   private readonly renderer: THREE.WebGLRenderer;
@@ -68,7 +69,7 @@ export class RaymarchCloudRenderer {
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
-    private readonly options: RaymarchCloudOptions = {}
+    private options: RaymarchCloudOptions = {}
   ) {
     this.displayProfile = options.displayProfile ?? detectBrowserDisplayProfile();
     this.tropopause = clampFinite(options.tropopause, 12, 4, 20);
@@ -91,13 +92,24 @@ export class RaymarchCloudRenderer {
       canvas,
       context
     });
-    this.renderer.debug.checkShaderErrors = options.debugShaderDiagnostics ?? false;
+    this.renderer.debug.checkShaderErrors = true;
+    this.renderer.debug.onShaderError = (gl, program, vertexShader, fragmentShader) => {
+      throw new Error(
+        [
+          "Cumulonimbus shader program failed to link.",
+          `Program: ${readShaderLog(gl.getProgramInfoLog(program))}`,
+          `Vertex: ${readShaderLog(gl.getShaderInfoLog(vertexShader))}`,
+          `Fragment: ${readShaderLog(gl.getShaderInfoLog(fragmentShader))}`
+        ].join(" ")
+      );
+    };
     this.renderer.setClearColor(0x000000, options.transparentBackground ? 0 : 1);
     this.renderer.setPixelRatio(1);
 
     this.material = new THREE.ShaderMaterial({
       defines: {
-        CUMULONIMBUS_MAX_RAY_STEPS: this.staticRayStepLimit()
+        CUMULONIMBUS_MAX_RAY_STEPS: this.staticRayStepLimit(),
+        CUMULONIMBUS_SINGLE_CLOUD: usesSingleCloudModel(options) ? 1 : 0
       },
       vertexShader: raymarchCloudVertexShader,
       fragmentShader: raymarchCloudFragmentShader,
@@ -108,15 +120,15 @@ export class RaymarchCloudRenderer {
         uCameraTarget: { value: this.cameraTarget },
         uAspect: { value: 1 },
         uTropopause: { value: this.tropopause },
-        uShowGrid: { value: 0 },
-        uSurfaceVisible: { value: 0 },
-        uSurfaceMode: { value: 0 },
+        uShowGrid: { value: options.showGrid ? 1 : 0 },
+        uSurfaceVisible: { value: options.surfaceMode && options.surfaceMode !== "none" ? 1 : 0 },
+        uSurfaceMode: { value: resolveSurfaceModeValue(options.surfaceMode) },
         uSeed: { value: Math.floor(clampFinite(options.seed, 574, 1, Number.MAX_SAFE_INTEGER)) },
         uFbmOctaves: { value: clampFinite(options.fbmOctaves, 5, 4, 6) },
         uCloudCurl: {
           value: clampFinite(options.cloudCurl, this.displayProfile.mobileWideView ? 0.86 : 0.78, 0, 1.2)
         },
-        uSystemCount: { value: Math.round(clampFinite(options.systems, 3, 1, 10)) },
+        uSystemCount: { value: resolveSystemCount(options.systems) },
         uIsOrtho: { value: options.ortho ? 1 : 0 },
         uOrthoSize: { value: this.orthoFrustumSize },
         uOrthoVerticalScale: { value: ORTHO_VERTICAL_WORLD_SCALE },
@@ -141,6 +153,102 @@ export class RaymarchCloudRenderer {
     });
 
     this.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material));
+  }
+
+  updateOptions(nextOptions: RaymarchCloudOptions): void {
+    this.options = { ...this.options, ...nextOptions };
+    this.tropopause = clampFinite(this.options.tropopause, 12, 4, 20);
+    this.orthoFrustumSize = this.defaultOrthoFrustumSize();
+    this.updateCameraFromOptions();
+
+    const staticStepLimit = this.staticRayStepLimit();
+    const singleCloudDefine = usesSingleCloudModel(this.options) ? 1 : 0;
+    if (this.material.defines.CUMULONIMBUS_MAX_RAY_STEPS !== staticStepLimit) {
+      this.material.defines.CUMULONIMBUS_MAX_RAY_STEPS = staticStepLimit;
+      this.material.needsUpdate = true;
+    }
+    if (this.material.defines.CUMULONIMBUS_SINGLE_CLOUD !== singleCloudDefine) {
+      this.material.defines.CUMULONIMBUS_SINGLE_CLOUD = singleCloudDefine;
+      this.material.needsUpdate = true;
+    }
+
+    this.material.uniforms.uCameraPos!.value = this.cameraPosition;
+    this.material.uniforms.uCameraTarget!.value = this.cameraTarget;
+    this.material.uniforms.uTropopause!.value = this.tropopause;
+    this.material.uniforms.uShowGrid!.value = this.options.showGrid ? 1 : 0;
+    this.material.uniforms.uSurfaceVisible!.value =
+      this.options.surfaceMode && this.options.surfaceMode !== "none" ? 1 : 0;
+    this.material.uniforms.uSurfaceMode!.value = resolveSurfaceModeValue(this.options.surfaceMode);
+    this.material.uniforms.uSeed!.value = Math.floor(
+      clampFinite(this.options.seed, 574, 1, Number.MAX_SAFE_INTEGER)
+    );
+    this.material.uniforms.uFbmOctaves!.value = clampFinite(this.options.fbmOctaves, 5, 4, 6);
+    this.material.uniforms.uCloudCurl!.value = clampFinite(
+      this.options.cloudCurl,
+      this.displayProfile.mobileWideView ? 0.86 : 0.78,
+      0,
+      1.2
+    );
+    this.material.uniforms.uSystemCount!.value = resolveSystemCount(this.options.systems);
+    this.material.uniforms.uIsOrtho!.value = this.options.ortho ? 1 : 0;
+    this.material.uniforms.uOrthoSize!.value = this.orthoFrustumSize;
+    this.material.uniforms.uStepSize!.value = clampFinite(
+      this.options.stepSize,
+      this.defaultStepSize(),
+      0.08,
+      0.6
+    );
+    this.material.uniforms.uMaxSteps!.value = clampFinite(
+      this.options.maxSteps,
+      this.defaultMaxSteps(),
+      24,
+      144
+    );
+    this.material.uniforms.uSunIntensity!.value = clampFinite(this.options.sunIntensity, 4.6, 0, 10);
+    this.material.uniforms.uAmbientIntensity!.value = clampFinite(
+      this.options.ambientIntensity,
+      0.75,
+      0,
+      2
+    );
+    this.material.uniforms.uSunElevation!.value = clampFinite(
+      this.options.sunElevation,
+      35,
+      -20,
+      90
+    );
+    this.material.uniforms.uSunViewerAngle!.value = clampFinite(
+      this.options.sunViewerAngle,
+      25,
+      -180,
+      180
+    );
+    this.material.uniforms.uFreezingLevel!.value = clampFinite(
+      this.options.freezingLevel,
+      5,
+      0,
+      16
+    );
+    this.material.uniforms.uWindShear!.value = clampFinite(
+      this.options.windShear,
+      this.displayProfile.mobileWideView ? 0.9 : 0.82,
+      0,
+      1
+    );
+    this.material.uniforms.uPhotographicStyle!.value = this.options.photographicStyle ? 1 : 0;
+    this.material.uniforms.uLightPreset!.value = resolveLightPresetValue(this.options.lightPreset);
+    this.material.uniforms.uSkyMode!.value = resolveSkyModeValue(
+      this.options.skyMode,
+      this.options.photographicStyle
+    );
+    this.material.uniforms.uHorizonStrength!.value = clampFinite(
+      this.options.horizonStrength,
+      1,
+      0,
+      1
+    );
+    this.material.uniforms.uTransparentBackground!.value = this.options.transparentBackground ? 1 : 0;
+    this.material.uniforms.uHdr10Mode!.value = this.options.hdr10 ? 1 : 0;
   }
 
   resize(width: number, height: number): void {
@@ -226,7 +334,7 @@ export class RaymarchCloudRenderer {
     if (this.displayProfile.mobileWideView) {
       return 1280 * 720;
     }
-    return 1920 * 1080;
+    return SAFE_DESKTOP_MAX_PIXELS;
   }
 
   private defaultStepSize(): number {
@@ -246,11 +354,11 @@ export class RaymarchCloudRenderer {
     if (this.displayProfile.mobileWideView) {
       return 44;
     }
-    return 48;
+    return 40;
   }
 
   private staticRayStepLimit(): number {
-    const fallback = this.displayProfile.iosChrome ? 40 : this.displayProfile.mobileWideView ? 48 : 48;
+    const fallback = this.displayProfile.iosChrome ? 40 : this.displayProfile.mobileWideView ? 48 : 40;
     return Math.round(clampFinite(this.options.staticMaxSteps, fallback, 24, 96));
   }
 }
@@ -284,15 +392,22 @@ function resolveSkyModeValue(
   return 0;
 }
 
-export function detectBrowserDisplayProfile(): BrowserDisplayProfile {
-  const narrowViewport = window.matchMedia("(max-width: 760px)").matches;
-  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
-  return {
-    narrowViewport,
-    coarsePointer,
-    mobileWideView: narrowViewport || coarsePointer,
-    iosChrome: /\bCriOS\//i.test(navigator.userAgent) && /iP(?:hone|ad|od)/i.test(navigator.userAgent)
-  };
+function resolveSurfaceModeValue(name: RaymarchCloudOptions["surfaceMode"]): number {
+  if (name === "hills") {
+    return 1;
+  }
+  if (name === "ocean") {
+    return 0;
+  }
+  return 0;
+}
+
+function resolveSystemCount(value: number | undefined): number {
+  return Math.round(clampFinite(value, 1, 1, 10));
+}
+
+function usesSingleCloudModel(options: RaymarchCloudOptions): boolean {
+  return resolveSystemCount(options.systems) < 2;
 }
 
 function createWebGLContext(
@@ -321,6 +436,11 @@ function createWebGLContext(
   }
 
   return null;
+}
+
+function readShaderLog(value: string | null): string {
+  const log = value?.trim();
+  return log && log.length > 0 ? log : EMPTY_SHADER_LOG;
 }
 
 function clampFinite(

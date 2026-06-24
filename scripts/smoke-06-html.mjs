@@ -13,6 +13,9 @@ const outputPath = resolve(
   projectRoot,
   args.out ?? join("outputs", "analysis", "mainline-html-smoke.png")
 );
+const captureFrames = args.captureFrames ?? "1";
+const waitMs = readIntegerArg(args, "waitMs", Number(captureFrames) > 0 ? 1000 : 4000);
+const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", 120000);
 rmSync(outputPath, { force: true });
 
 const captureArgs = [
@@ -26,15 +29,15 @@ const captureArgs = [
   "--height",
   String(height),
   "--waitMs",
-  String(readIntegerArg(args, "waitMs", 4000)),
+  String(waitMs),
   "--browserTimeoutMs",
-  String(readIntegerArg(args, "browserTimeoutMs", 90000)),
+  String(browserTimeoutMs),
   "--out",
   outputPath,
   "--preset",
-  args.preset ?? "mobile-horizon",
+  args.preset ?? "mobile-cumulus",
   "--captureFrames",
-  args.captureFrames ?? "1",
+  captureFrames,
   "--seed",
   args.seed ?? "574"
 ];
@@ -93,7 +96,7 @@ for (const key of [
 const capture = spawnSync(process.execPath, captureArgs, {
   cwd: projectRoot,
   encoding: "utf8",
-  timeout: readIntegerArg(args, "browserTimeoutMs", 90000) + 15000,
+  timeout: browserTimeoutMs + 60000,
   windowsHide: true
 });
 

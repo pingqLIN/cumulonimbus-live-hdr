@@ -1,0 +1,157 @@
+.control-group {
+  min-width: 0;
+  min-height: 7rem;
+  padding: 0.46rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 0.38rem;
+  background: rgb(255 255 255 / 0.18);
+}
+
+.control-group__label {
+  color: var(--stage-text-faint);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.segmented-controls,
+.framing-controls {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--stage-line);
+}
+
+.framing-controls #btn-reset-cam {
+  grid-column: 1 / -1;
+}
+
+.segment-button,
+.btn-toggle,
+.btn-action,
+.panel-button,
+.panel-restore-dock button {
+  min-width: 0;
+  padding: 0.32rem 0.48rem;
+  color: var(--stage-text);
+  background: rgb(255 255 255 / 0.28);
+  border-color: transparent;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.segment-button.active,
+.segment-button[aria-pressed="true"],
+.btn-toggle.enabled,
+.btn-action:active {
+  color: rgb(26 29 33 / 0.96);
+  background: rgb(246 242 236 / 0.62);
+  box-shadow: inset 0 0 0 1px rgb(37 40 45 / 0.22);
+}
+
+.panel-button {
+  min-width: 1.55rem;
+  min-height: 1.18rem;
+  padding: 0 0.28rem;
+  font-size: 0.66rem;
+}
+
+.slider-group {
+  display: grid;
+  grid-template-columns: minmax(3.8rem, 0.64fr) minmax(0, 1fr) minmax(3rem, auto);
+  align-items: center;
+  gap: 0.42rem;
+  color: var(--stage-text-soft);
+  font-size: 0.72rem;
+}
+
+.slider-group label,
+.slider-label {
+  color: var(--stage-text);
+  font-weight: 650;
+}
+
+.slider-group input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--stage-blue-signal);
+}
+
+.slider-group.accent-red input[type="range"] {
+  accent-color: var(--stage-danger);
+}
+
+.readout {
+  min-width: 2.7rem;
+  color: var(--stage-text-faint);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 0.66rem;
+  text-align: right;
+}
+
+.seed-input,
+.tp-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 1.8rem;
+  border: 1px solid var(--stage-line);
+  border-radius: 0;
+  color: var(--stage-text);
+  background: rgb(255 255 255 / 0.34);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 0.72rem;
+}
+
+.select-group {
+  display: grid;
+  grid-template-columns: minmax(4rem, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.42rem;
+  color: var(--stage-text-faint);
+  font-size: 0.72rem;
+}
+
+.select-group span {
+  color: var(--stage-text);
+  font-weight: 650;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .control-group {
+    min-height: 5.2rem;
+    padding: 0.38rem;
+  }
+
+  .control-group--framing {
+    display: none;
+  }
+
+  .slider-group,
+  .select-group {
+    grid-template-columns: minmax(3.6rem, 0.6fr) minmax(0, 1fr) minmax(2.5rem, auto);
+    gap: 0.36rem;
+  }
+
+  .select-group {
+    grid-template-columns: minmax(3.6rem, 0.6fr) minmax(0, 1fr);
+  }
+
+  .segment-button,
+  .btn-toggle,
+  .btn-action,
+  .panel-restore-dock button {
+    min-height: 1.72rem;
+    padding: 0.26rem 0.36rem;
+    font-size: 0.64rem;
+  }
+}

@@ -22,12 +22,12 @@ const orientation = normalizeOrientation(args.orientation);
 const defaultDimensions = getOrientationDimensions(orientation);
 const width = readIntegerArg(args, "width", defaultDimensions.width);
 const height = readIntegerArg(args, "height", defaultDimensions.height);
-const waitMs = readIntegerArg(args, "waitMs", 12000);
+const captureFrames = readIntegerArg(args, "captureFrames", 0);
+const waitMs = readIntegerArg(args, "waitMs", captureFrames > 0 ? 1000 : 12000);
 const browserTimeoutMs = readIntegerArg(args, "browserTimeoutMs", Math.max(30000, waitMs + 20000));
 const view = args.view;
 const look = args.look;
 const simPreset = args.simPreset;
-const captureFrames = readIntegerArg(args, "captureFrames", 0);
 const outputMode = args.source === "live" ? "live" : args.source === "ui" ? "ui" : "capture";
 const defaultOutputPath =
   view === "field" ? "outputs/cumulonimbus-field-still.png" : "outputs/cumulonimbus-3d-still.png";
@@ -112,7 +112,9 @@ try {
 
 if (successPayload) {
   successPayload.processCleanup.server = serverCleanup;
-  console.log(JSON.stringify(successPayload, null, 2));
+  process.stdout.write(`${JSON.stringify(successPayload, null, 2)}\n`, () => {
+    process.exit(0);
+  });
 }
 
 function parseArgs(rawArgs) {
@@ -291,7 +293,7 @@ async function runBrowserCdpScreenshot(browser, targetUrl, targetOutputPath, opt
       mobile: options.width < options.height
     });
     await client.send("Page.navigate", { url: targetUrl });
-    await waitForCanvasRuntime(client, options.timeoutMs, options.width, options.height);
+    await waitForCanvasRuntime(client, options.timeoutMs, options.width, options.height, runtimeErrors);
     await delay(options.waitMs);
 
     if (runtimeErrors.length > 0) {
@@ -336,10 +338,13 @@ async function runBrowserCdpScreenshot(browser, targetUrl, targetOutputPath, opt
   }
 }
 
-async function waitForCanvasRuntime(client, timeoutMs, width, height) {
+async function waitForCanvasRuntime(client, timeoutMs, width, height, runtimeErrors) {
   const started = Date.now();
   let lastMetrics = null;
   while (Date.now() - started < timeoutMs) {
+    if (runtimeErrors.length > 0) {
+      throw new Error(`Browser runtime errors before capture readiness: ${runtimeErrors.join("\n")}`);
+    }
     try {
       const result = await client.send("Runtime.evaluate", {
         returnByValue: true,
@@ -350,6 +355,8 @@ async function waitForCanvasRuntime(client, timeoutMs, width, height) {
             href: location.href,
             renderMode: document.documentElement.dataset.renderMode || '',
             orientation: document.documentElement.dataset.orientation || '',
+            renderStatus: document.documentElement.dataset.renderStatus || '',
+            appModuleStatus: document.documentElement.dataset.appModuleStatus || '',
             hasCanvas: Boolean(canvas),
             canvasWidth: canvas?.width || 0,
             canvasHeight: canvas?.height || 0,
@@ -368,20 +375,29 @@ async function waitForCanvasRuntime(client, timeoutMs, width, height) {
           metrics.ready = metrics.readyState !== 'loading'
             && metrics.hasCanvas
             && metrics.canvasWidth === ${JSON.stringify(width)}
-            && metrics.canvasHeight === ${JSON.stringify(height)};
+            && metrics.canvasHeight === ${JSON.stringify(height)}
+            && (metrics.renderStatus === 'ready' || metrics.renderStatus === 'fallback-2d');
           return metrics;
         })()`
       });
       lastMetrics = result.result?.value ?? null;
-      if (lastMetrics?.ready) {
-        return;
-      }
     } catch {
       // Keep polling while Vite serves and the module graph evaluates.
     }
+    if (lastMetrics?.renderStatus === "app-error") {
+      throw new Error(`Capture app startup failed before readiness: ${JSON.stringify(lastMetrics)}`);
+    }
+    if (lastMetrics?.ready) {
+      return;
+    }
     await delay(250);
   }
-  throw new Error(`Timed out waiting for capture canvas runtime readiness: ${JSON.stringify(lastMetrics)}`);
+  throw new Error(
+    `Timed out waiting for capture canvas runtime readiness: ${JSON.stringify({
+      lastMetrics,
+      runtimeErrors
+    })}`
+  );
 }
 
 async function readJsonEndpoint(endpoint, timeoutMs) {

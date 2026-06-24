@@ -1,0 +1,81 @@
+:root {
+  color-scheme: light;
+  --stage-sky-fill: #405b83;
+  --stage-sky-deep: #071122;
+  --stage-paper: 246 242 236;
+  --stage-paper-cool: 225 236 244;
+  --stage-ink: 37 40 45;
+  --stage-line: rgb(37 40 45 / 0.2);
+  --stage-line-strong: rgb(37 40 45 / 0.34);
+  --stage-text: rgb(36 38 42 / 0.9);
+  --stage-text-soft: rgb(42 48 56 / 0.72);
+  --stage-text-faint: rgb(42 48 56 / 0.54);
+  --stage-blue-signal: #3b78a7;
+  --stage-sunlit: #c49a43;
+  --stage-danger: #b75b4b;
+  --stage-render-top: 0px;
+  --stage-render-right: 100vw;
+  --stage-render-bottom: 100vh;
+  --stage-render-left: 0px;
+  font-family: "Segoe UI Variable", "Aptos", "Segoe UI", system-ui, sans-serif;
+  background: var(--stage-sky-fill);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  color: var(--stage-text-soft);
+  background: var(--stage-sky-fill);
+  letter-spacing: 0;
+}
+
+body[data-background="transparent"],
+html[data-background="transparent"] {
+  background: transparent;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  min-height: 1.8rem;
+  border: 1px solid var(--stage-line);
+  border-radius: 0;
+  color: var(--stage-text);
+  background: rgb(255 255 255 / 0.28);
+  cursor: pointer;
+}
+
+button:hover,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 1px solid rgb(37 40 45 / 0.55);
+  outline-offset: 1px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+noscript {
+  position: fixed;
+  inset: auto 1rem 1rem;
+  z-index: 40;
+  color: #f3f6fb;
+  font: 14px/1.5 system-ui, sans-serif;
+}

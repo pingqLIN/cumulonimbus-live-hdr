@@ -134,7 +134,7 @@ try {
     mobile: true
   });
   await client.send("Page.navigate", { url: url.toString() });
-  await waitForRuntimeCondition(client, browserTimeoutMs, width, height);
+  await waitForRuntimeCondition(client, browserTimeoutMs, width, height, runtimeErrors);
   await delay(waitMs);
 
   const metricsResult = await client.send("Runtime.evaluate", {
@@ -148,6 +148,7 @@ try {
   assert.equal(metrics.renderMode, "canvas");
   assert.equal(metrics.orientation, "portrait");
   assert.equal(metrics.deviceProfile, "mobile");
+  assert.equal(metrics.renderStatus, "ready");
   assert.equal(metrics.viewport.width, width);
   assert.equal(metrics.viewport.height, height);
   assert.equal(metrics.webglAvailable, true);
@@ -159,12 +160,15 @@ try {
   assert.ok(metrics.bodyOverflow.y <= 1, `expected no document vertical overflow, got ${metrics.bodyOverflow.y}`);
   assert.equal(metrics.runtime.displayProfile.mobileWideView, true);
   assert.equal(metrics.runtime.displayProfile.narrowViewport, true);
-  assert.equal(metrics.runtime.options.presetName, args.preset ?? "mobile-horizon");
+  assert.equal(metrics.runtime.options.presetName, args.preset ?? "mobile-cumulus");
   assert.equal(metrics.runtime.options.presetSource, args.preset === undefined ? "browser-profile" : "query");
-  assert.equal(metrics.runtime.options.systems, 5);
-  assert.equal(metrics.runtime.options.maxSteps, 48);
-  assert.equal(metrics.runtime.options.staticMaxSteps, 48);
-  assert.equal(metrics.runtime.options.cloudCurl, 1);
+  assert.equal(metrics.runtime.options.systems, readNumericOption(args, "systems", 1));
+  assert.equal(metrics.runtime.options.maxSteps, readNumericOption(args, "maxSteps", 54));
+  assert.equal(
+    metrics.runtime.options.staticMaxSteps,
+    readFirstNumericOption(args, ["staticMaxSteps", "compileSteps", "shaderSteps"], 56)
+  );
+  assert.equal(metrics.runtime.options.cloudCurl, readFirstNumericOption(args, ["cloudCurl", "curl"], 0.82));
   assert.deepEqual(runtimeErrors, []);
 
   console.log(
@@ -223,6 +227,8 @@ function collectMobileCanvasMetrics() {
     renderMode: document.documentElement.dataset.renderMode || "",
     orientation: document.documentElement.dataset.orientation || "",
     deviceProfile: document.documentElement.dataset.deviceProfile || "",
+    renderStatus: document.documentElement.dataset.renderStatus || "",
+    appModuleStatus: document.documentElement.dataset.appModuleStatus || "",
     runtime: window.__cumulonimbusRuntime || null,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     canvasRect: rectData(rect),
@@ -252,6 +258,21 @@ function readIntegerArg(parsed, name, fallback) {
   const value = Number(parsed[name]);
   if (!Number.isFinite(value) || value <= 0) return fallback;
   return Math.round(value);
+}
+
+function readNumericOption(parsed, name, fallback) {
+  const value = Number(parsed[name]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function readFirstNumericOption(parsed, names, fallback) {
+  for (const name of names) {
+    const value = Number(parsed[name]);
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return fallback;
 }
 
 function startVite(targetPort) {
@@ -314,30 +335,67 @@ async function readJsonEndpoint(endpoint, timeoutMs) {
   throw new Error(`Timed out waiting for ${endpoint}`);
 }
 
-async function waitForRuntimeCondition(client, timeoutMs, width, height) {
+async function waitForRuntimeCondition(client, timeoutMs, width, height, runtimeErrors) {
   const started = Date.now();
+  let lastMetrics = null;
   while (Date.now() - started < timeoutMs) {
+    if (runtimeErrors.length > 0) {
+      throw new Error(`Browser runtime errors before mobile canvas readiness: ${runtimeErrors.join("\n")}`);
+    }
     try {
       const result = await client.send("Runtime.evaluate", {
         returnByValue: true,
         expression: `(() => {
           const canvas = document.querySelector('#cloud-canvas');
-          return document.readyState !== 'loading'
+          const metrics = {
+            readyState: document.readyState,
+            href: location.href,
+            renderMode: document.documentElement.dataset.renderMode || '',
+            orientation: document.documentElement.dataset.orientation || '',
+            renderStatus: document.documentElement.dataset.renderStatus || '',
+            appModuleStatus: document.documentElement.dataset.appModuleStatus || '',
+            hasCanvas: Boolean(canvas),
+            canvasWidth: canvas?.width || 0,
+            canvasHeight: canvas?.height || 0,
+            innerWidth,
+            innerHeight,
+            scripts: Array.from(document.scripts).map((script) => ({
+              src: script.src,
+              type: script.type
+            })),
+            resources: performance.getEntriesByType('resource').slice(-12).map((entry) => ({
+              name: entry.name,
+              initiatorType: entry.initiatorType,
+              duration: Math.round(entry.duration)
+            }))
+          };
+          metrics.ready = document.readyState !== 'loading'
             && document.documentElement.dataset.renderMode === 'canvas'
+            && document.documentElement.dataset.renderStatus === 'ready'
             && Boolean(canvas)
             && canvas.width === ${JSON.stringify(width)}
             && canvas.height === ${JSON.stringify(height)};
+          return metrics;
         })()`
       });
-      if (result.result?.value) {
-        return;
-      }
+      lastMetrics = result.result?.value ?? null;
     } catch {
       // Keep polling while Vite serves and the module graph evaluates.
     }
+    if (lastMetrics?.renderStatus === "app-error") {
+      throw new Error(`Mobile app startup failed before readiness: ${JSON.stringify(lastMetrics)}`);
+    }
+    if (lastMetrics?.ready) {
+      return;
+    }
     await delay(250);
   }
-  throw new Error("Timed out waiting for mobile canvas runtime readiness.");
+  throw new Error(
+    `Timed out waiting for mobile canvas runtime readiness: ${JSON.stringify({
+      lastMetrics,
+      runtimeErrors
+    })}`
+  );
 }
 
 function createCdpClient(webSocketUrl) {

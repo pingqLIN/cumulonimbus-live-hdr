@@ -34,15 +34,21 @@ export type RaymarchCloudOptions = {
   cameraYawDegrees?: number;
   cameraPitchDegrees?: number;
   cameraDistance?: number;
+  cameraTargetOffsetX?: number;
+  cameraTargetOffsetY?: number;
+  cameraTargetOffsetZ?: number;
   maxPixels?: number;
   preserveDrawingBuffer?: boolean;
   staticMaxSteps?: number;
+  mobileCumulusMode?: boolean;
   debugShaderDiagnostics?: boolean;
 };
 
 const MODEL_BASE_KM = 0.5;
 const RESET_TARGET_HEIGHT_RATIO = 0.5;
-const RESET_CAMERA_HEIGHT_RATIO = 0.68;
+const RESET_CAMERA_HEIGHT_RATIO = 0.93;
+const MOBILE_RESET_TARGET_HEIGHT_RATIO = 0.24;
+const MOBILE_RESET_CAMERA_HEIGHT_RATIO = 0.46;
 const MODEL_VIEW_OCCUPANCY = 0.44;
 const MOBILE_MODEL_VIEW_OCCUPANCY = 0.38;
 const MIN_ORTHO_FRUSTUM_SIZE = 24;
@@ -52,6 +58,7 @@ const ORTHO_VERTICAL_WORLD_SCALE = 1;
 const HDR10_REFERENCE_PEAK_NITS = 1000;
 const SAFE_DESKTOP_MAX_PIXELS = 1280 * 720;
 const EMPTY_SHADER_LOG = "(empty shader log)";
+const STABLE_SHADER_SEED_LIMIT = 10_000;
 
 export class RaymarchCloudRenderer {
   private readonly renderer: THREE.WebGLRenderer;
@@ -80,7 +87,7 @@ export class RaymarchCloudRenderer {
       antialias: false,
       alpha: options.transparentBackground ?? false,
       premultipliedAlpha: !(options.transparentBackground ?? false),
-      powerPreference: this.displayProfile.iosChrome ? "default" : "high-performance",
+      powerPreference: "default",
       preserveDrawingBuffer: options.preserveDrawingBuffer ?? false
     } satisfies WebGLContextAttributes;
     const context = createWebGLContext(canvas, rendererAttributes);
@@ -123,7 +130,7 @@ export class RaymarchCloudRenderer {
         uShowGrid: { value: options.showGrid ? 1 : 0 },
         uSurfaceVisible: { value: options.surfaceMode && options.surfaceMode !== "none" ? 1 : 0 },
         uSurfaceMode: { value: resolveSurfaceModeValue(options.surfaceMode) },
-        uSeed: { value: Math.floor(clampFinite(options.seed, 574, 1, Number.MAX_SAFE_INTEGER)) },
+        uSeed: { value: normalizeShaderSeed(options.seed, 574) },
         uFbmOctaves: { value: clampFinite(options.fbmOctaves, 5, 4, 6) },
         uCloudCurl: {
           value: clampFinite(options.cloudCurl, this.displayProfile.mobileWideView ? 0.86 : 0.78, 0, 1.2)
@@ -148,7 +155,8 @@ export class RaymarchCloudRenderer {
         uHorizonStrength: { value: clampFinite(options.horizonStrength, 1, 0, 1) },
         uTransparentBackground: { value: options.transparentBackground ? 1 : 0 },
         uHdr10Mode: { value: options.hdr10 ? 1 : 0 },
-        uHdrReferencePeakNits: { value: HDR10_REFERENCE_PEAK_NITS }
+        uHdrReferencePeakNits: { value: HDR10_REFERENCE_PEAK_NITS },
+        uMobileCumulusMode: { value: resolveMobileCumulusMode(options, this.displayProfile) }
       }
     });
 
@@ -179,9 +187,7 @@ export class RaymarchCloudRenderer {
     this.material.uniforms.uSurfaceVisible!.value =
       this.options.surfaceMode && this.options.surfaceMode !== "none" ? 1 : 0;
     this.material.uniforms.uSurfaceMode!.value = resolveSurfaceModeValue(this.options.surfaceMode);
-    this.material.uniforms.uSeed!.value = Math.floor(
-      clampFinite(this.options.seed, 574, 1, Number.MAX_SAFE_INTEGER)
-    );
+    this.material.uniforms.uSeed!.value = normalizeShaderSeed(this.options.seed, 574);
     this.material.uniforms.uFbmOctaves!.value = clampFinite(this.options.fbmOctaves, 5, 4, 6);
     this.material.uniforms.uCloudCurl!.value = clampFinite(
       this.options.cloudCurl,
@@ -249,6 +255,10 @@ export class RaymarchCloudRenderer {
     );
     this.material.uniforms.uTransparentBackground!.value = this.options.transparentBackground ? 1 : 0;
     this.material.uniforms.uHdr10Mode!.value = this.options.hdr10 ? 1 : 0;
+    this.material.uniforms.uMobileCumulusMode!.value = resolveMobileCumulusMode(
+      this.options,
+      this.displayProfile
+    );
   }
 
   resize(width: number, height: number): void {
@@ -281,7 +291,17 @@ export class RaymarchCloudRenderer {
       clampFinite(this.options.cameraPitchDegrees, 0, -55, 70)
     );
     const horizontal = Math.cos(pitch) * distance;
-    this.cameraTarget.set(0, this.heightAtCloudRatio(RESET_TARGET_HEIGHT_RATIO), 0);
+    const targetRatio = this.displayProfile.mobileWideView
+      ? MOBILE_RESET_TARGET_HEIGHT_RATIO
+      : RESET_TARGET_HEIGHT_RATIO;
+    const cameraRatio = this.displayProfile.mobileWideView
+      ? MOBILE_RESET_CAMERA_HEIGHT_RATIO
+      : RESET_CAMERA_HEIGHT_RATIO;
+    this.cameraTarget.set(
+      clampFinite(this.options.cameraTargetOffsetX, 0, -24, 24),
+      this.heightAtCloudRatio(targetRatio) + clampFinite(this.options.cameraTargetOffsetY, 0, -12, 12),
+      clampFinite(this.options.cameraTargetOffsetZ, 0, -24, 24)
+    );
     this.cameraPosition.set(
       this.cameraTarget.x + Math.sin(yaw) * horizontal,
       this.cameraTarget.y + Math.sin(pitch) * distance,
@@ -291,7 +311,7 @@ export class RaymarchCloudRenderer {
       this.options.cameraYawDegrees === undefined &&
       this.options.cameraPitchDegrees === undefined
     ) {
-      this.cameraPosition.set(0, this.heightAtCloudRatio(RESET_CAMERA_HEIGHT_RATIO), -distance);
+      this.cameraPosition.set(0, this.heightAtCloudRatio(cameraRatio), -distance);
     }
   }
 
@@ -406,8 +426,20 @@ function resolveSystemCount(value: number | undefined): number {
   return Math.round(clampFinite(value, 1, 1, 10));
 }
 
+function normalizeShaderSeed(value: number | undefined, fallback: number): number {
+  const seed = Math.floor(clampFinite(value, fallback, 1, Number.MAX_SAFE_INTEGER));
+  return 1 + ((seed - 1) % STABLE_SHADER_SEED_LIMIT);
+}
+
 function usesSingleCloudModel(options: RaymarchCloudOptions): boolean {
   return resolveSystemCount(options.systems) < 2;
+}
+
+function resolveMobileCumulusMode(
+  options: RaymarchCloudOptions,
+  displayProfile: BrowserDisplayProfile
+): number {
+  return (options.mobileCumulusMode ?? displayProfile.mobileWideView) ? 1 : 0;
 }
 
 function createWebGLContext(

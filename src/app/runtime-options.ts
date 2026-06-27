@@ -2,6 +2,12 @@ import { type BrowserDisplayProfile } from "./display-profile.js";
 import { type RaymarchCloudOptions } from "./raymarch-cloud-renderer.js";
 
 export const SAFE_LIVE_MAX_PIXELS = 1280 * 720;
+export const ATTACHED_06_RENDER_SCALE = 0.8;
+export const ATTACHED_06_MOBILE_RENDER_SCALE = 0.68;
+export const ATTACHED_06_STEP_SIZE = 0.18;
+export const ATTACHED_06_MOBILE_STEP_SIZE = 0.2;
+export const ATTACHED_06_MAX_STEPS = 142;
+export const ATTACHED_06_MOBILE_MAX_STEPS = 133;
 
 export type Orientation = "portrait" | "landscape";
 export type RenderMode = "canvas" | "page";
@@ -16,17 +22,10 @@ export type RuntimeOptions = RaymarchCloudOptions & {
   readonly simWidth?: number;
   readonly simHeight?: number;
   readonly timeScale: number;
+  readonly controlsVisible: boolean;
   readonly captureFrameLimit: number;
   readonly exposeRuntimeDebug: boolean;
-  readonly useCpuRenderer: boolean;
 };
-
-export const presetOptions = [
-  { value: "single-cumulus-day", label: "Single day" },
-  { value: "mobile-cumulus", label: "Mobile cloud" },
-  { value: "broadcast-landscape", label: "Broadcast" },
-  { value: "night-cumulus", label: "Night" }
-] as const;
 
 export function resolveRuntimeOptions(
   params: URLSearchParams,
@@ -129,14 +128,17 @@ export function resolveRuntimeOptions(
       readOptionalNumber(params, ["cameraPitchDegrees", "pitchDegrees", "pitch"]) ??
       preset.cameraPitchDegrees,
     cameraDistance: readOptionalNumber(params, ["cameraDistance", "distance"]) ?? preset.cameraDistance,
+    cameraTargetOffsetX: readOptionalNumber(params, ["cameraTargetOffsetX", "targetOffsetX", "panX"]) ?? preset.cameraTargetOffsetX,
+    cameraTargetOffsetY: readOptionalNumber(params, ["cameraTargetOffsetY", "targetOffsetY", "panY"]) ?? preset.cameraTargetOffsetY,
+    cameraTargetOffsetZ: readOptionalNumber(params, ["cameraTargetOffsetZ", "targetOffsetZ", "panZ"]) ?? preset.cameraTargetOffsetZ,
     maxPixels: readOptionalClampedNumber(params, ["maxPixels"], 128 * 128, 3840 * 2160) ?? preset.maxPixels,
     simWidth: readOptionalNumber(params, ["simWidth", "width"]),
     simHeight: readOptionalNumber(params, ["simHeight", "height"]),
     preserveDrawingBuffer: shouldPreserveDrawingBuffer(params),
     debugShaderDiagnostics: readBoolean(params, ["debugShaders", "shaderDiagnostics"], false),
+    controlsVisible: shouldShowControls(params, renderMode),
     captureFrameLimit: Math.round(readNumber(params, ["captureFrames"], 0, 0, 600)),
-    exposeRuntimeDebug: shouldExposeRuntimeDebug(params),
-    useCpuRenderer: shouldUseCpuRenderer(params)
+    exposeRuntimeDebug: shouldExposeRuntimeDebug(params)
   };
 }
 
@@ -158,53 +160,53 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
     case "portrait-horizon":
     case "mobile-cumulus":
       return {
-        seed: 574,
-        time: 2.2,
+        seed: 134,
+        time: 0,
         systems: 1,
-        tropopause: 10.8,
-        freezingLevel: 4.2,
-        windShear: 0.38,
+        tropopause: 8,
+        freezingLevel: 3,
+        windShear: 0.3,
         fbmOctaves: 5,
-        cloudCurl: 0.82,
+        cloudCurl: 0.78,
         horizonStrength: 1,
-        stepSize: 0.3,
-        maxSteps: 54,
-        staticMaxSteps: 56,
-        sunIntensity: 7.1,
-        ambientIntensity: 0.64,
-        sunElevation: 60,
-        sunViewerAngle: 16,
-        skyMode: "atmosphere",
+        stepSize: ATTACHED_06_MOBILE_STEP_SIZE,
+        maxSteps: ATTACHED_06_MOBILE_MAX_STEPS,
+        staticMaxSteps: 96,
+        sunIntensity: 4,
+        ambientIntensity: 0.68,
+        sunElevation: 32,
+        sunViewerAngle: -50,
+        skyMode: "clear",
         lightPreset: "daylight",
-        photographicStyle: true,
-        cameraPitchDegrees: -1,
-        cameraDistance: 27,
-        maxPixels: 1280 * 720
+        photographicStyle: false,
+        cameraDistance: 24,
+        maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * ATTACHED_06_MOBILE_RENDER_SCALE * ATTACHED_06_MOBILE_RENDER_SCALE),
+        mobileCumulusMode: true
       };
     case "broadcast-landscape":
       return {
         seed: 574,
         time: 2.2,
-        systems: 1,
-        tropopause: 11.4,
-        freezingLevel: 4.4,
-        windShear: 0.46,
+        systems: 3,
+        tropopause: 12,
+        freezingLevel: 5,
+        windShear: 0.7,
         fbmOctaves: 5,
         cloudCurl: 0.76,
         horizonStrength: 1,
         stepSize: 0.32,
         maxSteps: 40,
         staticMaxSteps: 40,
-        sunIntensity: 7.3,
-        ambientIntensity: 0.66,
-        sunElevation: 58,
-        sunViewerAngle: 18,
+        sunIntensity: 4.6,
+        ambientIntensity: 0.68,
+        sunElevation: 35,
+        sunViewerAngle: 25,
         skyMode: "atmosphere",
         lightPreset: "daylight",
         photographicStyle: true,
         cameraPitchDegrees: -1,
         cameraDistance: 30,
-        maxPixels: SAFE_LIVE_MAX_PIXELS
+        maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * 0.64 * 0.64)
       };
     case "night-cumulus":
     case "moonlight-night":
@@ -236,28 +238,28 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
     case "noon-blue":
     case undefined:
       return {
-        seed: 574,
-        time: 2.2,
+        seed: 134,
+        time: 0,
         systems: 1,
-        tropopause: 10.8,
-        freezingLevel: 4.2,
-        windShear: 0.38,
+        tropopause: 8,
+        freezingLevel: 3,
+        windShear: 0.3,
         fbmOctaves: 5,
-        cloudCurl: 0.82,
+        cloudCurl: 0.78,
         horizonStrength: 1,
-        stepSize: 0.3,
-        maxSteps: 54,
-        staticMaxSteps: 56,
-        sunIntensity: 7.1,
-        ambientIntensity: 0.64,
-        sunElevation: 60,
-        sunViewerAngle: 16,
-        skyMode: "atmosphere",
+        stepSize: ATTACHED_06_STEP_SIZE,
+        maxSteps: ATTACHED_06_MAX_STEPS,
+        staticMaxSteps: 96,
+        sunIntensity: 4,
+        ambientIntensity: 0.68,
+        sunElevation: 32,
+        sunViewerAngle: -50,
+        skyMode: "clear",
         lightPreset: "daylight",
-        photographicStyle: true,
-        cameraPitchDegrees: -1,
-        cameraDistance: 27,
-        maxPixels: 1280 * 720
+        photographicStyle: false,
+        cameraDistance: 16,
+        maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * ATTACHED_06_RENDER_SCALE * ATTACHED_06_RENDER_SCALE),
+        mobileCumulusMode: false
       };
     default:
       return resolvePreset("single-cumulus-day");
@@ -266,6 +268,17 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
 
 function resolveRenderMode(params: URLSearchParams): RenderMode {
   return params.get("capture") === "1" || params.get("live") === "1" ? "canvas" : "page";
+}
+
+function shouldShowControls(params: URLSearchParams, renderMode: RenderMode): boolean {
+  if (renderMode === "canvas") {
+    return false;
+  }
+  const value = params.get("controls");
+  if (value === null) {
+    return true;
+  }
+  return isTruthy(value);
 }
 
 function resolvePresetSelection(
@@ -279,7 +292,7 @@ function resolvePresetSelection(
   if (displayProfile.narrowViewport) {
     return { presetName: "mobile-cumulus", presetSource: "browser-profile" };
   }
-  return { presetName: "broadcast-landscape", presetSource: "default" };
+  return { presetName: "single-cumulus-day", presetSource: "default" };
 }
 
 function shouldExposeRuntimeDebug(params: URLSearchParams): boolean {
@@ -292,12 +305,14 @@ function shouldExposeRuntimeDebug(params: URLSearchParams): boolean {
 }
 
 function shouldPreserveDrawingBuffer(params: URLSearchParams): boolean {
-  return params.has("captureFrames") || params.get("capture") === "1" || params.get("live") === "1";
-}
-
-function shouldUseCpuRenderer(params: URLSearchParams): boolean {
-  const rendererName = params.get("renderer") ?? params.get("render");
-  return rendererName === "cpu" || rendererName === "2d" || params.get("webgl") === "0";
+  if (
+    params.has("preserveDrawingBuffer") ||
+    params.has("preserveDrawing") ||
+    params.has("preserveBuffer")
+  ) {
+    return readBoolean(params, ["preserveDrawingBuffer", "preserveDrawing", "preserveBuffer"], false);
+  }
+  return params.has("captureFrames") || params.get("capture") === "1";
 }
 
 function resolveLightPreset(value: string | null): RaymarchCloudOptions["lightPreset"] | undefined {

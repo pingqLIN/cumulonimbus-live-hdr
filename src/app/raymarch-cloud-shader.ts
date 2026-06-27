@@ -1,7 +1,6 @@
-// Extracted from .del/refactor-cloud-only-20260617-161232/Backup_gemini/cumulonimbus_live_hdr_observatory (1).html.
+// Extracted from Q:/Projects/cumulonimbus-live-hdr-site-mobile-gemini/06.html.
 // This module intentionally contains only the cloud shader source.
 export const raymarchCloudFragmentShader = String.raw`
-
             uniform float uTime;
             uniform vec2 uResolution;
             uniform vec3 uCameraPos;
@@ -12,8 +11,6 @@ export const raymarchCloudFragmentShader = String.raw`
             uniform float uSurfaceVisible;
             uniform float uSurfaceMode;
             uniform float uSeed;
-            uniform float uFbmOctaves;
-            uniform float uCloudCurl;
             uniform float uSystemCount;
             uniform float uIsOrtho;
             uniform float uOrthoSize;
@@ -29,97 +26,52 @@ export const raymarchCloudFragmentShader = String.raw`
             uniform float uPhotographicStyle;
             uniform float uLightPreset;
             uniform float uSkyMode;
-            uniform float uHorizonStrength;
             uniform float uTransparentBackground;
             uniform float uHdr10Mode;
             uniform float uHdrReferencePeakNits;
-
-            #ifndef CUMULONIMBUS_MAX_RAY_STEPS
-            #define CUMULONIMBUS_MAX_RAY_STEPS 64
-            #endif
-            #ifndef CUMULONIMBUS_SINGLE_CLOUD
-            #define CUMULONIMBUS_SINGLE_CLOUD 0
-            #endif
+            uniform float uMobileCumulusMode;
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
-
-            float hash31(vec3 p) {
-                p = fract(p * vec3(0.1031, 0.11369, 0.13787));
-                p += dot(p, p.yzx + 19.19);
-                return fract((p.x + p.y) * p.z);
-            }
-
-            float seedTrait(float salt) {
-                return hash(floor(abs(uSeed)) * 0.013 + salt);
-            }
-
-            float seedSigned(float salt) {
-                return seedTrait(salt) * 2.0 - 1.0;
-            }
-
-            float morphTrait(float salt) {
-                return seedTrait(17.0 + salt * 1.37);
-            }
-
-            float morphSigned(float salt) {
-                return morphTrait(salt) * 2.0 - 1.0;
-            }
-
-            float lifecycleTrait(float salt) {
-                return seedTrait(211.0 + salt * 1.61);
-            }
-
-            float detailTrait(float salt) {
-                return seedTrait(421.0 + salt * 1.79);
-            }
-
-            float detailSigned(float salt) {
-                return detailTrait(salt) * 2.0 - 1.0;
-            }
 
             float noise(vec3 x) {
                 vec3 p = floor(x);
                 vec3 f = fract(x);
                 f = f * f * (3.0 - 2.0 * f);
-                vec3 s = vec3(uSeed * 0.013, uSeed * 0.017, uSeed * 0.019);
+                float n = p.x + p.y * 57.0 + 113.0 * p.z + uSeed * 17.0;
                 return mix(
-                    mix(
-                        mix(hash31(p + s + vec3(0.0, 0.0, 0.0)), hash31(p + s + vec3(1.0, 0.0, 0.0)), f.x),
-                        mix(hash31(p + s + vec3(0.0, 1.0, 0.0)), hash31(p + s + vec3(1.0, 1.0, 0.0)), f.x),
-                        f.y
-                    ),
-                    mix(
-                        mix(hash31(p + s + vec3(0.0, 0.0, 1.0)), hash31(p + s + vec3(1.0, 0.0, 1.0)), f.x),
-                        mix(hash31(p + s + vec3(0.0, 1.0, 1.0)), hash31(p + s + vec3(1.0, 1.0, 1.0)), f.x),
-                        f.y
-                    ),
+                    mix(mix(hash(n + 0.0), hash(n + 1.0), f.x), mix(hash(n + 57.0), hash(n + 58.0), f.x), f.y),
+                    mix(mix(hash(n + 113.0), hash(n + 114.0), f.x), mix(hash(n + 170.0), hash(n + 171.0), f.x), f.y),
                     f.z
                 );
             }
 
             float fbm(vec3 p) {
                 float f = 0.0;
-                float weight = mix(0.43, 0.56, seedTrait(1.7));
-                float octaveLimit = clamp(floor(uFbmOctaves + 0.5), 4.0, 6.0);
-                float lacunarity = mix(1.56, 2.08, seedTrait(2.9));
-                float curl = mix(0.68, 1.32, clamp(uCloudCurl, 0.0, 1.2));
-                for (int i = 0; i < 6; i++) {
-                    if (float(i) >= octaveLimit) break;
-                    float fi = float(i);
-                    vec3 curlP = p + vec3(
-                        sin(p.z * 0.37 + fi * 1.7),
-                        cos(p.x * 0.29 - fi * 1.3),
-                        sin(p.y * 0.31 + fi * 0.9)
-                    ) * 0.045 * curl * fi;
-                    f += weight * (1.0 - abs(noise(curlP * 2.0 - 1.0)));
+                float weight = 0.5;
+                for (int i = 0; i < 4; i++) {
+                    f += weight * (1.0 - abs(noise(p * 2.0 - 1.0)));
                     p = vec3(
-                        p.x * (lacunarity * 0.88) + p.z * (0.20 + 0.21 * curl),
-                        p.y * (lacunarity * 0.96) + p.x * (0.10 + 0.12 * curl),
-                        p.z * (lacunarity * 0.82) - p.y * (0.13 + 0.14 * curl)
+                        p.x * 1.74 + p.z * 0.31,
+                        p.y * 1.91 + p.x * 0.17,
+                        p.z * 1.63 - p.y * 0.23
                     );
-                    weight *= mix(0.42, 0.57, seedTrait(4.1 + fi * 0.37));
+                    weight *= 0.5;
                 }
                 return f;
+            }
+
+            vec3 detailDomain(vec3 p) {
+                return vec3(
+                    p.x * 0.82 + p.z * 0.57,
+                    p.y * 1.05 + p.x * 0.13 - p.z * 0.08,
+                    p.z * 0.76 - p.x * 0.42 + p.y * 0.11
+                );
+            }
+
+            float domainWarp(vec3 p, float phase) {
+                vec3 a = detailDomain(p * 0.18 + vec3(phase, 3.1, 7.7));
+                vec3 b = detailDomain(p * 0.31 + vec3(9.4, phase * 0.7, 1.8));
+                return (fbm(a) - 0.5) * 0.9 + (noise(b) - 0.5) * 0.55;
             }
 
             float smin(float a, float b, float k) {
@@ -160,36 +112,20 @@ export const raymarchCloudFragmentShader = String.raw`
             }
 
             float cellCycleAngle(float phase, float speedScale, float ageOffset) {
-                return uTime * 0.113 * speedScale + phase * 0.53 + ageOffset + lifecycleTrait(1.0) * 0.72;
+                return uTime * 0.113 * speedScale + phase * 0.53 + ageOffset + uSeed * 0.00082;
             }
 
             vec2 windShearAxis(float phase) {
-                float angle = phase * 0.17 + morphSigned(2.0) * 0.18;
+                float angle = phase * 0.17 + uSeed * 0.00021;
                 vec2 axis = normalize(vec2(1.0, 0.28));
                 mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
                 return normalize(rot * axis);
-            }
-
-            float seedHash(float salt) {
-                return morphTrait(salt);
             }
 
             float iceFactorAtHeight(float heightKm) {
                 return smoothstep(uFreezingLevel, uTropopause, heightKm);
             }
 
-            float convectiveSpokePattern(vec2 local, float height01, float phase, float frequency) {
-                float angle = atan(local.y, local.x);
-                float spoke = pow(max(0.0, sin(angle * frequency + height01 * 5.2 + phase)), 2.4);
-                float gate = smoothstep(
-                    0.28,
-                    0.86,
-                    noise(vec3(cos(angle) * 1.7 + phase, sin(angle) * 1.7, height01 * 4.3 + uSeed * 0.018))
-                );
-                return spoke * gate;
-            }
-
-            #if CUMULONIMBUS_SINGLE_CLOUD == 0
             float getCell01(
                 vec3 p,
                 vec2 offset,
@@ -220,14 +156,10 @@ export const raymarchCloudFragmentShader = String.raw`
                 float lowerShelf = smoothstep(0.02, 0.18, h) * (1.0 - smoothstep(0.3, 0.52, h));
                 float towerColumn = smoothstep(0.16, 0.42, h) * (1.0 - smoothstep(0.66, 0.88, h));
                 float crownSpread = smoothstep(0.6, 0.94, h);
-                float morphology = noise(vec3(phase * 1.7 + uSeed * 0.041, ageOffset * 0.31, speedScale * 2.9));
-                float baseSpread = mix(0.62, 1.14, morphology);
-                float towerWaist = mix(0.82, 1.34, noise(vec3(phase + 8.2, ageOffset * 0.17, uSeed * 0.023)));
-                float crownMass = mix(0.78, 1.42, noise(vec3(phase - 4.8, speedScale * 1.9, uSeed * 0.031)));
                 float photo = uPhotographicStyle;
                 float verticalProfile = mix(
-                    0.5 + lowerShelf * 0.2 * baseSpread + towerColumn * 0.16 * towerWaist + crownSpread * 0.42 * crownMass,
-                    0.44 + lowerShelf * 0.14 * baseSpread + towerColumn * 0.24 * towerWaist + crownSpread * 0.38 * crownMass,
+                    0.56 + lowerShelf * 0.34 + towerColumn * 0.08 + crownSpread * 0.34,
+                    0.48 + lowerShelf * 0.22 + towerColumn * 0.2 + crownSpread * 0.3,
                     photo
                 );
                 verticalProfile *= mix(1.0, 0.82, dissipating * smoothstep(0.12, 0.62, h));
@@ -248,33 +180,13 @@ export const raymarchCloudFragmentShader = String.raw`
                     * smoothstep(-maxR * 0.95, maxR * 3.25, downwind)
                     * (1.0 - smoothstep(anvilLength * 0.78, anvilLength * 1.18, downwind));
                 float anvil = anvilLife * anvilMask * maxR * mix(1.48, 1.56, photo) * anvilScale * anvilPlume;
-                float anvilFingerWave = pow(max(0.0, sin(downwind * 1.55 + phase * 2.1)), 2.0)
-                    * smoothstep(0.3, 0.92, noise(vec3(downwind * 0.38, crosswind * 0.42, phase + uSeed * 0.015)));
-                float anvilEdgeBand = smoothstep(anvilWidth * 0.42, anvilWidth * 1.08, crosswind)
-                    * (1.0 - smoothstep(anvilLength * 0.88, anvilLength * 1.18, abs(downwind)));
-                float anvilEdgeFinger = anvilLife * anvilMask * anvilFingerWave * anvilEdgeBand * maxR * mix(0.24, 0.52, photo);
-                float anvilSlab = max(abs(crosswind) - anvilWidth - anvilEdgeFinger, max(-downwind - maxR * 0.95, downwind - anvilLength));
+                float anvilSlab = max(abs(crosswind) - anvilWidth, max(-downwind - maxR * 0.95, downwind - anvilLength));
                 float anvilThickness = mix(0.12, mix(0.68, 0.42, photo), anvilMask) * (0.4 + anvilLife * 0.6);
                 float anvilVertical = abs(p.y - actualTop) - anvilThickness;
                 float anvilShape = smax(anvilSlab - anvil * mix(0.36, 0.3, photo), anvilVertical, mix(0.52, 0.36, photo)) + (1.0 - anvilLife) * 4.0;
-                float bodyTaper = mix(
-                    0.92 + lowerShelf * 0.08 * baseSpread + towerColumn * 0.08 * towerWaist + crownSpread * 0.12 * crownMass,
-                    0.52 + lowerShelf * 0.14 * baseSpread + towerColumn * 0.28 * towerWaist + crownSpread * 0.2 * crownMass,
-                    photo
-                );
-                float towerBranchBand = smoothstep(0.22, 0.48, h) * (1.0 - smoothstep(0.8, 0.96, h)) * mature;
-                float crownLobeBand = smoothstep(0.48, 0.72, h) * (1.0 - smoothstep(0.96, 1.0, h)) * mature;
-                float branchSpoke = convectiveSpokePattern(baseLocal, h, phase + cycleAngle * 0.18, mix(5.0, 7.0, photo));
-                float crownSpoke = convectiveSpokePattern(baseLocal, h, phase + 2.6 + cycleAngle * 0.12, mix(7.0, 9.0, photo));
-                float fingerBulge = currentR * towerBranchBand * branchSpoke * mix(0.2, 0.46, photo);
-                float cauliflowerBulge = currentR * crownLobeBand * crownSpoke * mix(0.3, 0.68, photo);
-                float branchTaper = smoothstep(currentR * 0.18, currentR * 0.95, r);
-                float bodyRadius = currentR * verticalProfile * bodyTaper
-                    + fingerBulge * branchTaper
-                    + cauliflowerBulge * smoothstep(currentR * 0.12, currentR * 0.82, r);
-                float shape = smin(r - bodyRadius, anvilShape, mix(0.92, 0.62, photo));
-                float topFingerLift = maxR * crownLobeBand * crownSpoke * mix(0.24, 0.56, photo);
-                float topDist = p.y - (actualTop + topFingerLift);
+                float bodyTaper = mix(1.0, 0.58 + lowerShelf * 0.2 + towerColumn * 0.22 + crownSpread * 0.1, photo);
+                float shape = smin(r - currentR * verticalProfile * bodyTaper, anvilShape, mix(0.92, 0.62, photo));
+                float topDist = p.y - actualTop;
 
                 float baseWave =
                     (noise(vec3(baseLocal * 0.26 + phase, uSeed * 0.17)) - 0.5) * 0.46 +
@@ -298,7 +210,84 @@ export const raymarchCloudFragmentShader = String.raw`
                 shape += dissipating * lowerDowndraft * (1.0 - mature * 0.35) * 0.18;
                 return smax(shape, verticalDist, mix(1.2, 0.86, photo));
             }
-            #endif
+
+            float getCell00(vec3 p, vec2 offset, float maxR, float phase, float maxH) {
+                float r = length(p.xz - offset);
+                float cycle = sin(uTime * 0.2 + phase) * 0.5 + 0.5;
+                float currentR = maxR * (0.7 + 0.3 * cycle);
+                float currentTop = mix(0.5, maxH, cycle);
+                float anvil = smoothstep(currentTop - 1.5, currentTop + 0.5, p.y) * cycle * maxR * 1.5;
+                float shape = r - currentR - anvil;
+                float topDist = p.y - currentTop;
+                vec2 baseLocal = p.xz - offset;
+                float baseWave =
+                    (noise(vec3(baseLocal * 0.24 + phase, uSeed * 0.17)) - 0.5) * 0.86 +
+                    sin(baseLocal.x * 1.08 + phase * 1.7) * 0.18 +
+                    cos(baseLocal.y * 0.82 - phase * 1.2) * 0.13;
+                float undersideNoise = noise(vec3(baseLocal * 0.46 + phase * 0.7, uSeed * 0.31));
+                float lowerPouch = smoothstep(maxR * 0.92, maxR * 0.12, r)
+                    * max(0.0, undersideNoise - 0.28) * 0.72;
+                float localBase = -1.5 + baseWave - max(0.0, lowerPouch);
+                float bottomDist = localBase - p.y;
+                float verticalDist = smax(topDist, bottomDist, 0.62);
+                return smax(shape, verticalDist, 1.0);
+            }
+
+            float getCbCellKm(
+                vec3 p,
+                vec2 offset,
+                float baseH,
+                float topPotential,
+                float baseR,
+                float towerR,
+                float anvilR,
+                float phase,
+                float maturity
+            ) {
+                float pulse = sin(uTime * 0.055 + phase) * 0.5 + 0.5;
+                float topH = min(uTropopause, mix(baseH + 2.4, topPotential, maturity) + (pulse - 0.5) * 0.42);
+                float height = max(1.0, topH - baseH);
+                float h = clamp((p.y - baseH) / height, 0.0, 1.0);
+                vec2 lean = vec2(sin(phase * 1.73), cos(phase * 1.17)) * mix(0.15, 0.82, h);
+                vec2 local = p.xz - offset - lean;
+                float twist = sin(p.y * 0.28 + phase) * 0.2;
+                mat2 rot = mat2(cos(twist), -sin(twist), sin(twist), cos(twist));
+                local = rot * local;
+
+                float lower = smoothstep(0.0, 0.2, h) * (1.0 - smoothstep(0.46, 0.76, h));
+                float tower = smoothstep(0.12, 0.42, h) * (1.0 - smoothstep(0.78, 0.98, h));
+                float crown = smoothstep(0.68, 0.98, h);
+                float cap = smoothstep(0.84, 1.0, h);
+                float anvilSkew = mix(1.0, 0.68, cap);
+                float towerDepthSkew = mix(0.96, 0.72, tower);
+                float crownDepthSkew = mix(towerDepthSkew, 0.6, cap);
+                vec2 shapedLocal = vec2(local.x * anvilSkew, local.y * crownDepthSkew);
+                float r = length(shapedLocal);
+
+                float radius = mix(baseR, towerR, smoothstep(0.06, 0.42, h));
+                radius += lower * baseR * 0.18;
+                radius += crown * anvilR * mix(0.32, 1.0, cap);
+                radius += domainWarp(vec3(local.x * 0.32, p.y * 0.24, local.y * 0.32), phase) * mix(0.34, 1.08, tower + crown);
+                radius *= 0.96 + pulse * 0.08;
+
+                float baseWave =
+                    (noise(vec3(local * 0.18 + phase, uSeed * 0.11)) - 0.5) * 0.72 +
+                    sin(local.x * 0.42 + phase) * 0.18 +
+                    cos(local.y * 0.36 - phase * 0.7) * 0.16;
+                float basePouch = lower * max(0.0, noise(vec3(local * 0.38, phase + uSeed * 0.07)) - 0.3) * 0.72;
+                float localBase = baseH + baseWave - basePouch;
+                float coreDistance = length(local);
+                float coreTopLift = (1.0 - smoothstep(towerR * 0.65, towerR * 2.25, coreDistance)) * 0.95 * maturity;
+                float outerAnvilDrop = smoothstep(towerR * 1.25, towerR + anvilR + baseR * 0.72, coreDistance) * cap * 0.96;
+                float topWave = (noise(vec3(local * 0.18 + phase * 0.4, uSeed * 0.19)) - 0.5) * mix(0.28, 0.96, crown);
+                float localTop = min(uTropopause + 0.55, topH + topWave + coreTopLift - outerAnvilDrop);
+
+                float shape = r - radius;
+                float bottomDist = localBase - p.y;
+                float topDist = p.y - localTop;
+                float verticalDist = smax(topDist, bottomDist, 0.72);
+                return smax(shape, verticalDist, 1.16);
+            }
 
             float ellipsoidSdf(vec3 p, vec3 center, vec3 radius) {
                 vec3 q = (p - center) / radius;
@@ -320,95 +309,74 @@ export const raymarchCloudFragmentShader = String.raw`
                 return smin(field, cbLobe(p, center, radius, phase, roughness), blend);
             }
 
-            float mapSingleCumulusMacro(vec3 p, float photo) {
-                float phase = morphTrait(30.0) * 6.28318 + uTime * 0.026;
-                float detailPhase = detailTrait(1.0) * 6.28318 + uTime * 0.035;
-                float curl = clamp(uCloudCurl, 0.0, 1.2);
-                float spread = mix(0.98, 1.14, curl);
-                float softBlend = mix(0.86, 0.68, photo);
-                float towerLean = morphSigned(31.0) * mix(0.1, 0.22, uWindShear);
-                float baseScale = mix(0.94, 1.12, morphTrait(32.0));
-                float crownScale = mix(0.9, 1.16, morphTrait(33.0));
-                vec2 anvilAxis = windShearAxis(phase + 1.4);
-                vec2 anvilShift = anvilAxis * uWindShear * mix(0.04, 0.16, morphTrait(34.0));
-                float field = 24.0;
+            float mapMobileCumulusMacro(vec3 p) {
+                float widthStretch = mix(1.0, 1.08, smoothstep(0.5, 2.0, uAspect));
+                vec3 layoutP = p;
+                layoutP.x /= widthStretch;
+                vec3 modelP = worldToModelSpace(layoutP);
+                vec3 cloudP = modelP;
+                cloudP.x *= 0.82;
+                cloudP.z *= 0.90;
+                cloudP.y = (modelP.y + 0.62) * 0.88 - 0.62;
+                float phase = uSeed * 0.017 + uTime * 0.018;
 
-                field = addLobe(field, p, vec3(-1.3 + morphSigned(35.0) * 0.08, -1.34, -0.06), vec3(1.98, 0.54, 1.12) * spread * baseScale, phase + 0.2, 0.34, softBlend);
-                field = addLobe(field, p, vec3(0.0, -1.44, 0.04), vec3(2.38, 0.58, 1.2) * spread * baseScale, phase + 1.4, 0.36, softBlend);
-                field = addLobe(field, p, vec3(1.28 + morphSigned(36.0) * 0.08, -1.3, -0.08), vec3(1.88, 0.52, 1.08) * spread * baseScale, phase + 2.2, 0.34, softBlend);
-                field = addLobe(field, p, vec3(-0.42 + towerLean * 0.35, -0.64, 0.02), vec3(1.38, 0.82, 0.96) * spread, phase + 3.1, 0.48, softBlend * 0.9);
-                field = addLobe(field, p, vec3(0.34 + towerLean * 0.6, 0.05, -0.02), vec3(1.28, 0.92, 0.94) * spread, phase + 4.5, 0.52, softBlend * 0.88);
-                field = addLobe(field, p, vec3(-0.18 + towerLean * 0.88, 0.86, 0.06), vec3(1.14, 0.88, 0.86) * spread * crownScale, phase + 5.8, 0.58, softBlend * 0.82);
-                field = addLobe(field, p, vec3(0.52 + towerLean, 1.48, -0.08), vec3(0.98, 0.74, 0.76) * spread * crownScale, phase + 6.4, 0.54, softBlend * 0.8);
-                field = addLobe(field, p, vec3(-0.38 + towerLean * 1.16, 2.02, 0.04), vec3(0.9, 0.64, 0.7) * spread * crownScale, phase + 7.2, 0.48, softBlend * 0.76);
-                field = addLobe(field, p, vec3(towerLean * 1.08, 2.16, 0.0), vec3(0.96, 0.68, 0.72) * spread, phase + 7.7, 0.34, softBlend * 0.92);
-                field = addLobe(
-                    field,
-                    p,
-                    vec3(anvilShift.x + towerLean * 1.06, 2.34, anvilShift.y),
-                    vec3(mix(0.74, 0.98, uWindShear), 0.5, mix(0.48, 0.58, morphTrait(37.0))) * spread,
-                    phase + 8.1,
-                    0.32,
-                    softBlend * 1.02
-                );
+                float macro = ellipsoidSdf(cloudP, vec3(0.0, -1.34, 0.0), vec3(2.7, 0.68, 1.36));
+                macro = addLobe(macro, cloudP, vec3(-1.52, -1.03, 0.08), vec3(1.0, 0.74, 0.86), phase + 0.4, 0.28, 0.46);
+                macro = addLobe(macro, cloudP, vec3(-0.56, -0.58, -0.06), vec3(1.0, 0.92, 0.88), phase + 1.7, 0.26, 0.44);
+                macro = addLobe(macro, cloudP, vec3(0.42, -0.46, 0.02), vec3(1.14, 0.98, 0.94), phase + 2.9, 0.26, 0.46);
+                macro = addLobe(macro, cloudP, vec3(1.42, -1.0, -0.08), vec3(0.92, 0.72, 0.78), phase + 4.2, 0.28, 0.42);
+                macro = addLobe(macro, cloudP, vec3(-0.18, 0.22, 0.02), vec3(0.9, 0.72, 0.76), phase + 5.4, 0.22, 0.38);
+                macro = addLobe(macro, cloudP, vec3(0.74, 0.02, -0.04), vec3(0.82, 0.62, 0.7), phase + 6.2, 0.2, 0.34);
 
-                float undersideWave =
-                    (noise(vec3(p.xz * 0.48 + vec2(detailPhase, -detailPhase), detailTrait(2.0) * 4.0)) - 0.5) * 0.18 +
-                    sin(p.x * 1.12 + detailPhase) * 0.05;
-                float topRipple = (noise(vec3(p.xz * 0.24, detailPhase + detailTrait(3.0) * 3.0)) - 0.5) * 0.22;
-                float bottomDist = (-1.72 + undersideWave) - p.y;
-                float topDist = p.y - (3.18 + topRipple);
-                return smax(smax(field, bottomDist, 0.64), topDist, 0.56);
+                if (uSystemCount > 1.5) {
+                    vec3 secondP = cloudP - vec3(3.25, 0.08, -0.34);
+                    float second = ellipsoidSdf(secondP, vec3(0.0, -1.22, 0.0), vec3(1.78, 0.58, 1.02));
+                    second = addLobe(second, secondP, vec3(-0.72, -0.86, 0.02), vec3(0.72, 0.58, 0.66), phase + 7.1, 0.26, 0.34);
+                    second = addLobe(second, secondP, vec3(0.34, -0.42, -0.02), vec3(0.82, 0.72, 0.70), phase + 8.3, 0.24, 0.36);
+                    second = addLobe(second, secondP, vec3(0.06, 0.08, 0.04), vec3(0.66, 0.54, 0.58), phase + 9.2, 0.2, 0.30);
+                    macro = smin(macro, second, 0.72);
+                }
+
+                float baseWave =
+                    (noise(vec3(cloudP.xz * 0.42 + phase, uSeed * 0.17)) - 0.5) * 0.36 +
+                    sin(cloudP.x * 0.78 + phase) * 0.08;
+                float bottomLimiter = (MODEL_LOCAL_BASE + 0.64 + baseWave) - cloudP.y;
+                float topLimiter = cloudP.y - (MODEL_LOCAL_BASE + 3.92 + baseWave * 0.08);
+                float sideLimiter = length(cloudP.xz * vec2(0.52, 0.86)) - 2.72;
+                return smax(smax(smax(macro, bottomLimiter, 0.44), topLimiter, 0.34), sideLimiter, 0.54);
             }
 
             float mapCloudMacro(vec3 p) {
+                if (uMobileCumulusMode > 0.5) {
+                    return mapMobileCumulusMacro(p);
+                }
+
                 float widthStretch = mix(1.0, 1.2, smoothstep(0.5, 2.0, uAspect));
                 vec3 layoutP = p;
                 layoutP.x /= widthStretch;
-                vec2 shearAxis = windShearAxis(morphTrait(45.0) * 6.28318 + 1.8);
-                float shearHeight = smoothstep(MODEL_BASE_KM, uTropopause + 1.2, layoutP.y);
-                layoutP.xz -= shearAxis * shearHeight * shearHeight * uWindShear * mix(0.55, 2.25, clamp(uCloudCurl, 0.0, 1.0));
 
                 vec3 modelP = worldToModelSpace(layoutP);
                 float photo = uPhotographicStyle;
-                #if CUMULONIMBUS_SINGLE_CLOUD == 1
-                float single = mapSingleCumulusMacro(modelP, photo);
-                float singleCapLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.12 + (noise(vec3(modelP.xz * 0.18, detailTrait(17.0) * 2.0)) - 0.5) * 0.14);
-                float singleGroundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
-                return smax(smax(single, singleCapLimiter, 0.18), singleGroundLimiter, 0.22);
-                #else
-                float layoutTurn = seedHash(2.0) * 6.28318;
-                mat2 layoutRot = mat2(cos(layoutTurn), -sin(layoutTurn), sin(layoutTurn), cos(layoutTurn));
-                vec2 c1Offset = layoutRot * (vec2(morphSigned(3.0), morphSigned(4.0)) * 0.28);
-                vec2 c2Offset = layoutRot * (vec2(2.64, -0.92) + vec2(morphSigned(5.0), morphSigned(6.0)) * 0.52);
-                vec2 c3Offset = layoutRot * (vec2(-2.18, 1.08) + vec2(morphSigned(7.0), morphSigned(8.0)) * 0.48);
-                float c1Radius = mix(mix(3.0, 3.75, seedHash(9.0)), mix(1.92, 2.46, seedHash(9.0)), photo);
-                float c2Radius = mix(mix(2.25, 2.96, seedHash(10.0)), mix(1.56, 2.06, seedHash(10.0)), photo);
-                float c3Radius = mix(mix(2.06, 2.82, seedHash(11.0)), mix(1.5, 2.02, seedHash(11.0)), photo);
-                float c1Top = mix(4.5, 5.35, seedHash(12.0));
-                float c2Top = mix(3.35, 4.6, seedHash(13.0));
-                float c3Top = mix(3.2, 5.15, seedHash(14.0));
-                float c2Blend = mix(mix(1.56, 2.02, seedHash(15.0)), mix(1.02, 1.34, seedHash(15.0)), photo);
-                float c3Blend = mix(mix(1.52, 2.04, seedHash(16.0)), mix(1.0, 1.34, seedHash(16.0)), photo);
+                float layoutMode = mod(floor(abs(uSeed)), 3.0);
+                float triangleLayout = step(0.5, layoutMode) * (1.0 - step(1.5, layoutMode));
+                float clusterLayout = step(1.5, layoutMode);
+                vec2 c2Offset = mix(vec2(3.75, -1.35), vec2(-2.45, -1.28), triangleLayout);
+                c2Offset = mix(c2Offset, vec2(1.1, -0.58), clusterLayout);
+                vec2 c3Offset = mix(vec2(-3.2, 1.55), vec2(2.5, -1.12), triangleLayout);
+                c3Offset = mix(c3Offset, vec2(-0.86, 0.78), clusterLayout);
+                float c2Blend = mix(mix(1.35, 0.92, photo), mix(1.58, 1.06, photo), triangleLayout);
+                c2Blend = mix(c2Blend, mix(1.8, 1.18, photo), clusterLayout);
+                float c3Blend = mix(mix(1.45, 0.96, photo), mix(1.58, 1.06, photo), triangleLayout);
+                c3Blend = mix(c3Blend, mix(1.82, 1.2, photo), clusterLayout);
 
-                float c1 = getCell01(
-                    modelP,
-                    c1Offset,
-                    c1Radius,
-                    seedHash(17.0) * 6.28318,
-                    c1Top,
-                    mix(0.82, 1.22, seedHash(18.0)),
-                    seedHash(19.0) * 6.28318,
-                    mix(0.0, 0.18, seedHash(20.0)),
-                    mix(0.58, 1.38, seedHash(21.0))
-                );
+                float c1 = getCell01(modelP, vec2(0.0, 0.0), mix(3.2, 1.95, photo), 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
                 float macro = c1;
                 if (uSystemCount >= 1.5) {
-                    float c2 = getCell01(modelP, c2Offset, c2Radius, 2.0 + seedHash(24.0) * 4.2, c2Top, mix(0.72, 1.18, seedHash(25.0)), seedHash(26.0) * 6.28318, mix(0.05, 0.34, seedHash(27.0)), mix(0.46, 1.08, seedHash(28.0)) * mix(0.8, 0.48, photo));
+                    float c2 = getCell01(modelP, c2Offset, mix(2.8, 1.65, photo), 2.0, mix(3.75, 3.35, photo), 0.82, 1.12, 0.28, mix(0.8, 0.48, photo));
                     macro = smin(macro, c2, c2Blend);
                 }
                 if (uSystemCount >= 2.5) {
-                    float c3 = getCell01(modelP, c3Offset, c3Radius, 4.0 + seedHash(31.0) * 4.2, c3Top, mix(0.86, 1.36, seedHash(32.0)), seedHash(33.0) * 6.28318, mix(0.0, 0.28, seedHash(34.0)), mix(0.62, 1.28, seedHash(35.0)) * mix(1.14, 0.74, photo));
+                    float c3 = getCell01(modelP, c3Offset, mix(2.65, 1.75, photo), 4.0, 4.55, 1.26, 4.85, 0.1, mix(1.14, 0.74, photo));
                     macro = smin(macro, c3, c3Blend);
                 }
                 for (int i = 3; i < 10; i++) {
@@ -417,26 +385,25 @@ export const raymarchCloudFragmentShader = String.raw`
                         continue;
                     }
                     float phase = fi * 1.73 + 0.9;
-                    float angle = fi * 2.399963 + morphSigned(50.0 + fi) * 0.42;
-                    float ring = mix(4.2, 7.6, morphTrait(60.0 + fi));
+                    float angle = fi * 2.399963 + uSeed * 0.00037;
+                    float ring = mix(4.2, 8.6, hash(fi * 17.13 + uSeed * 0.004));
                     vec2 jitter = vec2(
-                        morphSigned(70.0 + fi),
-                        morphSigned(80.0 + fi)
-                    ) * 1.05;
+                        hash(fi * 29.7 + uSeed * 0.011) - 0.5,
+                        hash(fi * 41.1 + uSeed * 0.013) - 0.5
+                    ) * 1.65;
                     vec2 offset = vec2(cos(angle), sin(angle)) * ring + jitter;
-                    float maxR = mix(1.72, 2.54, morphTrait(90.0 + fi));
-                    float maxH = mix(3.35, 4.86, morphTrait(100.0 + fi));
-                    float speedScale = mix(0.78, 1.24, lifecycleTrait(110.0 + fi));
-                    float ageOffset = lifecycleTrait(120.0 + fi) * 6.28318;
-                    float earlyDecay = lifecycleTrait(130.0 + fi) * 0.24;
-                    float anvilScale = mix(0.66, 1.08, morphTrait(140.0 + fi));
+                    float maxR = mix(1.55, 2.65, hash(fi * 53.9 + uSeed * 0.007));
+                    float maxH = mix(3.15, 5.0, hash(fi * 67.1 + uSeed * 0.009));
+                    float speedScale = mix(0.72, 1.32, hash(fi * 71.3 + uSeed * 0.003));
+                    float ageOffset = hash(fi * 83.5 + uSeed * 0.005) * 6.28318;
+                    float earlyDecay = hash(fi * 97.7 + uSeed * 0.006) * 0.34;
+                    float anvilScale = mix(0.58, 1.12, hash(fi * 101.9 + uSeed * 0.008));
                     float cell = getCell01(modelP, offset, maxR, phase, maxH, speedScale, ageOffset, earlyDecay, anvilScale);
                     macro = smin(macro, cell, mix(1.08, 0.82, photo));
                 }
-                float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, detailTrait(18.0) * 2.0)) - 0.5) * 0.14);
+                float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
                 float groundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
                 return smax(smax(macro, capLimiter, 0.18), groundLimiter, 0.22);
-                #endif
             }
 
             float mapCloudFromMacro(vec3 p, float macro) {
@@ -445,6 +412,12 @@ export const raymarchCloudFragmentShader = String.raw`
                 }
 
                 vec3 q = worldToModelSpace(p);
+                if (uMobileCumulusMode > 0.5) {
+                    q.x *= 0.82;
+                    q.z *= 0.90;
+                    q.y = (q.y + 0.62) * 0.88 - 0.62;
+                }
+
                 vec3 baseQ = q;
                 q.y -= uTime * 0.25;
                 q.x += uTime * 0.05;
@@ -453,7 +426,7 @@ export const raymarchCloudFragmentShader = String.raw`
 
                 float d = -macro;
                 if (d > -1.0) {
-                    float stormAngle = uTime * 0.075 + lifecycleTrait(3.0) * 6.28318;
+                    float stormAngle = uTime * 0.075 + uSeed * 0.00107;
                     float stormCycle = sin(stormAngle) * 0.5 + 0.5;
                     float stormFalling = smoothstep(0.44, 0.9, -cos(stormAngle) * 0.5 + 0.5);
                     float dissipating = stormFalling * smoothstep(0.46, 0.92, stormCycle);
@@ -463,6 +436,13 @@ export const raymarchCloudFragmentShader = String.raw`
                         * (1.0 - smoothstep(0.72, 0.9, height01));
                     float iceFactor = iceFactorAtHeight(p.y);
                     float towerErosionBand = smoothstep(0.08, 0.24, height01) * (1.0 - smoothstep(0.58, 0.82, height01));
+                    if (uMobileCumulusMode > 0.5) {
+                        dissipating = 0.0;
+                        anvilBand = 0.0;
+                        mixedPhaseBand *= 0.35;
+                        iceFactor = 0.0;
+                        towerErosionBand *= 0.28;
+                    }
                     float downdraftColumn = smoothstep(
                         0.38,
                         0.88,
@@ -474,78 +454,51 @@ export const raymarchCloudFragmentShader = String.raw`
                         noise(vec3(q.x * 0.18 - uTime * 0.015, q.z * 0.22 + uSeed * 0.05, q.y * 0.11))
                     );
                     float photo = uPhotographicStyle;
-                    vec2 shearAxis = windShearAxis(morphTrait(40.0) * 6.28318 + 1.8);
-                    vec2 crossAxis = vec2(-shearAxis.y, shearAxis.x);
-                    float shearCurl = uWindShear * mix(0.42, 1.15, clamp(uCloudCurl, 0.0, 1.0));
-                    q.xz += shearAxis * height01 * height01 * shearCurl * 0.72;
-                    q.y += sin(dot(q.xz, crossAxis) * 0.46 + detailTrait(4.0) * 6.28318) * shearCurl * 0.08;
-                    // INCREASED CARVING FOR LIGHTER FLUFFIER LOOK
-                    float carving = noise(q * 0.4 + uTime * 0.1) * mix(1.8, 1.45, photo);
+                    float mobileFullness = step(0.5, uMobileCumulusMode);
+                    float carving = noise(q * 0.4 + uTime * 0.1) * mix(1.5, 1.28, photo) * mix(1.0, 0.72, mobileFullness);
                     float details = fbm(q * 1.2) * 1.0;
-                    float microBillow = fbm(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(detailTrait(5.0) * 3.0, 1.9, uTime * 0.04));
-                    float broadBillow = fbm(vec3(q.x * 0.92, q.y * 1.24, q.z * 0.92) + vec3(detailTrait(6.0) * 3.0, 6.1, -uTime * 0.02));
-                    vec2 iceAxis = windShearAxis(morphTrait(41.0) * 6.28318 + 4.0);
+                    float microBillow = fbm(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(uSeed * 0.017, 1.9, uTime * 0.04));
+                    float broadBillow = fbm(vec3(q.x * 0.92, q.y * 1.24, q.z * 0.92) + vec3(uSeed * 0.023, 6.1, -uTime * 0.02));
+                    vec2 iceAxis = windShearAxis(uSeed * 0.003 + 4.0);
                     float iceFiber = noise(vec3(
                         dot(q.xz, iceAxis) * 0.18 + uTime * 0.026,
                         q.y * 1.75,
-                        dot(q.xz, vec2(-iceAxis.y, iceAxis.x)) * 0.56 + detailTrait(7.0) * 6.28318
+                        dot(q.xz, vec2(-iceAxis.y, iceAxis.x)) * 0.56 + uSeed * 0.011
                     ));
                     float towerBand = smoothstep(0.12, 0.58, height01) * (1.0 - smoothstep(0.78, 1.02, height01));
                     float surfaceShell = smoothstep(-0.7, 0.16, macro) * (1.0 - smoothstep(0.18, 0.82, macro));
-                    float baseCore = smoothstep(1.34, 0.18, length(baseQ.xz / vec2(1.36, 0.92)))
-                        * smoothstep(MODEL_LOCAL_BASE - 0.12, MODEL_LOCAL_BASE + 0.72, baseQ.y)
-                        * (1.0 - smoothstep(MODEL_LOCAL_BASE + 1.36, MODEL_LOCAL_BASE + 2.42, baseQ.y));
-                    float towerCore = smoothstep(0.92, 0.14, length((baseQ.xz - vec2(0.14, 0.0)) / vec2(0.74, 0.66)))
-                        * smoothstep(MODEL_LOCAL_BASE + 0.52, MODEL_LOCAL_BASE + 1.42, baseQ.y)
-                        * (1.0 - smoothstep(MODEL_LOCAL_TROPO - 0.62, MODEL_LOCAL_TROPO + 0.12, baseQ.y));
-                    float anvilCore = anvilBand * smoothstep(1.9, 0.18, length(baseQ.xz / vec2(2.12, 0.72)));
-                    float protectedCore = max(max(baseCore, towerCore), anvilCore * 0.68) * (1.0 - anvilBand * 0.18);
-                    float erosionMask = surfaceShell * (1.0 - protectedCore * 0.72);
-                    float branchBand = smoothstep(0.22, 0.48, height01) * (1.0 - smoothstep(0.84, 0.98, height01));
-                    float crownBand = smoothstep(0.48, 0.72, height01) * (1.0 - smoothstep(0.96, 1.0, height01));
-                    float branchSpoke = convectiveSpokePattern(baseQ.xz, height01, detailTrait(8.0) * 6.28318 + uTime * 0.08, mix(5.0, 7.5, photo));
-                    float crownSpoke = convectiveSpokePattern(baseQ.xz, height01, detailTrait(9.0) * 6.28318 + 2.4 + uTime * 0.05, mix(7.0, 9.5, photo));
-                    float spokeCore = branchBand * branchSpoke + crownBand * crownSpoke;
-                    float spokeCut = smoothstep(
-                        0.46,
-                        0.88,
-                        noise(vec3(baseQ.xz * 0.72 + vec2(4.1, -2.8), baseQ.y * 0.68 + detailTrait(10.0) * 2.0))
-                    );
-                    float horizontalFiber = pow(max(0.0, sin(dot(q.xz, iceAxis) * 0.7 + q.y * 0.36 + detailTrait(11.0) * 6.28318)), 2.0);
-                    float shellCarving = carving * mix(0.48, 1.0, surfaceShell) * (1.0 - protectedCore * 0.58);
-                    // TWEAKED DETAIL MERGE TO AVOID SOLID BLOCKS
-                    d += details * 0.78 - shellCarving * mix(0.72, 0.95, photo);
+                    d += details - carving * 0.8;
+                    d += mobileFullness * smoothstep(-0.62, 0.12, macro) * (1.0 - smoothstep(0.20, 0.74, macro)) * 0.18;
                     d += surfaceShell * towerBand * (microBillow - 0.46) * mix(0.42, 0.74, photo);
-                    d += surfaceShell * (1.0 - anvilBand) * (broadBillow - 0.44) * mix(0.0, 0.34, photo);
-                    d += surfaceShell * spokeCore * mix(0.12, 0.34, photo);
-                    d -= erosionMask * branchBand * (1.0 - branchSpoke) * spokeCut * mix(0.08, 0.24, photo);
-                    d += surfaceShell * crownBand * crownSpoke * (microBillow - 0.38) * mix(0.08, 0.3, photo);
-                    d -= erosionMask * towerBand * smoothstep(0.58, 0.94, broadBillow) * mix(0.0, 0.18, photo);
+                    d += surfaceShell * (1.0 - anvilBand) * (broadBillow - 0.44) * mix(0.0, 0.42, photo);
+                    d -= surfaceShell * towerBand * smoothstep(0.58, 0.94, broadBillow) * mix(0.0, 0.18, photo);
                     d += mixedPhaseBand * surfaceShell * 0.14;
-                    d += anvilBand * iceFactor * (iceFiber - 0.42) * 0.34;
-                    d += anvilBand * iceFactor * surfaceShell * (horizontalFiber - 0.36) * mix(0.08, 0.22, photo);
+                    d += anvilBand * iceFactor * (iceFiber - 0.42) * 0.38;
                     d -= anvilBand * iceFactor * smoothstep(0.72, 0.98, iceFiber) * 0.12;
                     float edgeBand = smoothstep(-0.72, 0.34, macro);
-                    float edgeCuts = noise(vec3(q.x * 0.82 + detailTrait(12.0) * 2.0, q.y * 0.92, q.z * 0.82 - uTime * 0.03));
-                    d -= edgeBand * erosionMask * smoothstep(0.5, 0.86, edgeCuts) * mix(0.24, 0.38, photo);
+                    float edgeCuts = noise(vec3(q.x * 0.82 + uSeed * 0.019, q.y * 0.92, q.z * 0.82 - uTime * 0.03));
+                    d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * mix(0.24, 0.38, photo) * mix(1.0, 0.42, mobileFullness);
                     float raggedFloor =
                         MODEL_LOCAL_BASE +
-                        (noise(vec3(baseQ.xz * 0.58 + detailTrait(13.0) * 2.0, detailTrait(14.0) * 2.0)) - 0.5) * 0.68 +
-                        sin(baseQ.x * 0.72 + detailTrait(15.0) * 6.28318) * 0.12;
+                        (noise(vec3(baseQ.xz * 0.58 + uSeed * 0.13, uSeed * 0.29)) - 0.5) * 0.68 +
+                        sin(baseQ.x * 0.72 + uSeed * 0.04) * 0.12;
                     float undersideBand = 1.0 - smoothstep(raggedFloor - 0.12, raggedFloor + 0.52, baseQ.y);
                     float undersidePocket = smoothstep(
                         0.32,
                         0.88,
-                        noise(vec3(baseQ.xz * 1.18 + vec2(3.4, 7.1), detailTrait(16.0) * 3.0))
+                        noise(vec3(baseQ.xz * 1.18 + vec2(3.4, 7.1), uSeed * 0.41))
                     );
-                    d -= undersideBand * undersidePocket * (1.0 - protectedCore * 0.75) * 0.42;
-                    d -= dissipating * towerErosionBand * downdraftColumn * (1.0 - protectedCore * 0.7) * 0.72;
+                    d -= undersideBand * undersidePocket * mix(0.42, 0.18, mobileFullness);
+                    d -= dissipating * towerErosionBand * downdraftColumn * 0.72;
                     d -= dissipating * undersideBand * 0.22;
                     d += dissipating * anvilBand * (1.0 - settlingAnvil * 0.68) * 0.12;
                     d -= dissipating * anvilBand * settlingAnvil * 0.16;
-                    d = max(d, protectedCore * mix(0.18, 0.28, photo) * (1.0 - dissipating * 0.32));
                 }
                 return clamp(d, 0.0, 1.0);
+            }
+
+            float mapCloud(vec3 p) {
+                return mapCloudFromMacro(p, mapCloudMacro(p));
             }
 
             float phaseHG(float cosTheta, float g) {
@@ -556,21 +509,6 @@ export const raymarchCloudFragmentShader = String.raw`
             vec3 ACESFilm(vec3 x) {
                 float a = 2.51; float b = 0.03; float c = 2.43; float d = 0.59; float e = 0.14;
                 return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
-            }
-
-            float starField(vec3 rd) {
-                vec3 n = normalize(rd);
-                vec2 uv = vec2(atan(n.z, n.x) * 0.15915494 + 0.5, asin(clamp(n.y, -1.0, 1.0)) * 0.31830989 + 0.5);
-                vec2 grid = uv * vec2(260.0, 130.0);
-                vec2 cell = floor(grid);
-                vec2 local = fract(grid) - 0.5;
-                float starSeed = hash(cell.x + cell.y * 251.7 + uSeed * 0.017);
-                float starGate = step(0.986, starSeed);
-                float size = mix(0.038, 0.12, hash(cell.x * 11.3 + cell.y * 7.7 + uSeed * 0.021));
-                float point = (1.0 - smoothstep(size, size + 0.028, length(local))) * starGate;
-                float horizonGate = smoothstep(0.02, 0.34, n.y);
-                float twinkle = mix(0.62, 1.0, hash(cell.x * 3.1 + cell.y * 19.9 + floor(uTime * 1.6)));
-                return point * horizonGate * twinkle;
             }
 
             vec3 nitsToPq(vec3 nits) {
@@ -613,114 +551,8 @@ export const raymarchCloudFragmentShader = String.raw`
                 return clamp(pow(pqCode, vec3(1.0 / 1.18)) * daylightBalance, 0.0, 1.0);
             }
 
-            float oceanSurfaceHeight(vec2 p) {
-                vec2 d1 = normalize(vec2(0.8, 0.6));
-                vec2 d2 = normalize(vec2(-0.6, 0.8));
-                // 較低頻率且振幅較大的波浪，營造塊狀玩具感
-                float wave = sin(dot(p, d1) * 1.2 + uTime * 0.3) * 0.35 +
-                             sin(dot(p, d2) * 1.8 - uTime * 0.2) * 0.2;
-                return wave;
-            }
-
-            float hillsSurfaceHeight(vec2 p) {
-                float broad = sin(p.x * 0.25 + p.y * 0.15 + 1.6) * 0.8 +
-                              sin(p.x * -0.15 + p.y * 0.25 - 0.8) * 0.6;
-                float rounded = smoothstep(-0.8, 1.1, broad);
-                // 簡化丘陵細節，移除雜訊，使其呈現平滑圓潤的低多邊形感
-                float knolls = max(0.0, sin(p.x * 0.6) * cos(p.y * 0.6)) * 0.4;
-                return rounded * 2.2 + knolls;
-            }
-
-            float surfaceHeight(vec2 p) {
-                return uSurfaceMode < 0.5 ? oceanSurfaceHeight(p) : hillsSurfaceHeight(p);
-            }
-
-            vec3 surfaceNormal(vec2 p) {
-                float e = uSurfaceMode < 0.5 ? 0.2 : 0.25; // 加大採樣範圍讓法線更平滑
-                float h = surfaceHeight(p);
-                float hx = surfaceHeight(p + vec2(e, 0.0));
-                float hz = surfaceHeight(p + vec2(0.0, e));
-                float yScale = uSurfaceMode < 0.5 ? 0.8 : 0.6;
-                return normalize(vec3(h - hx, e * yScale, h - hz));
-            }
-
-            float toonStep(float value, float steps) {
-                return floor(clamp(value, 0.0, 0.999) * steps) / max(steps - 1.0, 1.0);
-            }
-
-            vec3 surfaceOverlay(vec3 col, vec3 ro, vec3 rd, vec3 lightDir) {
-                if (uSurfaceVisible < 0.5) return col;
-
-                if (abs(rd.y) > 0.001) {
-                    float tG = (0.0 - ro.y) / rd.y;
-                    if (tG > 0.0 && tG < 180.0) {
-                        vec3 pG = ro + rd * tG;
-                        float radius = length(pG.xz);
-                        if (radius <= 18.0) {
-                            // 3D 實體模型感底座參數
-                            float disk = 1.0 - smoothstep(17.9, 18.0, radius);
-                            float rimEdge = smoothstep(17.2, 17.3, radius); // 模型底座的側面
-                            float rimLine = step(17.0, radius) * (1.0 - step(17.2, radius)); // 模型外圈的白線裝飾
-                            
-                            vec2 p = pG.xz;
-                            vec3 n = surfaceNormal(p);
-                            float diffuse = clamp(dot(n, lightDir) * 0.5 + 0.5, 0.0, 1.0);
-                            
-                            // 卡通描邊效果 (Outline)
-                            float rim = pow(clamp(1.0 - dot(n, -rd), 0.0, 1.0), 3.5);
-                            float outline = step(0.65, rim);
-                            
-                            vec3 surfaceCol;
-
-                            if (uSurfaceMode < 0.5) { // 海洋卡通材質
-                                float h = oceanSurfaceHeight(p);
-                                float waveBand = toonStep(smoothstep(-0.3, 0.4, h), 3.0);
-                                float lightBand = toonStep(diffuse, 3.0);
-                                float crest = step(0.66, lightBand) * step(0.2, h); // 浪花
-                                
-                                vec3 waterDark = vec3(0.05, 0.3, 0.6);
-                                vec3 waterMid = vec3(0.15, 0.6, 0.85);
-                                vec3 waterLit = vec3(0.3, 0.85, 0.95);
-                                
-                                surfaceCol = mix(waterDark, waterMid, waveBand);
-                                surfaceCol = mix(surfaceCol, waterLit, lightBand * 0.8);
-                                surfaceCol = mix(surfaceCol, vec3(1.0), crest); // 純白浪尖
-                                surfaceCol = mix(surfaceCol, vec3(0.02, 0.15, 0.35), outline * 0.7 * (1.0 - crest)); // 深藍描邊
-                            } else { // 丘陵卡通材質
-                                float h = hillsSurfaceHeight(p);
-                                float heightBand = toonStep(smoothstep(0.0, 2.5, h), 4.0);
-                                float lightBand = toonStep(diffuse, 3.0);
-                                
-                                vec3 grassShadow = vec3(0.15, 0.3, 0.15);
-                                vec3 grassBase = vec3(0.3, 0.6, 0.2);
-                                vec3 grassTop = vec3(0.5, 0.8, 0.25);
-                                vec3 sunPatch = vec3(0.7, 0.95, 0.3); // 受光點的高亮色塊
-                                
-                                surfaceCol = mix(grassBase, grassTop, heightBand);
-                                surfaceCol = mix(grassShadow, surfaceCol, lightBand);
-                                float spec = step(0.66, lightBand) * step(0.25, heightBand);
-                                surfaceCol = mix(surfaceCol, sunPatch, spec * 0.8);
-                                surfaceCol = mix(surfaceCol, vec3(0.08, 0.2, 0.08), outline * 0.7); // 深綠描邊
-                            }
-
-                            // 繪製模型邊緣底座
-                            vec3 pedestalColor = vec3(0.12, 0.14, 0.16); // 消光暗灰色底座
-                            float pedestalLight = clamp(dot(normalize(vec3(p.x, 0.0, p.y)), lightDir), 0.0, 1.0);
-                            pedestalColor += pedestalLight * 0.15; // 底座的簡單光照
-                            
-                            surfaceCol = mix(surfaceCol, vec3(0.9, 0.92, 0.95), rimLine);
-                            surfaceCol = mix(surfaceCol, pedestalColor, rimEdge);
-
-                            // 降低大氣距離融合，強化獨立於背景的實體模型錯覺
-                            col = mix(col, surfaceCol, disk * exp(-tG * 0.003));
-                        }
-                    }
-                }
-                return col;
-            }
-
             vec3 gridOverlay(vec3 col, vec3 ro, vec3 rd) {
-                if (uShowGrid < 0.5 || uSurfaceVisible > 0.5) return col;
+                if (uShowGrid < 0.5) return col;
 
                 if (abs(rd.y) > 0.001) {
                     float tG = (0.0 - ro.y) / rd.y;
@@ -769,24 +601,40 @@ export const raymarchCloudFragmentShader = String.raw`
                 return col;
             }
 
-            vec3 atmosphericHorizon(vec3 col, vec3 rd, vec3 daylightDir, float sunSin, float sunHeight01, float night01) {
-                vec3 flatRay = vec3(rd.x, 0.0, rd.z);
-                flatRay = dot(flatRay, flatRay) < 0.0001 ? vec3(0.0, 0.0, -1.0) : normalize(flatRay);
-                vec3 flatSun = vec3(daylightDir.x, 0.0, daylightDir.z);
-                flatSun = dot(flatSun, flatSun) < 0.0001 ? vec3(0.0, 0.0, -1.0) : normalize(flatSun);
-                float lowSun = 1.0 - smoothstep(0.12, 0.52, sunSin);
-                float horizonBand = 1.0 - smoothstep(0.015, 0.18, abs(rd.y));
-                float belowHorizon = smoothstep(0.035, -0.18, rd.y);
-                float sunAlongHorizon = pow(max(0.0, dot(flatRay, flatSun)), mix(4.0, 12.0, sunHeight01)) * lowSun;
-                vec3 coolHaze = mix(vec3(0.40, 0.52, 0.60), vec3(0.62, 0.73, 0.84), sunHeight01);
-                vec3 warmHaze = mix(vec3(0.82, 0.30, 0.12), vec3(0.96, 0.58, 0.28), smoothstep(-0.04, 0.16, sunSin));
-                vec3 horizonFog = mix(coolHaze, warmHaze, clamp(lowSun * 0.55 + sunAlongHorizon * 0.95, 0.0, 1.0));
-                horizonFog = mix(horizonFog, vec3(0.04, 0.055, 0.10), night01 * 0.85);
-                vec3 groundDistant = mix(vec3(0.035, 0.052, 0.058), vec3(0.105, 0.120, 0.105), sunHeight01);
-                groundDistant = mix(groundDistant, warmHaze * 0.34, lowSun * sunAlongHorizon);
-                vec3 horizonLayer = mix(horizonFog, groundDistant, belowHorizon * 0.82);
-                float fogAlpha = clamp(horizonBand * mix(0.28, 0.72, lowSun) + belowHorizon * 0.68, 0.0, 0.88);
-                return mix(col, horizonLayer, fogAlpha);
+            vec3 surfaceOverlay(vec3 col, vec3 ro, vec3 rd, vec3 lightDir, vec3 ambientColor) {
+                if (uSurfaceVisible < 0.5 || abs(rd.y) <= 0.001) return col;
+                float tS = (0.0 - ro.y) / rd.y;
+                if (tS <= 0.0 || tS > 220.0) return col;
+
+                vec3 pS = ro + rd * tS;
+                float rangeFade = 1.0 - smoothstep(28.0, 92.0, length(pS.xz));
+                if (rangeFade <= 0.0) return col;
+
+                float terrainNoise = fbm(vec3(pS.xz * 0.075, uSeed * 0.03));
+                float ridge = smoothstep(0.42, 0.84, terrainNoise);
+                vec3 normal = normalize(vec3(
+                    noise(vec3(pS.xz * 0.12 + vec2(1.7, 0.0), uSeed * 0.04)) - 0.5,
+                    1.45,
+                    noise(vec3(pS.xz * 0.12 + vec2(0.0, 3.1), uSeed * 0.04)) - 0.5
+                ));
+                float diffuse = clamp(dot(normal, lightDir) * 0.5 + 0.5, 0.0, 1.0);
+                float horizonFade = smoothstep(0.0, 0.12, -rd.y);
+
+                vec3 oceanBase = mix(vec3(0.012, 0.11, 0.19), vec3(0.08, 0.34, 0.48), ridge);
+                float wave = sin(pS.x * 0.38 + uTime * 0.35) * sin(pS.z * 0.31 - uTime * 0.22);
+                float glint = pow(max(0.0, dot(reflect(rd, vec3(0.0, 1.0, 0.0)), lightDir)), 52.0);
+                float horizonLine = 1.0 - smoothstep(0.006, 0.05, abs(pS.y));
+                vec3 ocean = oceanBase
+                    + vec3(0.05, 0.1, 0.12) * wave * 0.12
+                    + vec3(0.9, 0.82, 0.55) * glint * 0.42
+                    + vec3(0.12, 0.28, 0.34) * horizonLine;
+
+                vec3 hillLow = vec3(0.12, 0.16, 0.09);
+                vec3 hillHigh = vec3(0.34, 0.30, 0.18);
+                vec3 hills = mix(hillLow, hillHigh, ridge) * (0.45 + diffuse * 0.62) + ambientColor * 0.24;
+                vec3 surfaceColor = mix(ocean, hills, step(0.5, uSurfaceMode));
+                float surfaceAlpha = rangeFade * horizonFade * mix(0.72, 0.98, smoothstep(-0.18, -0.02, rd.y));
+                return mix(col, surfaceColor, surfaceAlpha);
             }
 
             void main() {
@@ -824,8 +672,9 @@ export const raymarchCloudFragmentShader = String.raw`
                 vec3 lightDir = normalize(mix(daylightDir, goldenDir, step(0.5, uLightPreset) * (1.0 - step(1.5, uLightPreset))));
                 lightDir = normalize(mix(lightDir, backlitDir, step(1.5, uLightPreset)));
                 float sunSin = sin(sunElevationRad);
+                float forcedMoonNight = step(2.5, uSkyMode) * (1.0 - step(3.5, uSkyMode));
                 float sunHeight01 = smoothstep(-0.08, 0.70, sunSin);
-                float night01 = 1.0 - smoothstep(-0.26, -0.02, sunSin);
+                float night01 = max(1.0 - smoothstep(-0.26, -0.02, sunSin), forcedMoonNight);
                 vec3 lowSunLight = mix(vec3(1.0, 0.16, 0.055), vec3(1.0, 0.54, 0.24), smoothstep(-0.08, 0.14, sunSin));
                 vec3 highSunLight = vec3(1.0, 0.93, 0.82);
                 vec3 solarLightColor = mix(lowSunLight, highSunLight, sunHeight01);
@@ -833,20 +682,27 @@ export const raymarchCloudFragmentShader = String.raw`
                 solarLightColor = mix(solarLightColor, vec3(0.95, 0.9, 1.0), step(1.5, uLightPreset));
                 vec3 moonDir = normalize(vec3(-0.34, 0.55, 0.76));
                 lightDir = normalize(mix(lightDir, moonDir, night01 * 0.86));
-                vec3 moonLightColor = vec3(0.15, 0.20, 0.36) * night01 * mix(0.62, 0.82, uPhotographicStyle);
-                vec3 lightColor = solarLightColor * uSunIntensity * (1.0 - night01 * 0.74) + moonLightColor;
+                vec3 moonLightColor = vec3(0.038, 0.056, 0.13) * night01 * mix(0.50, 0.64, uPhotographicStyle);
+                vec3 lightColor = solarLightColor * uSunIntensity * (1.0 - night01 * 0.92) + moonLightColor;
                 vec3 dayAmbient = mix(vec3(0.065, 0.085, 0.16), vec3(0.18, 0.24, 0.34), max(uPhotographicStyle, sunHeight01 * 0.55)) * uAmbientIntensity;
-                vec3 nightAmbient = vec3(0.025, 0.034, 0.072) * mix(0.82, 1.0, uPhotographicStyle);
+                vec3 nightAmbient = vec3(0.005, 0.008, 0.026) * mix(0.62, 0.82, uPhotographicStyle);
                 vec3 ambientColor = mix(dayAmbient, nightAmbient, night01);
                 float skyT = smoothstep(0.0, 1.0, clamp(uv.y + 0.5, 0.0, 1.0));
                 float screenY = clamp(gl_FragCoord.y / res.y, 0.0, 1.0);
-                float highAltitudeDarkening = mix(1.04, 0.72, smoothstep(0.08, 1.0, screenY));
                 vec3 localhostBottomSky = vec3(0.055, 0.078, 0.145);
-                vec3 localhostTopSky = vec3(0.030, 0.050, 0.108);
-                vec3 workbenchSky = mix(localhostBottomSky, localhostTopSky, screenY) * highAltitudeDarkening * uAmbientIntensity;
+                vec3 localhostTopSky = vec3(0.044, 0.064, 0.125);
+                vec3 workbenchSky = mix(localhostBottomSky, localhostTopSky, screenY) * uAmbientIntensity;
                 vec3 clearSky = workbenchSky;
                 vec3 sunsetSky = mix(vec3(0.86, 0.42, 0.22), vec3(0.08, 0.12, 0.34), skyT) * uAmbientIntensity;
-                vec3 moonSky = mix(vec3(0.08, 0.11, 0.18), vec3(0.01, 0.018, 0.055), skyT) * uAmbientIntensity;
+                vec3 moonSky = mix(vec3(0.012, 0.020, 0.052), vec3(0.0015, 0.004, 0.018), skyT) * max(0.72, uAmbientIntensity);
+                vec2 starUv = vec2(atan(rd.x, rd.z) * 0.15915494 + 0.5, asin(clamp(rd.y, -1.0, 1.0)) * 0.31830988 + 0.5);
+                vec2 starCell = floor(starUv * vec2(150.0, 92.0));
+                vec2 starLocal = fract(starUv * vec2(150.0, 92.0)) - 0.5;
+                float starHash = hash(starCell.x + starCell.y * 193.13 + uSeed * 0.071);
+                float starVisibility = smoothstep(0.02, 0.42, rd.y) * (1.0 - smoothstep(0.88, 1.0, rd.y));
+                float starPoint = 1.0 - smoothstep(0.026, 0.034, length(starLocal));
+                float starTwinkle = 0.68 + 0.32 * sin(uTime * 4.2 + starHash * 81.0);
+                moonSky += vec3(step(0.991, starHash) * starPoint * starVisibility * starTwinkle * 0.18);
                 float viewSkyT = smoothstep(mix(-0.36, -0.22, sunHeight01), mix(0.34, 0.84, sunHeight01), rd.y);
                 vec3 nightHorizonSky = vec3(0.010, 0.012, 0.028);
                 vec3 nightZenithSky = vec3(0.002, 0.004, 0.015);
@@ -867,7 +723,7 @@ export const raymarchCloudFragmentShader = String.raw`
                 domeZenithSky = mix(domeZenithSky, dayZenithSky, toDay);
                 float glowGate = smoothstep(-0.32, -0.04, sunSin) * (1.0 - smoothstep(0.20, 0.55, sunSin));
                 float sunGlow = pow(max(0.0, dot(rd, daylightDir)), mix(18.0, 32.0, sunHeight01)) * mix(0.58, 0.14, sunHeight01) * glowGate;
-                vec3 atmosphereSky = mix(domeHorizonSky, domeZenithSky, viewSkyT) * mix(1.05, 0.70, viewSkyT) * uAmbientIntensity;
+                vec3 atmosphereSky = mix(domeHorizonSky, domeZenithSky, viewSkyT) * uAmbientIntensity;
                 atmosphereSky *= mix(0.72, 1.0, sunHeight01);
                 atmosphereSky += mix(vec3(1.0, 0.12, 0.04), vec3(1.0, 0.56, 0.20), toDusk) * sunGlow * uSunIntensity * 0.10;
                 atmosphereSky += vec3(0.012, 0.018, 0.038) * night01;
@@ -879,12 +735,8 @@ export const raymarchCloudFragmentShader = String.raw`
                 col = mix(col, sunsetSky, sunsetMask);
                 col = mix(col, moonSky, moonMask);
                 col = mix(col, atmosphereSky, atmosphereMask);
-                float stars = starField(rd) * night01 * max(moonMask, atmosphereMask);
-                col += vec3(0.72, 0.84, 1.0) * stars * mix(0.9, 1.8, uPhotographicStyle);
-                float horizonActive = (1.0 - uTransparentBackground) * clamp(uHorizonStrength, 0.0, 1.0) * max(atmosphereMask, uPhotographicStyle * 0.75);
-                col = mix(col, atmosphericHorizon(col, rd, daylightDir, sunSin, sunHeight01, night01), horizonActive);
                 if (uTransparentBackground < 0.5) {
-                    col = surfaceOverlay(col, ro, rd, lightDir);
+                    col = surfaceOverlay(col, ro, rd, lightDir, ambientColor);
                     col = gridOverlay(col, ro, rd);
                 }
 
@@ -902,10 +754,8 @@ export const raymarchCloudFragmentShader = String.raw`
                     float cosTheta = dot(rd, lightDir);
                     float heightRange = max(0.1, uTropopause - MODEL_BASE_KM);
 
-                    // Keep the static loop below mobile Chrome's shader watchdog while uMaxSteps owns quality.
-                    for(int i = 0; i < CUMULONIMBUS_MAX_RAY_STEPS; i++) {
-                        // OPTIMIZATION: Early exit threshold lowered to 0.92 for faster rendering
-                        if (float(i) > uMaxSteps || t > maxT || densityAcc > 0.92) break;
+                    for(int i = 0; i < 168; i++) {
+                        if (float(i) > uMaxSteps || t > maxT || densityAcc > 0.955) break;
                         vec3 p = ro + rd * t;
                         if (p.y < 0.0 || p.y > uTropopause + 1.2) {
                             t += stepSize * 3.0;
@@ -928,9 +778,8 @@ export const raymarchCloudFragmentShader = String.raw`
                             float phase = clamp(phaseHG(cosTheta, phaseG) * mix(0.7, 0.9, iceFactor) + phaseHG(cosTheta, -0.18) * 0.28, 0.0, 1.65);
                             float shadow = 0.0;
                             vec3 lPos = p;
-                            // OPTIMIZATION: increased step size, reduced shadow iterations (3 -> 2)
-                            float lStep = 0.5;
-                            for(int j = 0; j < 2; j++) {
+                            float lStep = 0.34;
+                            for(int j = 0; j < 3; j++) {
                                 float jitter = float(j) * 1.37 + hash(dot(p.xz, vec2(17.0, 31.0)));
                                 vec3 shadowDir = normalize(lightDir + vec3(
                                     sin(jitter) * 0.16,
@@ -944,8 +793,7 @@ export const raymarchCloudFragmentShader = String.raw`
                                 }
                             }
                             float mixedPhaseShadow = 1.0 + smoothstep(0.36, 0.7, height01) * (1.0 - smoothstep(0.78, 0.94, height01)) * mix(0.38, 0.64, uPhotographicStyle);
-                            // LIGHTNESS TWEAK: Reduce shadow blocker multiplier to allow more light to penetrate
-                            float transmittance = exp(-shadow * mix(0.65, 0.45, iceFactor) * mixedPhaseShadow);
+                            float transmittance = exp(-shadow * mix(0.86, 0.58, iceFactor) * mixedPhaseShadow);
                             float surfaceRelief = smoothstep(-0.72, 0.18, macro) * (1.0 - smoothstep(0.2, 0.92, macro));
                             float relief = fbm(vec3(p.x * 0.42, p.y * 0.58, p.z * 0.42) + uSeed * 0.021);
                             float fineRelief = 0.5;
@@ -966,9 +814,7 @@ export const raymarchCloudFragmentShader = String.raw`
                             vec3 directTerm = lightColor * phaseTint * transmittance * phase * reliefLight * directHeightLift;
                             vec3 lighting = ambientTerm + directTerm;
                             float cloudOpacity = mix(1.0, 0.46, uShowGrid);
-                            
-                            // LIGHTNESS TWEAK: Lower density multiplier (12.8 -> 7.5) to avoid monolithic, thick look
-                            float alpha = (1.0 - exp(-density * stepSize * 7.5)) * cloudOpacity;
+                            float alpha = (1.0 - exp(-density * stepSize * 12.8)) * cloudOpacity;
                             cloudCol += (1.0 - densityAcc) * lighting * alpha;
                             densityAcc += (1.0 - densityAcc) * alpha;
                         } else if (macro > 0.35) {
@@ -989,7 +835,6 @@ export const raymarchCloudFragmentShader = String.raw`
                 float finalAlpha = mix(1.0, densityAcc, uTransparentBackground);
                 gl_FragColor = vec4(col, finalAlpha);
             }
-        
-`;
+        `;
 
 export const raymarchCloudVertexShader = String.raw`void main() { gl_Position = vec4(position, 1.0); }`;

@@ -5,7 +5,6 @@ import { createAppShell } from "../ui/app-shell.js";
 import { bindControls } from "../ui/controls.js";
 import { bindPanels } from "../ui/panels.js";
 import { bindStageEdgeFill } from "../ui/stage-edge-fill.js";
-import { paintCpuFallback } from "./cpu-fallback.js";
 
 const query = new URLSearchParams(window.location.search);
 const displayProfile = detectBrowserDisplayProfile();
@@ -16,6 +15,9 @@ let disposeApp: (() => void) | undefined;
 
 document.documentElement.dataset.renderStatus = "shell-ready";
 document.documentElement.dataset.appModuleStatus = "loading";
+document.body.dataset.ui = "tracing-paper";
+document.body.dataset.viewportMode = "background";
+document.body.dataset.controlsHidden = options.controlsVisible ? "false" : "true";
 
 window.addEventListener("beforeunload", () => {
   cleanupStageEdgeFill();
@@ -35,6 +37,5 @@ void import("./cloud-app.js")
     document.documentElement.dataset.appModuleStatus = "error";
     document.documentElement.dataset.renderStatus = "app-error";
     shell.canvas.setAttribute("aria-label", "Cloud renderer failed to load");
-    paintCpuFallback(shell.canvas, options, "app-error", false);
     console.error("Cumulonimbus app startup failed:", error);
   });

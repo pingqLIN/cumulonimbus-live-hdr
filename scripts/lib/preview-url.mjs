@@ -21,9 +21,6 @@ export function buildPreviewUrl(options = {}) {
   if (options.seed) {
     url.searchParams.set("seed", String(options.seed));
   }
-  if (options.renderer) {
-    url.searchParams.set("renderer", options.renderer);
-  }
   if (options.preset) {
     url.searchParams.set("preset", options.preset);
   }
@@ -90,7 +87,11 @@ export const raymarchTuningKeys = [
   "photographic",
   "photo",
   "ortho",
+  "surface",
   "maxPixels",
+  "preserveDrawingBuffer",
+  "preserveDrawing",
+  "preserveBuffer",
   "debugShaders",
   "shaderDiagnostics"
 ];

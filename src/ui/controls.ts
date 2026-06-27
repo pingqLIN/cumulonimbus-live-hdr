@@ -1,15 +1,23 @@
-import { type CloudAppController } from "../app/cloud-app.js";
 import {
+  type CloudAppController,
+  type RenderStats
+} from "../app/cloud-app.js";
+import {
+  ATTACHED_06_MAX_STEPS,
+  ATTACHED_06_RENDER_SCALE,
   SAFE_LIVE_MAX_PIXELS,
-  resolvePreset,
   type RuntimeOptions
 } from "../app/runtime-options.js";
 
 const QUALITY_MAX_PIXELS = SAFE_LIVE_MAX_PIXELS;
+let uiLanguage = "zh-TW";
+let renderTelemetryFrame: number | undefined;
 
 export function bindControls(root: ParentNode, app: CloudAppController): void {
   const elements = collectControls(root);
+  configureLocationSync(elements);
   syncControls(elements, app.getOptions(), app.isPaused());
+  startRenderTelemetry(elements, app);
 
   elements.landscapeButton?.addEventListener("click", () => {
     app.setOrientation("landscape");
@@ -32,15 +40,6 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     app.setOptions({ showGrid: next });
     elements.gridButton?.classList.toggle("enabled", next);
   });
-  elements.cameraModeButton?.addEventListener("click", () => {
-    const next = !app.getOptions().ortho;
-    app.setOptions({ ortho: next });
-    if (elements.cameraModeButton) {
-      elements.cameraModeButton.textContent = next ? "Ortho" : "Perspective";
-      elements.cameraModeButton.classList.toggle("enabled", next);
-    }
-  });
-  elements.resetCameraButton?.addEventListener("click", () => app.recenter());
   elements.randomSeedButton?.addEventListener("click", () => {
     const seed = app.randomizeSeed();
     if (elements.seedInput) {
@@ -52,19 +51,55 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     app.setOptions({ hdr10: next });
     elements.hdr10Button?.classList.toggle("enabled", next);
   });
+  elements.autoQualityButton?.addEventListener("click", () => {
+    const enabled = !elements.autoQualityButton?.classList.contains("enabled");
+    elements.autoQualityButton?.classList.toggle("enabled", enabled);
+    if (enabled) {
+      app.setOptions({
+        maxPixels: Math.round(QUALITY_MAX_PIXELS * ATTACHED_06_RENDER_SCALE * ATTACHED_06_RENDER_SCALE),
+        maxSteps: ATTACHED_06_MAX_STEPS,
+        staticMaxSteps: 96
+      });
+      setValue(elements.qualitySlider, ATTACHED_06_RENDER_SCALE.toFixed(2));
+      updateText(elements.qualityReadout, `${ATTACHED_06_RENDER_SCALE.toFixed(2)}x`);
+    }
+  });
   elements.timeToggleButton?.addEventListener("click", () => {
     const paused = app.togglePaused();
     setPlaybackButton(elements.timeToggleButton, paused);
+    setDockPlaybackButton(elements.dockTimeToggleButton, paused);
+    updateFpsLine(elements.fpsCounter, app.getOptions(), paused, elements, app.getRenderStats());
+  });
+  elements.dockTimeToggleButton?.addEventListener("click", () => {
+    const paused = app.togglePaused();
+    setPlaybackButton(elements.timeToggleButton, paused);
+    setDockPlaybackButton(elements.dockTimeToggleButton, paused);
+    updateFpsLine(elements.fpsCounter, app.getOptions(), paused, elements, app.getRenderStats());
   });
   elements.timeResetButton?.addEventListener("click", () => app.setOptions({ time: 2.2 }));
-  elements.presetSelect?.addEventListener("change", () => {
-    const presetName = elements.presetSelect?.value ?? "single-cumulus-day";
+  elements.syncSystemTimeButton?.addEventListener("click", () => {
+    const now = new Date();
+    const hour = now.getHours() + now.getMinutes() / 60;
+    const daylight = Math.max(0, Math.sin(((hour - 6) / 12) * Math.PI));
+    const sunElevation = Math.round(-8 + daylight * 70);
     app.setOptions({
-      ...resolvePreset(presetName),
-      presetName,
-      presetSource: "query"
+      time: hour,
+      sunElevation,
+      sunIntensity: Number((daylight * 7.2).toFixed(1)),
+      ambientIntensity: Number((0.36 + daylight * 0.72).toFixed(2))
     });
+    elements.syncSystemTimeButton?.classList.add("enabled");
+    updateText(elements.syncStatus, `System time ${now.toLocaleTimeString()}`);
+    if (elements.syncStatus) {
+      elements.syncStatus.hidden = false;
+    }
     syncControls(elements, app.getOptions(), app.isPaused());
+  });
+  elements.linkSunElevationButton?.addEventListener("click", () => toggleSunElevationLink(elements));
+  elements.linkElevationSunButton?.addEventListener("click", () => toggleSunElevationLink(elements));
+  elements.languageSelect?.addEventListener("change", () => {
+    uiLanguage = elements.languageSelect?.value ?? "zh-TW";
+    document.documentElement.lang = uiLanguage;
   });
   elements.surfaceSelect?.addEventListener("change", () => {
     const value = elements.surfaceSelect?.value;
@@ -75,32 +110,55 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
   bindSlider(elements.systemsSlider, elements.systemsReadout, (value) => value.toFixed(0), (value) =>
     app.setOptions({ systems: Math.round(value) })
   );
-  bindSlider(elements.qualitySlider, elements.qualityReadout, (value) => `${value.toFixed(2)}x`, (value) =>
-    app.setOptions({ maxPixels: Math.round(QUALITY_MAX_PIXELS * value * value) })
+  bindSlider(elements.qualitySlider, elements.qualityReadout, (value) => `${value.toFixed(2)}x`, (value) => {
+    elements.autoQualityButton?.classList.remove("enabled");
+    app.setOptions({ maxPixels: Math.round(QUALITY_MAX_PIXELS * value * value) });
+  }, () =>
+    updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
   bindSlider(elements.tropoSlider, elements.tropoReadout, (value) => `${value.toFixed(1)}km`, (value) =>
-    app.setOptions({ tropopause: value })
+    app.setOptions({ tropopause: value }), () =>
+      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
   bindSlider(elements.freezingSlider, elements.freezingReadout, (value) => `${value.toFixed(1)}km`, (value) =>
-    app.setOptions({ freezingLevel: value })
+    app.setOptions({ freezingLevel: value }), () =>
+      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
   bindSlider(elements.shearSlider, elements.shearReadout, (value) => value.toFixed(2), (value) =>
-    app.setOptions({ windShear: value })
+    app.setOptions({ windShear: value }), () =>
+      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
-  bindSlider(elements.sunSlider, elements.sunReadout, (value) => value.toFixed(1), (value) =>
-    app.setOptions({ sunIntensity: value })
+  bindSlider(
+    elements.sunSlider,
+    elements.sunReadout,
+    (value) => value.toFixed(1),
+    (value) => app.setOptions({ sunIntensity: value }),
+    () => updateAtmosphereWidget(elements, app.getOptions())
   );
-  bindSlider(elements.sunElevationSlider, elements.sunElevationReadout, (value) => `${value.toFixed(0)}deg`, (value) =>
-    app.setOptions({ sunElevation: value })
+  bindSlider(
+    elements.sunElevationSlider,
+    elements.sunElevationReadout,
+    (value) => `${value.toFixed(0)}deg`,
+    (value) => app.setOptions(resolveLinkedSunPatch(elements, value)),
+    () => updateAtmosphereWidget(elements, app.getOptions())
   );
-  bindSlider(elements.ambientSlider, elements.ambientReadout, (value) => value.toFixed(2), (value) =>
-    app.setOptions({ ambientIntensity: value })
+  bindSlider(
+    elements.ambientSlider,
+    elements.ambientReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ ambientIntensity: value }),
+    () => updateAtmosphereWidget(elements, app.getOptions())
   );
-  bindSlider(elements.sunAngleSlider, elements.sunAngleReadout, (value) => `${value.toFixed(0)}deg`, (value) =>
-    app.setOptions({ sunViewerAngle: value })
+  bindSlider(
+    elements.sunAngleSlider,
+    elements.sunAngleReadout,
+    (value) => `${value.toFixed(0)}deg`,
+    (value) => app.setOptions({ sunViewerAngle: value }),
+    () => updateAtmosphereWidget(elements, app.getOptions())
   );
   bindSlider(elements.timeSlider, elements.timeReadout, (value) => `${value.toFixed(1)}x`, (value) =>
-    app.setOptions({ timeScale: value })
+    app.setOptions({ timeScale: value }), () =>
+      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
 }
 
@@ -111,9 +169,7 @@ function collectControls(root: ParentNode) {
     fullscreenButton: root.querySelector<HTMLButtonElement>("#btn-fullscreen"),
     toggleOtherPanelsButton: root.querySelector<HTMLButtonElement>("#btn-toggle-other-panels"),
     gridButton: root.querySelector<HTMLButtonElement>("#btn-grid"),
-    cameraModeButton: root.querySelector<HTMLButtonElement>("#btn-cam-mode"),
-    resetCameraButton: root.querySelector<HTMLButtonElement>("#btn-reset-cam"),
-    presetSelect: root.querySelector<HTMLSelectElement>("#select-preset"),
+    languageSelect: root.querySelector<HTMLSelectElement>("#select-language"),
     surfaceSelect: root.querySelector<HTMLSelectElement>("#select-surface"),
     seedInput: root.querySelector<HTMLInputElement>("#input-seed"),
     randomSeedButton: root.querySelector<HTMLButtonElement>("#btn-random-seed"),
@@ -139,8 +195,52 @@ function collectControls(root: ParentNode) {
     timeSlider: root.querySelector<HTMLInputElement>("#slider-time"),
     timeReadout: root.querySelector<HTMLElement>("#time-readout"),
     timeToggleButton: root.querySelector<HTMLButtonElement>("#btn-time-toggle"),
-    timeResetButton: root.querySelector<HTMLButtonElement>("#btn-time-reset")
+    timeResetButton: root.querySelector<HTMLButtonElement>("#btn-time-reset"),
+    syncSystemTimeButton: root.querySelector<HTMLButtonElement>("#btn-sync-system-time"),
+    syncLocationButton: root.querySelector<HTMLButtonElement>("#btn-sync-location"),
+    syncStatus: root.querySelector<HTMLElement>("#sync-status"),
+    dockTimeToggleButton: root.querySelector<HTMLButtonElement>("#dock-time-toggle"),
+    autoQualityButton: root.querySelector<HTMLButtonElement>("#btn-auto-quality"),
+    linkSunElevationButton: root.querySelector<HTMLButtonElement>("#btn-link-sun-elevation"),
+    linkElevationSunButton: root.querySelector<HTMLButtonElement>("#btn-link-elevation-sun"),
+    atmosphereCanvas: root.querySelector<HTMLCanvasElement>("#atm-canvas"),
+    elevationValue: root.querySelector<HTMLElement>("#dash-elev-val"),
+    elevationFill: root.querySelector<HTMLElement>("#dash-elev-fill"),
+    directValue: root.querySelector<HTMLElement>("#dash-dir-val"),
+    directFill: root.querySelector<HTMLElement>("#dash-dir-fill"),
+    diffuseValue: root.querySelector<HTMLElement>("#dash-dif-val"),
+    diffuseFill: root.querySelector<HTMLElement>("#dash-dif-fill"),
+    fpsCounter: root.querySelector<HTMLElement>("#fps-counter"),
+    cloudCanvas: root.querySelector<HTMLCanvasElement>("#cloud-canvas")
   };
+}
+
+function configureLocationSync(elements: ReturnType<typeof collectControls>): void {
+  if (!elements.syncLocationButton) {
+    return;
+  }
+  elements.syncLocationButton.disabled = true;
+  elements.syncLocationButton.classList.remove("enabled");
+  elements.syncLocationButton.setAttribute("aria-disabled", "true");
+  elements.syncLocationButton.title = "Location sync is not connected";
+}
+
+function startRenderTelemetry(
+  elements: ReturnType<typeof collectControls>,
+  app: CloudAppController
+): void {
+  if (renderTelemetryFrame !== undefined) {
+    cancelAnimationFrame(renderTelemetryFrame);
+  }
+  let lastUpdate = 0;
+  const tick = (now: number): void => {
+    if (now - lastUpdate >= 500) {
+      lastUpdate = now;
+      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements, app.getRenderStats());
+    }
+    renderTelemetryFrame = requestAnimationFrame(tick);
+  };
+  renderTelemetryFrame = requestAnimationFrame(tick);
 }
 
 function syncControls(
@@ -148,9 +248,11 @@ function syncControls(
   options: RuntimeOptions,
   paused: boolean
 ): void {
+  const qualityScale = resolveQualityScale(options);
+  document.documentElement.lang = uiLanguage;
   setActive(elements.landscapeButton, options.orientation === "landscape");
   setActive(elements.portraitButton, options.orientation === "portrait");
-  setValue(elements.presetSelect, options.presetName ?? "single-cumulus-day");
+  setValue(elements.languageSelect, uiLanguage);
   setValue(elements.surfaceSelect, options.surfaceMode ?? "none");
   setValue(elements.seedInput, String(options.seed ?? 574));
   setValue(elements.systemsSlider, String(options.systems ?? 1));
@@ -162,10 +264,7 @@ function syncControls(
   setValue(elements.ambientSlider, String(options.ambientIntensity ?? 0.66));
   setValue(elements.sunAngleSlider, String(options.sunViewerAngle ?? 18));
   setValue(elements.timeSlider, String(options.timeScale ?? 1));
-  setValue(
-    elements.qualitySlider,
-    String(Math.sqrt((options.maxPixels ?? QUALITY_MAX_PIXELS) / QUALITY_MAX_PIXELS).toFixed(2))
-  );
+  setValue(elements.qualitySlider, qualityScale.toFixed(2));
   updateText(elements.systemsReadout, String(options.systems ?? 1));
   updateText(elements.tropoReadout, `${(options.tropopause ?? 11.2).toFixed(1)}km`);
   updateText(elements.freezingReadout, `${(options.freezingLevel ?? 4.4).toFixed(1)}km`);
@@ -175,15 +274,15 @@ function syncControls(
   updateText(elements.ambientReadout, (options.ambientIntensity ?? 0.66).toFixed(2));
   updateText(elements.sunAngleReadout, `${(options.sunViewerAngle ?? 18).toFixed(0)}deg`);
   updateText(elements.timeReadout, `${(options.timeScale ?? 1).toFixed(1)}x`);
-  updateText(
-    elements.qualityReadout,
-    `${Math.sqrt((options.maxPixels ?? QUALITY_MAX_PIXELS) / QUALITY_MAX_PIXELS).toFixed(2)}x`
+  updateText(elements.qualityReadout, `${qualityScale.toFixed(2)}x`);
+  elements.autoQualityButton?.classList.toggle(
+    "enabled",
+    false
   );
   setPlaybackButton(elements.timeToggleButton, paused);
-  if (elements.cameraModeButton) {
-    elements.cameraModeButton.textContent = options.ortho ? "Ortho" : "Perspective";
-    elements.cameraModeButton.classList.toggle("enabled", options.ortho ?? false);
-  }
+  setDockPlaybackButton(elements.dockTimeToggleButton, paused);
+  updateAtmosphereWidget(elements, options);
+  updateFpsLine(elements.fpsCounter, options, paused, elements);
   elements.gridButton?.classList.toggle("enabled", options.showGrid ?? false);
   elements.hdr10Button?.classList.toggle("enabled", options.hdr10 ?? false);
 }
@@ -236,7 +335,8 @@ function bindSlider(
   slider: HTMLInputElement | null,
   readout: HTMLElement | null,
   format: (value: number) => string,
-  onValue: (value: number) => void
+  onValue: (value: number) => void,
+  afterValue?: () => void
 ): void {
   slider?.addEventListener("input", () => {
     const value = Number(slider.value);
@@ -245,6 +345,7 @@ function bindSlider(
     }
     updateText(readout, format(value));
     onValue(value);
+    afterValue?.();
   });
 }
 
@@ -275,10 +376,174 @@ function setPlaybackButton(element: HTMLElement | null, paused: boolean): void {
   updateText(element, paused ? "Resume" : "Pause");
   element?.classList.toggle("enabled", paused);
   element?.setAttribute("aria-pressed", paused ? "true" : "false");
+  element?.setAttribute("aria-label", paused ? "Resume" : "Pause");
+}
+
+function setDockPlaybackButton(element: HTMLElement | null, paused: boolean): void {
+  updateText(element, paused ? "RESUME" : "PAUSE");
+  element?.classList.toggle("enabled", paused);
+  element?.setAttribute("aria-label", paused ? "Resume" : "Pause");
 }
 
 function updateText(element: HTMLElement | null, value: string): void {
   if (element) {
     element.textContent = value;
   }
+}
+
+function toggleSunElevationLink(elements: ReturnType<typeof collectControls>): void {
+  const enabled = !elements.linkSunElevationButton?.classList.contains("enabled");
+  elements.linkSunElevationButton?.classList.toggle("enabled", enabled);
+  elements.linkElevationSunButton?.classList.toggle("enabled", enabled);
+}
+
+function resolveLinkedSunPatch(
+  elements: ReturnType<typeof collectControls>,
+  sunElevation: number
+): Partial<RuntimeOptions> {
+  if (!elements.linkSunElevationButton?.classList.contains("enabled")) {
+    return { sunElevation };
+  }
+  const direct01 = Math.max(0, Math.min(1, Math.pow(Math.max(0, sunElevation) / 90, 0.65)));
+  const diffuse01 = Math.max(0, Math.min(1, Math.pow(Math.max(0, sunElevation + 18) / 108, 0.8)));
+  const sunIntensity = Number((direct01 * 8).toFixed(1));
+  const ambientIntensity = Number((diffuse01 * 1.2).toFixed(2));
+  setValue(elements.sunSlider, String(sunIntensity));
+  updateText(elements.sunReadout, sunIntensity.toFixed(1));
+  setValue(elements.ambientSlider, String(ambientIntensity));
+  updateText(elements.ambientReadout, ambientIntensity.toFixed(2));
+  return { sunElevation, sunIntensity, ambientIntensity };
+}
+
+function updateAtmosphereWidget(
+  elements: ReturnType<typeof collectControls>,
+  options: RuntimeOptions
+): void {
+  const canvas = elements.atmosphereCanvas;
+  if (!canvas) {
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(2, Math.round(rect.width || 240));
+  const height = Math.max(2, Math.round(rect.height || 110));
+  const dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+  }
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return;
+  }
+
+  const w = canvas.width;
+  const h = canvas.height;
+  const elevation = options.sunElevation ?? 35;
+  const direct01 = elevation > 0 ? Math.min(1, Math.pow(elevation / 90, 0.65)) : 0;
+  const diffuse01 = Math.min(1, Math.pow(Math.max(0, elevation + 18) / 108, 0.8));
+  updateText(elements.elevationValue, `${elevation.toFixed(1)}deg`);
+  updateMeter(elements.elevationFill, Math.max(0, Math.min(100, (elevation / 90) * 100)));
+  updateText(elements.directValue, `${(direct01 * 100).toFixed(0)}%`);
+  updateMeter(elements.directFill, direct01 * 100);
+  updateText(elements.diffuseValue, `${(diffuse01 * 100).toFixed(0)}%`);
+  updateMeter(elements.diffuseFill, diffuse01 * 100);
+
+  context.clearRect(0, 0, w, h);
+  const cx = w / 2;
+  const cy = h - 16 * dpr;
+  const radius = Math.min(w / 2 - 12 * dpr, h - 25 * dpr);
+  const skyGradient = context.createRadialGradient(cx, cy, radius * 0.2, cx, cy, radius);
+  skyGradient.addColorStop(0, `rgba(145, 190, 255, ${0.3 + diffuse01 * 0.45})`);
+  skyGradient.addColorStop(1, `rgba(39, 84, 160, ${0.55 + diffuse01 * 0.28})`);
+  context.beginPath();
+  context.arc(cx, cy, radius, Math.PI, 0);
+  context.fillStyle = skyGradient;
+  context.fill();
+
+  context.beginPath();
+  context.arc(cx, cy, radius, Math.PI, 0);
+  context.strokeStyle = "rgba(255,255,255,0.44)";
+  context.lineWidth = 1 * dpr;
+  context.setLineDash([4 * dpr, 4 * dpr]);
+  context.stroke();
+  context.setLineDash([]);
+
+  context.beginPath();
+  context.moveTo(cx - radius - 20 * dpr, cy);
+  context.lineTo(cx + radius + 20 * dpr, cy);
+  context.strokeStyle = "rgba(255,255,255,0.38)";
+  context.lineWidth = 2 * dpr;
+  context.stroke();
+
+  const rad = Math.max(0, elevation) * Math.PI / 180;
+  const sunX = cx - Math.cos(rad) * (radius + 10 * dpr);
+  const sunY = cy - Math.sin(rad) * (radius + 10 * dpr);
+
+  context.beginPath();
+  context.moveTo(cx, cy);
+  context.lineTo(sunX, sunY);
+  context.strokeStyle = `rgba(215, 181, 82, ${0.36 + direct01 * 0.42})`;
+  context.lineWidth = (4 + 8 * direct01) * dpr;
+  context.stroke();
+
+  context.beginPath();
+  context.arc(sunX, sunY, 8 * dpr, 0, Math.PI * 2);
+  context.fillStyle = "#efe6a7";
+  context.fill();
+  context.beginPath();
+  context.arc(sunX, sunY, 13 * dpr, 0, Math.PI * 2);
+  context.fillStyle = "rgba(239, 230, 167, 0.28)";
+  context.fill();
+}
+
+function updateMeter(element: HTMLElement | null, value: number): void {
+  if (element) {
+    element.style.width = `${Math.max(0, Math.min(100, value))}%`;
+  }
+}
+
+function updateFpsLine(
+  element: HTMLElement | null,
+  options: RuntimeOptions,
+  paused: boolean,
+  elements?: ReturnType<typeof collectControls>,
+  stats?: RenderStats
+): void {
+  const qualityScale = resolveQualityScale(options);
+  const quality = qualityScale.toFixed(2);
+  const canvas = elements?.cloudCanvas ?? document.querySelector<HTMLCanvasElement>("#cloud-canvas");
+  const bufferWidth = canvas?.width ?? 0;
+  const bufferHeight = canvas?.height ?? 0;
+  const bufferText = bufferWidth > 0 && bufferHeight > 0 ? `${bufferWidth}x${bufferHeight}` : "--";
+  const aspect =
+    bufferWidth > 0 && bufferHeight > 0
+      ? (bufferWidth / bufferHeight).toFixed(2)
+      : options.orientation === "landscape"
+        ? "1.78"
+        : "0.56";
+  const autoText = elements?.autoQualityButton?.classList.contains("enabled") ? " AUTO" : "";
+  const fpsText = formatMetric(stats?.measuredFps, 1);
+  const averageFpsText = formatMetric(stats?.averageFps, 1);
+  const lastFrameMsText = formatMetric(stats?.lastFrameDurationMs, 1);
+  const averageFrameMsText = formatMetric(stats?.averageFrameDurationMs, 1);
+  const frameText = stats ? String(stats.frameCount) : "--";
+  updateText(
+    element,
+    `FPS: ${fpsText} | AVG: ${averageFpsText} | Frame: ${frameText} | Last: ${lastFrameMsText}ms | Mean: ${averageFrameMsText}ms | RES: ${quality}x eff ${quality}x${autoText} | BUF: ${bufferText} | Aspect: ${aspect} | Tropo: ${(options.tropopause ?? 12).toFixed(1)}km -> ${(options.tropopause ?? 12).toFixed(1)}km | Freeze: ${(
+      options.freezingLevel ?? 5
+    ).toFixed(1)}km | Shear: ${(options.windShear ?? 0.7).toFixed(2)} | Time: ${
+      paused ? "paused" : `${(options.timeScale ?? 1).toFixed(1)}x`
+    } | T: ${(options.time ?? 0).toFixed(1)}`
+  );
+}
+
+function formatMetric(value: number | undefined, digits: number): string {
+  if (value === undefined || !Number.isFinite(value)) {
+    return "--";
+  }
+  return value.toFixed(digits);
+}
+
+function resolveQualityScale(options: RuntimeOptions): number {
+  return Math.sqrt((options.maxPixels ?? QUALITY_MAX_PIXELS) / QUALITY_MAX_PIXELS);
 }

@@ -18,8 +18,6 @@ const capture = spawnSync(
     join(projectRoot, "scripts", "capture-3d-still.mjs"),
     "--view",
     "field",
-    "--renderer",
-    "cpu",
     "--simPreset",
     readStringArg("--simPreset", "low"),
     "--orientation",
@@ -51,7 +49,6 @@ if (capture.status !== 0) {
 const result = JSON.parse(capture.stdout);
 assert.equal(result.ok, true);
 assert.match(result.url, /[?&]view=field(?:&|$)/);
-assert.match(result.url, /[?&]renderer=cpu(?:&|$)/);
 assert.match(result.url, /[?&]capture=1(?:&|$)/);
 assert.match(result.url, new RegExp(`[?&]orientation=${orientation}(?:&|$)`));
 assert.equal(result.png.width, width);

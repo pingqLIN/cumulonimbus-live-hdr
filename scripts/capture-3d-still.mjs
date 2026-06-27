@@ -47,10 +47,10 @@ const url = buildPreviewUrl({
   width,
   height,
   fps: args.fps,
-  renderer: args.renderer,
   preset: args.preset,
   seed: args.seed,
   captureFrames,
+  preserveDrawingBuffer: outputMode === "live" ? 1 : undefined,
   outputMode,
   ...readPreviewTuningArgs(args)
 });
@@ -73,7 +73,14 @@ try {
     browser,
     url.toString(),
     outputPath,
-    { width, height, waitMs, timeoutMs: browserTimeoutMs, profileDir: browserProfileDir }
+    {
+      width,
+      height,
+      waitMs,
+      timeoutMs: browserTimeoutMs,
+      profileDir: browserProfileDir,
+      expectExactCanvasSize: outputMode !== "ui"
+    }
   );
 
   if (result.status !== 0) {
@@ -84,7 +91,13 @@ try {
 
   const png = readPngHeader(outputPath);
   const size = statSync(outputPath).size;
-  if (png.width !== width || png.height !== height) {
+  if (outputMode === "ui") {
+    if (png.width <= 0 || png.height <= 0 || png.width > width || png.height > height) {
+      throw new Error(
+        `UI capture output dimensions ${png.width}x${png.height} were outside requested viewport ${width}x${height}`
+      );
+    }
+  } else if (png.width !== width || png.height !== height) {
     throw new Error(
       `Capture output dimensions ${png.width}x${png.height} did not match requested ${width}x${height}`
     );
@@ -293,7 +306,14 @@ async function runBrowserCdpScreenshot(browser, targetUrl, targetOutputPath, opt
       mobile: options.width < options.height
     });
     await client.send("Page.navigate", { url: targetUrl });
-    await waitForCanvasRuntime(client, options.timeoutMs, options.width, options.height, runtimeErrors);
+    await waitForCanvasRuntime(
+      client,
+      options.timeoutMs,
+      options.width,
+      options.height,
+      runtimeErrors,
+      options.expectExactCanvasSize ?? true
+    );
     await delay(options.waitMs);
 
     if (runtimeErrors.length > 0) {
@@ -338,7 +358,7 @@ async function runBrowserCdpScreenshot(browser, targetUrl, targetOutputPath, opt
   }
 }
 
-async function waitForCanvasRuntime(client, timeoutMs, width, height, runtimeErrors) {
+async function waitForCanvasRuntime(client, timeoutMs, width, height, runtimeErrors, expectExactCanvasSize) {
   const started = Date.now();
   let lastMetrics = null;
   while (Date.now() - started < timeoutMs) {
@@ -360,6 +380,7 @@ async function waitForCanvasRuntime(client, timeoutMs, width, height, runtimeErr
             hasCanvas: Boolean(canvas),
             canvasWidth: canvas?.width || 0,
             canvasHeight: canvas?.height || 0,
+            renderError: canvas?.dataset.renderError || '',
             innerWidth,
             innerHeight,
             scripts: Array.from(document.scripts).map((script) => ({
@@ -372,11 +393,16 @@ async function waitForCanvasRuntime(client, timeoutMs, width, height, runtimeErr
               duration: Math.round(entry.duration)
             }))
           };
+          const canvasSizeReady = ${JSON.stringify(expectExactCanvasSize)}
+            ? metrics.canvasWidth === ${JSON.stringify(width)} && metrics.canvasHeight === ${JSON.stringify(height)}
+            : metrics.canvasWidth > 0
+              && metrics.canvasHeight > 0
+              && metrics.canvasWidth <= ${JSON.stringify(width)}
+              && metrics.canvasHeight <= ${JSON.stringify(height)};
           metrics.ready = metrics.readyState !== 'loading'
             && metrics.hasCanvas
-            && metrics.canvasWidth === ${JSON.stringify(width)}
-            && metrics.canvasHeight === ${JSON.stringify(height)}
-            && (metrics.renderStatus === 'ready' || metrics.renderStatus === 'fallback-2d');
+            && canvasSizeReady
+            && metrics.renderStatus === 'ready';
           return metrics;
         })()`
       });
@@ -384,7 +410,13 @@ async function waitForCanvasRuntime(client, timeoutMs, width, height, runtimeErr
     } catch {
       // Keep polling while Vite serves and the module graph evaluates.
     }
-    if (lastMetrics?.renderStatus === "app-error") {
+    if (
+      lastMetrics?.renderStatus === "app-error" ||
+      lastMetrics?.renderStatus === "webgl-unavailable" ||
+      lastMetrics?.renderStatus === "render-error" ||
+      lastMetrics?.renderStatus === "context-lost-timeout" ||
+      lastMetrics?.renderStatus === "context-restore-failed"
+    ) {
       throw new Error(`Capture app startup failed before readiness: ${JSON.stringify(lastMetrics)}`);
     }
     if (lastMetrics?.ready) {

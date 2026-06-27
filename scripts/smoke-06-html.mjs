@@ -43,6 +43,7 @@ const captureArgs = [
 ];
 
 for (const key of [
+  "port",
   "browser",
   "fps",
   "cameraYawDegrees",

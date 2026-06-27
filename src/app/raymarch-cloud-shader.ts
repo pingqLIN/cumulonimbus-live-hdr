@@ -53,6 +53,30 @@ export const raymarchCloudFragmentShader = String.raw`
                 return hash(floor(abs(uSeed)) * 0.013 + salt);
             }
 
+            float seedSigned(float salt) {
+                return seedTrait(salt) * 2.0 - 1.0;
+            }
+
+            float morphTrait(float salt) {
+                return seedTrait(17.0 + salt * 1.37);
+            }
+
+            float morphSigned(float salt) {
+                return morphTrait(salt) * 2.0 - 1.0;
+            }
+
+            float lifecycleTrait(float salt) {
+                return seedTrait(211.0 + salt * 1.61);
+            }
+
+            float detailTrait(float salt) {
+                return seedTrait(421.0 + salt * 1.79);
+            }
+
+            float detailSigned(float salt) {
+                return detailTrait(salt) * 2.0 - 1.0;
+            }
+
             float noise(vec3 x) {
                 vec3 p = floor(x);
                 vec3 f = fract(x);
@@ -136,18 +160,18 @@ export const raymarchCloudFragmentShader = String.raw`
             }
 
             float cellCycleAngle(float phase, float speedScale, float ageOffset) {
-                return uTime * 0.113 * speedScale + phase * 0.53 + ageOffset + uSeed * 0.00082;
+                return uTime * 0.113 * speedScale + phase * 0.53 + ageOffset + lifecycleTrait(1.0) * 0.72;
             }
 
             vec2 windShearAxis(float phase) {
-                float angle = phase * 0.17 + uSeed * 0.00021;
+                float angle = phase * 0.17 + morphSigned(2.0) * 0.18;
                 vec2 axis = normalize(vec2(1.0, 0.28));
                 mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
                 return normalize(rot * axis);
             }
 
             float seedHash(float salt) {
-                return hash(uSeed * 0.013 + salt);
+                return morphTrait(salt);
             }
 
             float iceFactorAtHeight(float heightKm) {
@@ -297,33 +321,51 @@ export const raymarchCloudFragmentShader = String.raw`
             }
 
             float mapSingleCumulusMacro(vec3 p, float photo) {
-                float phase = uSeed * 0.017 + uTime * 0.035;
+                float phase = morphTrait(30.0) * 6.28318 + uTime * 0.026;
+                float detailPhase = detailTrait(1.0) * 6.28318 + uTime * 0.035;
                 float curl = clamp(uCloudCurl, 0.0, 1.2);
-                float spread = mix(1.0, 1.18, curl);
-                float softBlend = mix(0.78, 0.58, photo);
+                float spread = mix(0.98, 1.14, curl);
+                float softBlend = mix(0.86, 0.68, photo);
+                float towerLean = morphSigned(31.0) * mix(0.1, 0.22, uWindShear);
+                float baseScale = mix(0.94, 1.12, morphTrait(32.0));
+                float crownScale = mix(0.9, 1.16, morphTrait(33.0));
+                vec2 anvilAxis = windShearAxis(phase + 1.4);
+                vec2 anvilShift = anvilAxis * uWindShear * mix(0.04, 0.16, morphTrait(34.0));
                 float field = 24.0;
 
-                field = addLobe(field, p, vec3(-1.42, -1.05, -0.05), vec3(1.82, 0.58, 1.08) * spread, phase + 0.2, 0.42, softBlend);
-                field = addLobe(field, p, vec3(0.08, -1.18, 0.08), vec3(2.18, 0.62, 1.18) * spread, phase + 1.4, 0.46, softBlend);
-                field = addLobe(field, p, vec3(1.46, -1.02, -0.08), vec3(1.72, 0.56, 1.02) * spread, phase + 2.2, 0.42, softBlend);
-                field = addLobe(field, p, vec3(-0.86, -0.28, 0.02), vec3(1.48, 0.86, 1.02) * spread, phase + 3.1, 0.58, softBlend * 0.86);
-                field = addLobe(field, p, vec3(0.62, -0.18, -0.02), vec3(1.56, 0.92, 1.05) * spread, phase + 4.5, 0.58, softBlend * 0.86);
-                field = addLobe(field, p, vec3(-0.18, 0.68, 0.08), vec3(1.18, 0.72, 0.9) * spread, phase + 5.8, 0.64, softBlend * 0.78);
-                field = addLobe(field, p, vec3(0.92, 0.52, -0.06), vec3(0.98, 0.6, 0.82) * spread, phase + 6.4, 0.58, softBlend * 0.82);
+                field = addLobe(field, p, vec3(-1.3 + morphSigned(35.0) * 0.08, -1.34, -0.06), vec3(1.98, 0.54, 1.12) * spread * baseScale, phase + 0.2, 0.34, softBlend);
+                field = addLobe(field, p, vec3(0.0, -1.44, 0.04), vec3(2.38, 0.58, 1.2) * spread * baseScale, phase + 1.4, 0.36, softBlend);
+                field = addLobe(field, p, vec3(1.28 + morphSigned(36.0) * 0.08, -1.3, -0.08), vec3(1.88, 0.52, 1.08) * spread * baseScale, phase + 2.2, 0.34, softBlend);
+                field = addLobe(field, p, vec3(-0.42 + towerLean * 0.35, -0.64, 0.02), vec3(1.38, 0.82, 0.96) * spread, phase + 3.1, 0.48, softBlend * 0.9);
+                field = addLobe(field, p, vec3(0.34 + towerLean * 0.6, 0.05, -0.02), vec3(1.28, 0.92, 0.94) * spread, phase + 4.5, 0.52, softBlend * 0.88);
+                field = addLobe(field, p, vec3(-0.18 + towerLean * 0.88, 0.86, 0.06), vec3(1.14, 0.88, 0.86) * spread * crownScale, phase + 5.8, 0.58, softBlend * 0.82);
+                field = addLobe(field, p, vec3(0.52 + towerLean, 1.48, -0.08), vec3(0.98, 0.74, 0.76) * spread * crownScale, phase + 6.4, 0.54, softBlend * 0.8);
+                field = addLobe(field, p, vec3(-0.38 + towerLean * 1.16, 2.02, 0.04), vec3(0.9, 0.64, 0.7) * spread * crownScale, phase + 7.2, 0.48, softBlend * 0.76);
+                field = addLobe(field, p, vec3(towerLean * 1.08, 2.16, 0.0), vec3(0.96, 0.68, 0.72) * spread, phase + 7.7, 0.34, softBlend * 0.92);
+                field = addLobe(
+                    field,
+                    p,
+                    vec3(anvilShift.x + towerLean * 1.06, 2.34, anvilShift.y),
+                    vec3(mix(0.74, 0.98, uWindShear), 0.5, mix(0.48, 0.58, morphTrait(37.0))) * spread,
+                    phase + 8.1,
+                    0.32,
+                    softBlend * 1.02
+                );
 
                 float undersideWave =
-                    (noise(vec3(p.xz * 0.58 + vec2(phase, -phase), uSeed * 0.041)) - 0.5) * 0.22 +
-                    sin(p.x * 1.25 + phase) * 0.06;
-                float bottomDist = (-1.64 + undersideWave) - p.y;
-                float topDist = p.y - (1.78 + (noise(vec3(p.xz * 0.35, phase)) - 0.5) * 0.28);
-                return smax(smax(field, bottomDist, 0.58), topDist, 0.5);
+                    (noise(vec3(p.xz * 0.48 + vec2(detailPhase, -detailPhase), detailTrait(2.0) * 4.0)) - 0.5) * 0.18 +
+                    sin(p.x * 1.12 + detailPhase) * 0.05;
+                float topRipple = (noise(vec3(p.xz * 0.24, detailPhase + detailTrait(3.0) * 3.0)) - 0.5) * 0.22;
+                float bottomDist = (-1.72 + undersideWave) - p.y;
+                float topDist = p.y - (3.18 + topRipple);
+                return smax(smax(field, bottomDist, 0.64), topDist, 0.56);
             }
 
             float mapCloudMacro(vec3 p) {
                 float widthStretch = mix(1.0, 1.2, smoothstep(0.5, 2.0, uAspect));
                 vec3 layoutP = p;
                 layoutP.x /= widthStretch;
-                vec2 shearAxis = windShearAxis(uSeed * 0.004 + 1.8);
+                vec2 shearAxis = windShearAxis(morphTrait(45.0) * 6.28318 + 1.8);
                 float shearHeight = smoothstep(MODEL_BASE_KM, uTropopause + 1.2, layoutP.y);
                 layoutP.xz -= shearAxis * shearHeight * shearHeight * uWindShear * mix(0.55, 2.25, clamp(uCloudCurl, 0.0, 1.0));
 
@@ -331,34 +373,23 @@ export const raymarchCloudFragmentShader = String.raw`
                 float photo = uPhotographicStyle;
                 #if CUMULONIMBUS_SINGLE_CLOUD == 1
                 float single = mapSingleCumulusMacro(modelP, photo);
-                float singleCapLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.12 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
+                float singleCapLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.12 + (noise(vec3(modelP.xz * 0.18, detailTrait(17.0) * 2.0)) - 0.5) * 0.14);
                 float singleGroundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
                 return smax(smax(single, singleCapLimiter, 0.18), singleGroundLimiter, 0.22);
                 #else
-                float layoutMode = mod(floor(abs(uSeed)), 3.0);
-                float triangleLayout = step(0.5, layoutMode) * (1.0 - step(1.5, layoutMode));
-                float clusterLayout = step(1.5, layoutMode);
                 float layoutTurn = seedHash(2.0) * 6.28318;
                 mat2 layoutRot = mat2(cos(layoutTurn), -sin(layoutTurn), sin(layoutTurn), cos(layoutTurn));
-                vec2 c1Offset = layoutRot * (vec2(seedHash(3.0), seedHash(4.0)) - 0.5) * 0.92;
-                vec2 c2Offset = mix(vec2(3.75, -1.35), vec2(-2.45, -1.28), triangleLayout);
-                c2Offset = mix(c2Offset, vec2(1.1, -0.58), clusterLayout);
-                c2Offset = layoutRot * (c2Offset + (vec2(seedHash(5.0), seedHash(6.0)) - 0.5) * 1.6);
-                vec2 c3Offset = mix(vec2(-3.2, 1.55), vec2(2.5, -1.12), triangleLayout);
-                c3Offset = mix(c3Offset, vec2(-0.86, 0.78), clusterLayout);
-                c3Offset = layoutRot * (c3Offset + (vec2(seedHash(7.0), seedHash(8.0)) - 0.5) * 1.55);
-                float c1Radius = mix(mix(2.65, 3.8, seedHash(9.0)), mix(1.62, 2.42, seedHash(9.0)), photo);
-                float c2Radius = mix(mix(2.05, 3.05, seedHash(10.0)), mix(1.34, 2.0, seedHash(10.0)), photo);
-                float c3Radius = mix(mix(1.85, 2.95, seedHash(11.0)), mix(1.38, 2.08, seedHash(11.0)), photo);
+                vec2 c1Offset = layoutRot * (vec2(morphSigned(3.0), morphSigned(4.0)) * 0.28);
+                vec2 c2Offset = layoutRot * (vec2(2.64, -0.92) + vec2(morphSigned(5.0), morphSigned(6.0)) * 0.52);
+                vec2 c3Offset = layoutRot * (vec2(-2.18, 1.08) + vec2(morphSigned(7.0), morphSigned(8.0)) * 0.48);
+                float c1Radius = mix(mix(3.0, 3.75, seedHash(9.0)), mix(1.92, 2.46, seedHash(9.0)), photo);
+                float c2Radius = mix(mix(2.25, 2.96, seedHash(10.0)), mix(1.56, 2.06, seedHash(10.0)), photo);
+                float c3Radius = mix(mix(2.06, 2.82, seedHash(11.0)), mix(1.5, 2.02, seedHash(11.0)), photo);
                 float c1Top = mix(4.5, 5.35, seedHash(12.0));
                 float c2Top = mix(3.35, 4.6, seedHash(13.0));
                 float c3Top = mix(3.2, 5.15, seedHash(14.0));
-                float c2Blend = mix(mix(1.2, 1.78, seedHash(15.0)), mix(0.84, 1.12, seedHash(15.0)), photo);
-                c2Blend = mix(c2Blend, c2Blend + 0.22, triangleLayout);
-                c2Blend = mix(c2Blend, c2Blend + 0.36, clusterLayout);
-                float c3Blend = mix(mix(1.18, 1.82, seedHash(16.0)), mix(0.86, 1.18, seedHash(16.0)), photo);
-                c3Blend = mix(c3Blend, c3Blend + 0.2, triangleLayout);
-                c3Blend = mix(c3Blend, c3Blend + 0.34, clusterLayout);
+                float c2Blend = mix(mix(1.56, 2.02, seedHash(15.0)), mix(1.02, 1.34, seedHash(15.0)), photo);
+                float c3Blend = mix(mix(1.52, 2.04, seedHash(16.0)), mix(1.0, 1.34, seedHash(16.0)), photo);
 
                 float c1 = getCell01(
                     modelP,
@@ -386,23 +417,23 @@ export const raymarchCloudFragmentShader = String.raw`
                         continue;
                     }
                     float phase = fi * 1.73 + 0.9;
-                    float angle = fi * 2.399963 + uSeed * 0.00037;
-                    float ring = mix(4.2, 8.6, hash(fi * 17.13 + uSeed * 0.004));
+                    float angle = fi * 2.399963 + morphSigned(50.0 + fi) * 0.42;
+                    float ring = mix(4.2, 7.6, morphTrait(60.0 + fi));
                     vec2 jitter = vec2(
-                        hash(fi * 29.7 + uSeed * 0.011) - 0.5,
-                        hash(fi * 41.1 + uSeed * 0.013) - 0.5
-                    ) * 1.65;
+                        morphSigned(70.0 + fi),
+                        morphSigned(80.0 + fi)
+                    ) * 1.05;
                     vec2 offset = vec2(cos(angle), sin(angle)) * ring + jitter;
-                    float maxR = mix(1.55, 2.65, hash(fi * 53.9 + uSeed * 0.007));
-                    float maxH = mix(3.15, 5.0, hash(fi * 67.1 + uSeed * 0.009));
-                    float speedScale = mix(0.72, 1.32, hash(fi * 71.3 + uSeed * 0.003));
-                    float ageOffset = hash(fi * 83.5 + uSeed * 0.005) * 6.28318;
-                    float earlyDecay = hash(fi * 97.7 + uSeed * 0.006) * 0.34;
-                    float anvilScale = mix(0.58, 1.12, hash(fi * 101.9 + uSeed * 0.008));
+                    float maxR = mix(1.72, 2.54, morphTrait(90.0 + fi));
+                    float maxH = mix(3.35, 4.86, morphTrait(100.0 + fi));
+                    float speedScale = mix(0.78, 1.24, lifecycleTrait(110.0 + fi));
+                    float ageOffset = lifecycleTrait(120.0 + fi) * 6.28318;
+                    float earlyDecay = lifecycleTrait(130.0 + fi) * 0.24;
+                    float anvilScale = mix(0.66, 1.08, morphTrait(140.0 + fi));
                     float cell = getCell01(modelP, offset, maxR, phase, maxH, speedScale, ageOffset, earlyDecay, anvilScale);
                     macro = smin(macro, cell, mix(1.08, 0.82, photo));
                 }
-                float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
+                float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, detailTrait(18.0) * 2.0)) - 0.5) * 0.14);
                 float groundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
                 return smax(smax(macro, capLimiter, 0.18), groundLimiter, 0.22);
                 #endif
@@ -422,7 +453,7 @@ export const raymarchCloudFragmentShader = String.raw`
 
                 float d = -macro;
                 if (d > -1.0) {
-                    float stormAngle = uTime * 0.075 + uSeed * 0.00107;
+                    float stormAngle = uTime * 0.075 + lifecycleTrait(3.0) * 6.28318;
                     float stormCycle = sin(stormAngle) * 0.5 + 0.5;
                     float stormFalling = smoothstep(0.44, 0.9, -cos(stormAngle) * 0.5 + 0.5);
                     float dissipating = stormFalling * smoothstep(0.46, 0.92, stormCycle);
@@ -443,65 +474,76 @@ export const raymarchCloudFragmentShader = String.raw`
                         noise(vec3(q.x * 0.18 - uTime * 0.015, q.z * 0.22 + uSeed * 0.05, q.y * 0.11))
                     );
                     float photo = uPhotographicStyle;
-                    vec2 shearAxis = windShearAxis(uSeed * 0.004 + 1.8);
+                    vec2 shearAxis = windShearAxis(morphTrait(40.0) * 6.28318 + 1.8);
                     vec2 crossAxis = vec2(-shearAxis.y, shearAxis.x);
                     float shearCurl = uWindShear * mix(0.42, 1.15, clamp(uCloudCurl, 0.0, 1.0));
                     q.xz += shearAxis * height01 * height01 * shearCurl * 0.72;
-                    q.y += sin(dot(q.xz, crossAxis) * 0.46 + uSeed * 0.011) * shearCurl * 0.08;
+                    q.y += sin(dot(q.xz, crossAxis) * 0.46 + detailTrait(4.0) * 6.28318) * shearCurl * 0.08;
                     // INCREASED CARVING FOR LIGHTER FLUFFIER LOOK
                     float carving = noise(q * 0.4 + uTime * 0.1) * mix(1.8, 1.45, photo);
                     float details = fbm(q * 1.2) * 1.0;
-                    float microBillow = fbm(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(uSeed * 0.017, 1.9, uTime * 0.04));
-                    float broadBillow = fbm(vec3(q.x * 0.92, q.y * 1.24, q.z * 0.92) + vec3(uSeed * 0.023, 6.1, -uTime * 0.02));
-                    vec2 iceAxis = windShearAxis(uSeed * 0.003 + 4.0);
+                    float microBillow = fbm(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(detailTrait(5.0) * 3.0, 1.9, uTime * 0.04));
+                    float broadBillow = fbm(vec3(q.x * 0.92, q.y * 1.24, q.z * 0.92) + vec3(detailTrait(6.0) * 3.0, 6.1, -uTime * 0.02));
+                    vec2 iceAxis = windShearAxis(morphTrait(41.0) * 6.28318 + 4.0);
                     float iceFiber = noise(vec3(
                         dot(q.xz, iceAxis) * 0.18 + uTime * 0.026,
                         q.y * 1.75,
-                        dot(q.xz, vec2(-iceAxis.y, iceAxis.x)) * 0.56 + uSeed * 0.011
+                        dot(q.xz, vec2(-iceAxis.y, iceAxis.x)) * 0.56 + detailTrait(7.0) * 6.28318
                     ));
                     float towerBand = smoothstep(0.12, 0.58, height01) * (1.0 - smoothstep(0.78, 1.02, height01));
                     float surfaceShell = smoothstep(-0.7, 0.16, macro) * (1.0 - smoothstep(0.18, 0.82, macro));
+                    float baseCore = smoothstep(1.34, 0.18, length(baseQ.xz / vec2(1.36, 0.92)))
+                        * smoothstep(MODEL_LOCAL_BASE - 0.12, MODEL_LOCAL_BASE + 0.72, baseQ.y)
+                        * (1.0 - smoothstep(MODEL_LOCAL_BASE + 1.36, MODEL_LOCAL_BASE + 2.42, baseQ.y));
+                    float towerCore = smoothstep(0.92, 0.14, length((baseQ.xz - vec2(0.14, 0.0)) / vec2(0.74, 0.66)))
+                        * smoothstep(MODEL_LOCAL_BASE + 0.52, MODEL_LOCAL_BASE + 1.42, baseQ.y)
+                        * (1.0 - smoothstep(MODEL_LOCAL_TROPO - 0.62, MODEL_LOCAL_TROPO + 0.12, baseQ.y));
+                    float anvilCore = anvilBand * smoothstep(1.9, 0.18, length(baseQ.xz / vec2(2.12, 0.72)));
+                    float protectedCore = max(max(baseCore, towerCore), anvilCore * 0.68) * (1.0 - anvilBand * 0.18);
+                    float erosionMask = surfaceShell * (1.0 - protectedCore * 0.72);
                     float branchBand = smoothstep(0.22, 0.48, height01) * (1.0 - smoothstep(0.84, 0.98, height01));
                     float crownBand = smoothstep(0.48, 0.72, height01) * (1.0 - smoothstep(0.96, 1.0, height01));
-                    float branchSpoke = convectiveSpokePattern(baseQ.xz, height01, uSeed * 0.006 + uTime * 0.08, mix(5.0, 7.5, photo));
-                    float crownSpoke = convectiveSpokePattern(baseQ.xz, height01, uSeed * 0.009 + 2.4 + uTime * 0.05, mix(7.0, 9.5, photo));
+                    float branchSpoke = convectiveSpokePattern(baseQ.xz, height01, detailTrait(8.0) * 6.28318 + uTime * 0.08, mix(5.0, 7.5, photo));
+                    float crownSpoke = convectiveSpokePattern(baseQ.xz, height01, detailTrait(9.0) * 6.28318 + 2.4 + uTime * 0.05, mix(7.0, 9.5, photo));
                     float spokeCore = branchBand * branchSpoke + crownBand * crownSpoke;
                     float spokeCut = smoothstep(
                         0.46,
                         0.88,
-                        noise(vec3(baseQ.xz * 0.72 + vec2(4.1, -2.8), baseQ.y * 0.68 + uSeed * 0.027))
+                        noise(vec3(baseQ.xz * 0.72 + vec2(4.1, -2.8), baseQ.y * 0.68 + detailTrait(10.0) * 2.0))
                     );
-                    float horizontalFiber = pow(max(0.0, sin(dot(q.xz, iceAxis) * 0.7 + q.y * 0.36 + uSeed * 0.004)), 2.0);
+                    float horizontalFiber = pow(max(0.0, sin(dot(q.xz, iceAxis) * 0.7 + q.y * 0.36 + detailTrait(11.0) * 6.28318)), 2.0);
+                    float shellCarving = carving * mix(0.48, 1.0, surfaceShell) * (1.0 - protectedCore * 0.58);
                     // TWEAKED DETAIL MERGE TO AVOID SOLID BLOCKS
-                    d += details * 0.85 - carving * 0.95;
+                    d += details * 0.78 - shellCarving * mix(0.72, 0.95, photo);
                     d += surfaceShell * towerBand * (microBillow - 0.46) * mix(0.42, 0.74, photo);
                     d += surfaceShell * (1.0 - anvilBand) * (broadBillow - 0.44) * mix(0.0, 0.34, photo);
                     d += surfaceShell * spokeCore * mix(0.12, 0.34, photo);
-                    d -= surfaceShell * branchBand * (1.0 - branchSpoke) * spokeCut * mix(0.08, 0.24, photo);
+                    d -= erosionMask * branchBand * (1.0 - branchSpoke) * spokeCut * mix(0.08, 0.24, photo);
                     d += surfaceShell * crownBand * crownSpoke * (microBillow - 0.38) * mix(0.08, 0.3, photo);
-                    d -= surfaceShell * towerBand * smoothstep(0.58, 0.94, broadBillow) * mix(0.0, 0.18, photo);
+                    d -= erosionMask * towerBand * smoothstep(0.58, 0.94, broadBillow) * mix(0.0, 0.18, photo);
                     d += mixedPhaseBand * surfaceShell * 0.14;
                     d += anvilBand * iceFactor * (iceFiber - 0.42) * 0.34;
                     d += anvilBand * iceFactor * surfaceShell * (horizontalFiber - 0.36) * mix(0.08, 0.22, photo);
                     d -= anvilBand * iceFactor * smoothstep(0.72, 0.98, iceFiber) * 0.12;
                     float edgeBand = smoothstep(-0.72, 0.34, macro);
-                    float edgeCuts = noise(vec3(q.x * 0.82 + uSeed * 0.019, q.y * 0.92, q.z * 0.82 - uTime * 0.03));
-                    d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * mix(0.24, 0.38, photo);
+                    float edgeCuts = noise(vec3(q.x * 0.82 + detailTrait(12.0) * 2.0, q.y * 0.92, q.z * 0.82 - uTime * 0.03));
+                    d -= edgeBand * erosionMask * smoothstep(0.5, 0.86, edgeCuts) * mix(0.24, 0.38, photo);
                     float raggedFloor =
                         MODEL_LOCAL_BASE +
-                        (noise(vec3(baseQ.xz * 0.58 + uSeed * 0.13, uSeed * 0.29)) - 0.5) * 0.68 +
-                        sin(baseQ.x * 0.72 + uSeed * 0.04) * 0.12;
+                        (noise(vec3(baseQ.xz * 0.58 + detailTrait(13.0) * 2.0, detailTrait(14.0) * 2.0)) - 0.5) * 0.68 +
+                        sin(baseQ.x * 0.72 + detailTrait(15.0) * 6.28318) * 0.12;
                     float undersideBand = 1.0 - smoothstep(raggedFloor - 0.12, raggedFloor + 0.52, baseQ.y);
                     float undersidePocket = smoothstep(
                         0.32,
                         0.88,
-                        noise(vec3(baseQ.xz * 1.18 + vec2(3.4, 7.1), uSeed * 0.41))
+                        noise(vec3(baseQ.xz * 1.18 + vec2(3.4, 7.1), detailTrait(16.0) * 3.0))
                     );
-                    d -= undersideBand * undersidePocket * 0.42;
-                    d -= dissipating * towerErosionBand * downdraftColumn * 0.72;
+                    d -= undersideBand * undersidePocket * (1.0 - protectedCore * 0.75) * 0.42;
+                    d -= dissipating * towerErosionBand * downdraftColumn * (1.0 - protectedCore * 0.7) * 0.72;
                     d -= dissipating * undersideBand * 0.22;
                     d += dissipating * anvilBand * (1.0 - settlingAnvil * 0.68) * 0.12;
                     d -= dissipating * anvilBand * settlingAnvil * 0.16;
+                    d = max(d, protectedCore * mix(0.18, 0.28, photo) * (1.0 - dissipating * 0.32));
                 }
                 return clamp(d, 0.0, 1.0);
             }

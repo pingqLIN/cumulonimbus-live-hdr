@@ -31,7 +31,8 @@ assert.ok(
   `expected upper anvil wider than lower tower, got ${shape.anvilToTowerWidthRatio}`
 );
 assert.ok(
-  shape.centroidY > 0.44 && shape.centroidY < 0.78,
+  // The cloud support now uses framed sampleY, so a healthy portrait cloud sits slightly higher.
+  shape.centroidY > 0.38 && shape.centroidY < 0.78,
   `expected cloud mass to remain in portrait cumulonimbus frame, got centroidY ${shape.centroidY}`
 );
 

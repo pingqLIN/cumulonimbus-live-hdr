@@ -91,7 +91,7 @@ export function sampleCloudDensity(x: number, y: number, time: number, params: C
   const dissipatingLoss = lifecycle.phase === "dissipating" ? smoothstep(0.45, 1, lifecycle.stormAge) * 0.24 : 0;
   const fieldDensity = mass * body * (1.05 + humidity.upliftStrength * 0.28 - dissipatingLoss);
   const starterBillows = sampleCumulonimbusStarterBillows(sampleX, sampleY, time, params);
-  const verticalColumnSupport = mix(0.58, 1, smoothstep(0.34, 0.72, y));
+  const verticalColumnSupport = mix(0.58, 1, smoothstep(0.34, 0.72, sampleY));
   const anvilSupport = smoothstep(tropopause - 0.1, 0.99, altitude) * mix(0.42, 0.76, wind.anvilPersistence);
   const anvilShelf =
     anvil *
@@ -104,8 +104,9 @@ export function sampleCloudDensity(x: number, y: number, time: number, params: C
   const evolvedDensity = (fieldDensity + anvilShelf) * fieldWeight * fieldSupport;
   const starterWeight = clamp(morphology.starterBlend * (0.7 + wind.anvilOutflow * 0.2));
   const upperAnvilEnvelope = smoothstep(tropopause - 0.12, 1, altitude) * mix(0.34, 0.64, wind.anvilPersistence);
-  const lowerBaseEnvelope = smoothstep(0.82, 1, y) * mix(0.06, 0.16, morphology.baseDeckHeight);
-  const towerEnvelope = mix(0.28, 0.46, smoothstep(0.42, 0.82, y)) * mix(0.82, 1.18, lobeScale);
+  const lowerBaseEnvelope = smoothstep(0.82, 1, sampleY) * mix(0.06, 0.16, morphology.baseDeckHeight);
+  const towerEnvelope =
+    mix(0.28, 0.46, smoothstep(0.42, 0.82, sampleY)) * mix(0.82, 1.18, lobeScale);
   const envelopeWidth = towerEnvelope + upperAnvilEnvelope + lowerBaseEnvelope;
   const portraitEnvelope = 1 - smoothstep(envelopeWidth, envelopeWidth + 0.26, Math.abs(centeredX));
   return clamp(Math.max(evolvedDensity, starterBillows * starterWeight) * portraitEnvelope * safeFrameMask);

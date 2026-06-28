@@ -46,7 +46,8 @@ type CameraDragState = {
 
 const ORBIT_DEGREES_PER_PIXEL = 0.18;
 const DOLLY_PER_PIXEL = 0.0025;
-const PAN_UNITS_PER_PIXEL_AT_DISTANCE = 0.0028;
+const PAN_DRAG_UNITS_PER_PIXEL_AT_DISTANCE = 0.0018;
+const PAN_KEY_UNITS_PER_PIXEL_AT_DISTANCE = 0.0028;
 const KEY_ORBIT_DEGREES = 3;
 const KEY_PAN_PIXELS = 40;
 const KEY_DOLLY_DELTA_PIXELS = 120;
@@ -154,7 +155,7 @@ export class CloudApp {
       this.setOptions({
         cameraYawDegrees: normalizeDegrees(drag.startYaw + dx * ORBIT_DEGREES_PER_PIXEL * drag.precisionScale),
         cameraPitchDegrees: clampNumber(
-          drag.startPitch - dy * ORBIT_DEGREES_PER_PIXEL * drag.precisionScale,
+          drag.startPitch + dy * ORBIT_DEGREES_PER_PIXEL * drag.precisionScale,
           CAMERA_PITCH_MIN_DEGREES,
           CAMERA_PITCH_MAX_DEGREES
         )
@@ -436,8 +437,8 @@ export class CloudApp {
     const yaw = degreesToRadians(drag.startYaw);
     const rightX = Math.cos(yaw);
     const rightZ = Math.sin(yaw);
-    const panScale = drag.startDistance * PAN_UNITS_PER_PIXEL_AT_DISTANCE * drag.precisionScale;
-    const panRight = -dx * panScale;
+    const panScale = drag.startDistance * PAN_DRAG_UNITS_PER_PIXEL_AT_DISTANCE * drag.precisionScale;
+    const panRight = dx * panScale;
     const panUp = dy * panScale;
     this.setOptions({
       cameraTargetOffsetX: clampNumber(
@@ -463,8 +464,8 @@ export class CloudApp {
     const distance = this.options.cameraDistance ?? this.defaultCameraDistance();
     const rightX = Math.cos(yaw);
     const rightZ = Math.sin(yaw);
-    const panScale = distance * PAN_UNITS_PER_PIXEL_AT_DISTANCE * precisionScale;
-    const panRight = -dx * panScale;
+    const panScale = distance * PAN_KEY_UNITS_PER_PIXEL_AT_DISTANCE * precisionScale;
+    const panRight = dx * panScale;
     const panUp = dy * panScale;
     this.setOptions({
       cameraTargetOffsetX: clampNumber(

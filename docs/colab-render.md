@@ -57,7 +57,7 @@ npm run check
 npm run colab:render -- --mode quick --skip-render --check
 ```
 
-`npm run test:06` starts browser-backed smoke checks. It can take several minutes locally and may require extra browser packages in Colab, so it is not the first Colab smoke gate.
+`npm run test:browser` starts the full browser-backed smoke suite. It can take several minutes locally and may require extra browser packages in Colab, so it is not the first Colab smoke gate.
 
 ## Relationship to the Public Site
 

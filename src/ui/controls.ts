@@ -78,21 +78,22 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
   });
   elements.timeResetButton?.addEventListener("click", () => app.setOptions({ time: 2.2 }));
   elements.syncSystemTimeButton?.addEventListener("click", () => {
-    const now = new Date();
-    const hour = now.getHours() + now.getMinutes() / 60;
-    const daylight = Math.max(0, Math.sin(((hour - 6) / 12) * Math.PI));
-    const sunElevation = Math.round(-8 + daylight * 70);
-    app.setOptions({
-      time: hour,
-      sunElevation,
-      sunIntensity: Number((daylight * 7.2).toFixed(1)),
-      ambientIntensity: Number((0.36 + daylight * 0.72).toFixed(2))
-    });
+    const now = syncAtmosphereToSystemTime(elements, app);
     elements.syncSystemTimeButton?.classList.add("enabled");
     updateText(elements.syncStatus, `System time ${now.toLocaleTimeString()}`);
     if (elements.syncStatus) {
       elements.syncStatus.hidden = false;
     }
+    syncControls(elements, app.getOptions(), app.isPaused());
+  });
+  elements.syncTimeCheckbox?.addEventListener("change", () => {
+    if (!elements.syncTimeCheckbox?.checked) {
+      if (elements.syncStatus) {
+        elements.syncStatus.hidden = true;
+      }
+      return;
+    }
+    syncAtmosphereToSystemTime(elements, app);
     syncControls(elements, app.getOptions(), app.isPaused());
   });
   elements.linkSunElevationButton?.addEventListener("click", () => toggleSunElevationLink(elements));
@@ -156,6 +157,11 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     (value) => app.setOptions({ sunViewerAngle: value }),
     () => updateAtmosphereWidget(elements, app.getOptions())
   );
+  bindAtmosphereTimeInput(elements.atmosphereTimeInput, (value) => {
+    app.setOptions(resolveAtmosphereTimePatch(value));
+    syncControls(elements, app.getOptions(), app.isPaused());
+  });
+  bindAtmosphereSunDrag(elements, app);
   bindSlider(elements.timeSlider, elements.timeReadout, (value) => `${value.toFixed(1)}x`, (value) =>
     app.setOptions({ timeScale: value }), () =>
       updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
@@ -192,12 +198,14 @@ function collectControls(root: ParentNode) {
     ambientReadout: root.querySelector<HTMLElement>("#ambient-readout"),
     sunAngleSlider: root.querySelector<HTMLInputElement>("#slider-sun-angle"),
     sunAngleReadout: root.querySelector<HTMLElement>("#sun-angle-readout"),
+    atmosphereTimeInput: root.querySelector<HTMLInputElement>("#input-atmosphere-time"),
     timeSlider: root.querySelector<HTMLInputElement>("#slider-time"),
     timeReadout: root.querySelector<HTMLElement>("#time-readout"),
     timeToggleButton: root.querySelector<HTMLButtonElement>("#btn-time-toggle"),
     timeResetButton: root.querySelector<HTMLButtonElement>("#btn-time-reset"),
     syncSystemTimeButton: root.querySelector<HTMLButtonElement>("#btn-sync-system-time"),
     syncLocationButton: root.querySelector<HTMLButtonElement>("#btn-sync-location"),
+    syncTimeCheckbox: root.querySelector<HTMLInputElement>("#checkbox-sync-time"),
     syncStatus: root.querySelector<HTMLElement>("#sync-status"),
     dockTimeToggleButton: root.querySelector<HTMLButtonElement>("#dock-time-toggle"),
     autoQualityButton: root.querySelector<HTMLButtonElement>("#btn-auto-quality"),
@@ -263,6 +271,7 @@ function syncControls(
   setValue(elements.sunElevationSlider, String(options.sunElevation ?? 62));
   setValue(elements.ambientSlider, String(options.ambientIntensity ?? 0.66));
   setValue(elements.sunAngleSlider, String(options.sunViewerAngle ?? 18));
+  setValue(elements.atmosphereTimeInput, formatAtmosphereTime(estimateAtmosphereTime(options)));
   setValue(elements.timeSlider, String(options.timeScale ?? 1));
   setValue(elements.qualitySlider, qualityScale.toFixed(2));
   updateText(elements.systemsReadout, String(options.systems ?? 1));
@@ -361,6 +370,110 @@ function bindNumberInput(
   });
 }
 
+function bindAtmosphereTimeInput(
+  input: HTMLInputElement | null,
+  onValue: (value: number) => void
+): void {
+  const handleInput = (): void => {
+    const value = parseAtmosphereTime(input?.value ?? "");
+    if (value !== null) {
+      onValue(value);
+    }
+  };
+  input?.addEventListener("change", handleInput);
+  input?.addEventListener("input", handleInput);
+}
+
+function bindAtmosphereSunDrag(
+  elements: ReturnType<typeof collectControls>,
+  app: CloudAppController
+): void {
+  const canvas = elements.atmosphereCanvas;
+  if (!canvas) {
+    return;
+  }
+  const widget = canvas.closest<HTMLElement>("#solar-orbit-widget");
+  let pointerId: number | null = null;
+  const applyPointer = (event: PointerEvent): void => {
+    app.setOptions(resolveAtmospherePointerPatch(canvas, event.clientX, event.clientY));
+    if (elements.syncTimeCheckbox) {
+      elements.syncTimeCheckbox.checked = false;
+    }
+    if (elements.syncStatus) {
+      elements.syncStatus.hidden = true;
+    }
+    syncControls(elements, app.getOptions(), app.isPaused());
+  };
+  canvas.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+    pointerId = event.pointerId;
+    try {
+      canvas.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic pointer events used by smoke checks do not always own capture.
+    }
+    widget?.classList.add("is-dragging");
+    event.preventDefault();
+    applyPointer(event);
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (pointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    applyPointer(event);
+  });
+  const releasePointer = (event: PointerEvent): void => {
+    if (pointerId !== event.pointerId) {
+      return;
+    }
+    try {
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // Ignore teardown races when the browser has already released capture.
+    }
+    pointerId = null;
+    widget?.classList.remove("is-dragging");
+  };
+  canvas.addEventListener("pointerup", releasePointer);
+  canvas.addEventListener("pointercancel", releasePointer);
+  canvas.addEventListener("lostpointercapture", () => {
+    pointerId = null;
+    widget?.classList.remove("is-dragging");
+  });
+}
+
+function resolveAtmospherePointerPatch(
+  canvas: HTMLCanvasElement,
+  clientX: number,
+  clientY: number
+): Partial<RuntimeOptions> {
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(2, rect.width || 240);
+  const height = Math.max(2, rect.height || 110);
+  const cx = width / 2;
+  const cy = height - 16;
+  const radius = Math.max(1, Math.min(width / 2 - 12, height - 25));
+  const localX = clampNumber(clientX - rect.left, cx - radius, cx + radius);
+  const localY = clampNumber(clientY - rect.top, cy - radius, cy);
+  const dx = localX - cx;
+  const dy = cy - localY;
+  const orbitAngle = Math.hypot(dx, dy) < 1
+    ? Math.PI / 2
+    : clampNumber(Math.atan2(dy, dx), 0, Math.PI);
+  const progress = 1 - orbitAngle / Math.PI;
+  const hour = 6 + progress * 12;
+  const sunElevation = Math.round(Math.sin(orbitAngle) * 82);
+  return {
+    ...resolveAtmosphereTimePatch(hour),
+    ...resolveSunLightingPatch(sunElevation)
+  };
+}
+
 function setValue(element: HTMLInputElement | HTMLSelectElement | null, value: string): void {
   if (element) {
     element.value = value;
@@ -373,10 +486,12 @@ function setActive(element: HTMLElement | null, active: boolean): void {
 }
 
 function setPlaybackButton(element: HTMLElement | null, paused: boolean): void {
-  updateText(element, paused ? "Resume" : "Pause");
+  const playLabel = element?.dataset.playbackLabel === "play" ? "Play" : "Resume";
+  const label = paused ? playLabel : "Pause";
+  updateText(element, label);
   element?.classList.toggle("enabled", paused);
   element?.setAttribute("aria-pressed", paused ? "true" : "false");
-  element?.setAttribute("aria-label", paused ? "Resume" : "Pause");
+  element?.setAttribute("aria-label", label);
 }
 
 function setDockPlaybackButton(element: HTMLElement | null, paused: boolean): void {
@@ -389,6 +504,19 @@ function updateText(element: HTMLElement | null, value: string): void {
   if (element) {
     element.textContent = value;
   }
+}
+
+function syncAtmosphereToSystemTime(
+  elements: ReturnType<typeof collectControls>,
+  app: CloudAppController
+): Date {
+  const now = new Date();
+  const hour = now.getHours() + now.getMinutes() / 60;
+  app.setOptions(resolveAtmosphereTimePatch(hour));
+  if (elements.syncTimeCheckbox) {
+    elements.syncTimeCheckbox.checked = true;
+  }
+  return now;
 }
 
 function toggleSunElevationLink(elements: ReturnType<typeof collectControls>): void {
@@ -404,15 +532,80 @@ function resolveLinkedSunPatch(
   if (!elements.linkSunElevationButton?.classList.contains("enabled")) {
     return { sunElevation };
   }
-  const direct01 = Math.max(0, Math.min(1, Math.pow(Math.max(0, sunElevation) / 90, 0.65)));
-  const diffuse01 = Math.max(0, Math.min(1, Math.pow(Math.max(0, sunElevation + 18) / 108, 0.8)));
-  const sunIntensity = Number((direct01 * 8).toFixed(1));
-  const ambientIntensity = Number((diffuse01 * 1.2).toFixed(2));
+  const patch = resolveSunLightingPatch(sunElevation);
+  const sunIntensity = patch.sunIntensity ?? 0;
+  const ambientIntensity = patch.ambientIntensity ?? 0;
   setValue(elements.sunSlider, String(sunIntensity));
   updateText(elements.sunReadout, sunIntensity.toFixed(1));
   setValue(elements.ambientSlider, String(ambientIntensity));
   updateText(elements.ambientReadout, ambientIntensity.toFixed(2));
-  return { sunElevation, sunIntensity, ambientIntensity };
+  return patch;
+}
+
+function resolveSunLightingPatch(sunElevation: number): Partial<RuntimeOptions> {
+  const direct01 = clampNumber(Math.pow(Math.max(0, sunElevation) / 90, 0.65), 0, 1);
+  const diffuse01 = clampNumber(Math.pow(Math.max(0, sunElevation + 18) / 108, 0.8), 0, 1);
+  return {
+    sunElevation,
+    sunIntensity: Number((direct01 * 8).toFixed(1)),
+    ambientIntensity: Number((diffuse01 * 1.2).toFixed(2))
+  };
+}
+
+function resolveAtmosphereTimePatch(hour: number): Partial<RuntimeOptions> {
+  const normalizedHour = normalizeDayHour(hour);
+  const daylight = Math.max(0, Math.sin(((normalizedHour - 6) / 12) * Math.PI));
+  const sunElevation = Math.round(-8 + daylight * 70);
+  return {
+    time: Number(normalizedHour.toFixed(2)),
+    sunElevation,
+    sunIntensity: Number((daylight * 7.2).toFixed(1)),
+    ambientIntensity: Number((0.36 + daylight * 0.72).toFixed(2)),
+    sunViewerAngle: Math.round((normalizedHour - 12) * 15)
+  };
+}
+
+function estimateAtmosphereTime(options: RuntimeOptions): number {
+  if (typeof options.sunViewerAngle === "number" && Number.isFinite(options.sunViewerAngle)) {
+    return normalizeDayHour(12 + options.sunViewerAngle / 15);
+  }
+  if (typeof options.time === "number" && Number.isFinite(options.time)) {
+    return normalizeDayHour(options.time);
+  }
+  return 9;
+}
+
+function normalizeDayHour(hour: number): number {
+  if (!Number.isFinite(hour)) {
+    return 9;
+  }
+  return ((hour % 24) + 24) % 24;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function formatAtmosphereTime(hour: number): string {
+  const normalized = normalizeDayHour(hour);
+  const wholeHour = Math.floor(normalized);
+  const minutes = Math.round((normalized - wholeHour) * 60);
+  const displayHour = (wholeHour + Math.floor(minutes / 60)) % 24;
+  const displayMinutes = minutes % 60;
+  return `${String(displayHour).padStart(2, "0")}:${String(displayMinutes).padStart(2, "0")}`;
+}
+
+function parseAtmosphereTime(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours > 23 || minutes > 59) {
+    return null;
+  }
+  return hours + minutes / 60;
 }
 
 function updateAtmosphereWidget(
@@ -475,9 +668,12 @@ function updateAtmosphereWidget(
   context.lineWidth = 2 * dpr;
   context.stroke();
 
-  const rad = Math.max(0, elevation) * Math.PI / 180;
-  const sunX = cx - Math.cos(rad) * (radius + 10 * dpr);
-  const sunY = cy - Math.sin(rad) * (radius + 10 * dpr);
+  const orbitHour = estimateAtmosphereTime(options);
+  const orbitProgress = clampNumber((orbitHour - 6) / 12, 0, 1);
+  const orbitAngle = Math.PI - orbitProgress * Math.PI;
+  const sunDistance = radius + 10 * dpr;
+  const sunX = cx + Math.cos(orbitAngle) * sunDistance;
+  const sunY = cy - Math.sin(orbitAngle) * sunDistance;
 
   context.beginPath();
   context.moveTo(cx, cy);

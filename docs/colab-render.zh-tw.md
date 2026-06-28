@@ -55,7 +55,7 @@ npm run check
 npm run colab:render -- --mode quick --skip-render --check
 ```
 
-完整 `npm run test:06` 會啟動 browser smoke，在本機約需數分鐘；Colab 上可能受 headless/browser 套件影響，不建議當作第一個 smoke gate。
+完整 `npm run test:browser` 會啟動 browser-backed smoke suite，在本機約需數分鐘；Colab 上可能受 headless/browser 套件影響，不建議當作第一個 smoke gate。
 
 ## 與正式網站的關係
 

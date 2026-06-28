@@ -347,63 +347,66 @@ export const raymarchCloudFragmentShader = String.raw`
             }
 
             float mapCloudMacro(vec3 p) {
+                float macro = 0.0;
                 if (uMobileCumulusMode > 0.5) {
-                    return mapMobileCumulusMacro(p);
-                }
+                    macro = mapMobileCumulusMacro(p);
+                } else {
 
-                float widthStretch = mix(1.0, 1.2, smoothstep(0.5, 2.0, uAspect));
-                vec3 layoutP = p;
-                layoutP.x /= widthStretch;
+                    float widthStretch = mix(1.0, 1.2, smoothstep(0.5, 2.0, uAspect));
+                    vec3 layoutP = p;
+                    layoutP.x /= widthStretch;
 
-                vec3 modelP = worldToModelSpace(layoutP);
-                float photo = uPhotographicStyle;
-                float layoutMode = mod(floor(abs(uSeed)), 3.0);
-                float triangleLayout = step(0.5, layoutMode) * (1.0 - step(1.5, layoutMode));
-                float clusterLayout = step(1.5, layoutMode);
-                vec2 c2Offset = mix(vec2(3.75, -1.35), vec2(-2.45, -1.28), triangleLayout);
-                c2Offset = mix(c2Offset, vec2(1.1, -0.58), clusterLayout);
-                vec2 c3Offset = mix(vec2(-3.2, 1.55), vec2(2.5, -1.12), triangleLayout);
-                c3Offset = mix(c3Offset, vec2(-0.86, 0.78), clusterLayout);
-                float c2Blend = mix(mix(1.35, 0.92, photo), mix(1.58, 1.06, photo), triangleLayout);
-                c2Blend = mix(c2Blend, mix(1.8, 1.18, photo), clusterLayout);
-                float c3Blend = mix(mix(1.45, 0.96, photo), mix(1.58, 1.06, photo), triangleLayout);
-                c3Blend = mix(c3Blend, mix(1.82, 1.2, photo), clusterLayout);
+                    vec3 modelP = worldToModelSpace(layoutP);
+                    float photo = uPhotographicStyle;
+                    float layoutMode = mod(floor(abs(uSeed)), 3.0);
+                    float triangleLayout = step(0.5, layoutMode) * (1.0 - step(1.5, layoutMode));
+                    float clusterLayout = step(1.5, layoutMode);
+                    vec2 c2Offset = mix(vec2(3.75, -1.35), vec2(-2.45, -1.28), triangleLayout);
+                    c2Offset = mix(c2Offset, vec2(1.1, -0.58), clusterLayout);
+                    vec2 c3Offset = mix(vec2(-3.2, 1.55), vec2(2.5, -1.12), triangleLayout);
+                    c3Offset = mix(c3Offset, vec2(-0.86, 0.78), clusterLayout);
+                    float c2Blend = mix(mix(1.35, 0.92, photo), mix(1.58, 1.06, photo), triangleLayout);
+                    c2Blend = mix(c2Blend, mix(1.8, 1.18, photo), clusterLayout);
+                    float c3Blend = mix(mix(1.45, 0.96, photo), mix(1.58, 1.06, photo), triangleLayout);
+                    c3Blend = mix(c3Blend, mix(1.82, 1.2, photo), clusterLayout);
 
-                float c1 = getCell01(modelP, vec2(0.0, 0.0), mix(3.2, 1.95, photo), 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
-                float macro = c1;
-                if (uSystemCount >= 1.5) {
-                    float c2 = getCell01(modelP, c2Offset, mix(2.8, 1.65, photo), 2.0, mix(3.75, 3.35, photo), 0.82, 1.12, 0.28, mix(0.8, 0.48, photo));
-                    macro = smin(macro, c2, c2Blend);
-                }
-                if (uSystemCount >= 2.5) {
-                    float c3 = getCell01(modelP, c3Offset, mix(2.65, 1.75, photo), 4.0, 4.55, 1.26, 4.85, 0.1, mix(1.14, 0.74, photo));
-                    macro = smin(macro, c3, c3Blend);
-                }
-                for (int i = 3; i < 10; i++) {
-                    float fi = float(i);
-                    if (uSystemCount < fi + 0.5) {
-                        continue;
+                    float c1 = getCell01(modelP, vec2(0.0, 0.0), mix(3.2, 1.95, photo), 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
+                    macro = c1;
+                    if (uSystemCount >= 1.5) {
+                        float c2 = getCell01(modelP, c2Offset, mix(2.8, 1.65, photo), 2.0, mix(3.75, 3.35, photo), 0.82, 1.12, 0.28, mix(0.8, 0.48, photo));
+                        macro = smin(macro, c2, c2Blend);
                     }
-                    float phase = fi * 1.73 + 0.9;
-                    float angle = fi * 2.399963 + uSeed * 0.00037;
-                    float ring = mix(4.2, 8.6, hash(fi * 17.13 + uSeed * 0.004));
-                    vec2 jitter = vec2(
-                        hash(fi * 29.7 + uSeed * 0.011) - 0.5,
-                        hash(fi * 41.1 + uSeed * 0.013) - 0.5
-                    ) * 1.65;
-                    vec2 offset = vec2(cos(angle), sin(angle)) * ring + jitter;
-                    float maxR = mix(1.55, 2.65, hash(fi * 53.9 + uSeed * 0.007));
-                    float maxH = mix(3.15, 5.0, hash(fi * 67.1 + uSeed * 0.009));
-                    float speedScale = mix(0.72, 1.32, hash(fi * 71.3 + uSeed * 0.003));
-                    float ageOffset = hash(fi * 83.5 + uSeed * 0.005) * 6.28318;
-                    float earlyDecay = hash(fi * 97.7 + uSeed * 0.006) * 0.34;
-                    float anvilScale = mix(0.58, 1.12, hash(fi * 101.9 + uSeed * 0.008));
-                    float cell = getCell01(modelP, offset, maxR, phase, maxH, speedScale, ageOffset, earlyDecay, anvilScale);
-                    macro = smin(macro, cell, mix(1.08, 0.82, photo));
+                    if (uSystemCount >= 2.5) {
+                        float c3 = getCell01(modelP, c3Offset, mix(2.65, 1.75, photo), 4.0, 4.55, 1.26, 4.85, 0.1, mix(1.14, 0.74, photo));
+                        macro = smin(macro, c3, c3Blend);
+                    }
+                    for (int i = 3; i < 10; i++) {
+                        float fi = float(i);
+                        if (uSystemCount < fi + 0.5) {
+                            continue;
+                        }
+                        float phase = fi * 1.73 + 0.9;
+                        float angle = fi * 2.399963 + uSeed * 0.00037;
+                        float ring = mix(4.2, 8.6, hash(fi * 17.13 + uSeed * 0.004));
+                        vec2 jitter = vec2(
+                            hash(fi * 29.7 + uSeed * 0.011) - 0.5,
+                            hash(fi * 41.1 + uSeed * 0.013) - 0.5
+                        ) * 1.65;
+                        vec2 offset = vec2(cos(angle), sin(angle)) * ring + jitter;
+                        float maxR = mix(1.55, 2.65, hash(fi * 53.9 + uSeed * 0.007));
+                        float maxH = mix(3.15, 5.0, hash(fi * 67.1 + uSeed * 0.009));
+                        float speedScale = mix(0.72, 1.32, hash(fi * 71.3 + uSeed * 0.003));
+                        float ageOffset = hash(fi * 83.5 + uSeed * 0.005) * 6.28318;
+                        float earlyDecay = hash(fi * 97.7 + uSeed * 0.006) * 0.34;
+                        float anvilScale = mix(0.58, 1.12, hash(fi * 101.9 + uSeed * 0.008));
+                        float cell = getCell01(modelP, offset, maxR, phase, maxH, speedScale, ageOffset, earlyDecay, anvilScale);
+                        macro = smin(macro, cell, mix(1.08, 0.82, photo));
+                    }
+                    float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
+                    float groundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
+                    macro = smax(smax(macro, capLimiter, 0.18), groundLimiter, 0.22);
                 }
-                float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
-                float groundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
-                return smax(smax(macro, capLimiter, 0.18), groundLimiter, 0.22);
+                return macro;
             }
 
             float mapCloudFromMacro(vec3 p, float macro) {

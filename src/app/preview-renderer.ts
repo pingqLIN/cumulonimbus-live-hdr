@@ -12,7 +12,7 @@ export interface PreviewMetrics {
 }
 
 export interface PreviewRenderer {
-  readonly mode: "cpu" | "webgpu" | "three-bubble";
+  readonly mode: "webgpu" | "three-bubble";
   reset(): void;
   resize(width: number, height: number): void;
   render(time: number, deltaSeconds: number, params: CloudParams): void;

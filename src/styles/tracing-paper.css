@@ -151,6 +151,17 @@ body[data-controls-hidden="true"] .cloud-app-shell {
     0 20px 56px rgb(0 0 0 / 0.28);
 }
 
+.control-panel.floating-panel--dragging {
+  cursor: grabbing;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  will-change: left, top;
+}
+
+.control-panel.floating-panel--dragging .control-panel__chrome {
+  cursor: grabbing;
+}
+
 .control-panel:not([data-panel-collapsed="true"]) {
   height: auto;
 }
@@ -334,6 +345,7 @@ body[data-controls-hidden="true"] .cloud-app-shell {
 
 button,
 .seed-input,
+.time-input,
 .tp-select {
   min-width: 0;
   min-height: 1.82rem;
@@ -348,7 +360,14 @@ button,
   box-shadow: none;
 }
 
-button:hover,
+button:hover {
+  color: var(--tp-text);
+  border-color: rgb(var(--tp-ink) / 0.48);
+  background: rgb(246 242 236 / 0.24);
+  box-shadow: inset 0 0 0 1px rgb(var(--tp-ink) / 0.08);
+}
+
+button:active,
 button.active,
 button.enabled,
 button[aria-pressed="true"],
@@ -428,7 +447,8 @@ button[aria-pressed="true"],
   font-weight: 760;
 }
 
-.seed-input {
+.seed-input,
+.time-input {
   width: 100%;
   text-align: center;
 }
@@ -669,5 +689,528 @@ button[aria-pressed="true"],
     border-left: 0;
     border-top: 1px solid var(--tp-line);
     padding: 0.4rem 0 0;
+  }
+}
+
+.cloud-app-shell--compact #ui-bar {
+  inset: auto max(0.55rem, env(safe-area-inset-right)) max(0.55rem, env(safe-area-inset-bottom)) max(0.55rem, env(safe-area-inset-left));
+  height: auto;
+  max-height: min(58dvh, 30rem);
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.cloud-app-shell--compact .hud-panel {
+  top: max(0.5rem, env(safe-area-inset-top));
+  left: max(0.5rem, env(safe-area-inset-left));
+  width: min(23rem, calc(100vw - 1rem));
+  min-height: 0;
+  padding: 0.52rem 0.82rem 0.58rem;
+  opacity: 0.82;
+}
+
+.cloud-app-shell--compact .project-kicker {
+  padding-bottom: 0.12rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.105em;
+}
+
+.cloud-app-shell--compact .project-title {
+  margin: 0.24rem 1.65rem 0.24rem 0;
+  font-size: 1rem;
+  line-height: 1.12;
+}
+
+.cloud-app-shell--compact .hud-line {
+  margin: 0.14rem 0;
+  color: rgb(var(--tp-ink) / 0.72);
+  font-size: 0.58rem;
+  line-height: 1.28;
+}
+
+.cloud-app-shell--compact .hud-list {
+  display: none;
+}
+
+.cloud-app-shell--compact #fps-counter {
+  margin-top: 0.34rem;
+  color: rgb(var(--tp-ink) / 0.62);
+}
+
+.cloud-app-shell--compact .hud-close-button {
+  top: 0.34rem;
+  right: 0.34rem;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time {
+  --compact-label-width: clamp(3.25rem, 14vw, 3.85rem);
+  --compact-row-height: 2.12rem;
+  --compact-atmosphere-visual-height: clamp(9.4rem, 15dvh, 10rem);
+  --compact-atmosphere-dashboard-height: 1.55rem;
+  --compact-atmosphere-row-height: calc((var(--compact-atmosphere-visual-height) - var(--compact-gap)) / 2);
+  --compact-orbit-aspect: 3 / 1;
+  --compact-gap: 0.44rem;
+  --compact-text-size: 0.68rem;
+  --compact-label-size: 0.64rem;
+  --compact-time-control-width: clamp(11.5rem, 34vw, 12.25rem);
+  --compact-scale-control-width: clamp(7.2rem, 21vw, 9rem);
+  --compact-play-accent: 188 42 38;
+  position: relative;
+  inset: auto;
+  width: min(31rem, 100%);
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: min(56dvh, 29rem);
+  transform: none;
+  resize: none;
+  opacity: 0.92;
+  font-family: var(--tp-font);
+  font-size: var(--compact-text-size);
+  pointer-events: auto;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time .control-panel__chrome {
+  min-height: 1.38rem;
+  padding: 0.22rem 0.38rem 0.2rem 0.5rem;
+  border-bottom-color: rgb(var(--tp-ink) / 0.2);
+  cursor: default;
+  touch-action: manipulation;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time .control-panel__title {
+  font-family: var(--tp-font);
+  font-size: 0.6rem;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: 0.1em;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time .control-panel__body {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 0;
+  padding: 0.4rem 0.46rem 0.46rem;
+  overflow: auto;
+}
+
+.cloud-app-shell--compact .control-group--mobile-time,
+.cloud-app-shell--compact .control-group--compact-seed-tools,
+.cloud-app-shell--compact .control-group--compact-atmosphere {
+  min-height: 0;
+  padding: 0.38rem 0;
+  gap: var(--compact-gap);
+  border-top: 1px solid rgb(var(--tp-ink) / 0.12);
+}
+
+.cloud-app-shell--compact .control-group--mobile-time .control-group__label,
+.cloud-app-shell--compact .control-group--compact-seed-tools .control-group__label,
+.cloud-app-shell--compact .control-group--compact-atmosphere .control-group__label {
+  grid-area: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: rgb(var(--tp-ink) / 0.74);
+  font-family: var(--tp-font);
+  font-size: var(--compact-label-size);
+  font-weight: 780;
+  line-height: 1;
+  letter-spacing: 0.105em;
+}
+
+.cloud-app-shell--compact .control-group--mobile-time {
+  grid-column: 1 / -1;
+  grid-template-columns: calc(var(--compact-row-height) + 0.42rem) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.48rem;
+}
+
+.cloud-app-shell--compact .control-group--mobile-time > .slider-group {
+  grid-column: 2;
+  grid-row: 1;
+  grid-template-columns: minmax(3.8rem, auto) minmax(0, 1fr) minmax(3rem, auto);
+}
+
+.cloud-app-shell--compact .compact-transport-action {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.cloud-app-shell--compact .compact-sync-toggle {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 0.34rem;
+  min-height: var(--compact-row-height);
+  min-width: 4.2rem;
+  padding: 0 0.48rem;
+  border: 1px solid var(--tp-line-heavy);
+  color: var(--tp-text-soft);
+  background: rgb(255 255 255 / 0.12);
+  font-family: var(--tp-font);
+  font-size: 0.7rem;
+  font-weight: 680;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere > .compact-sync-toggle {
+  align-self: start;
+}
+
+.cloud-app-shell--compact .compact-sync-toggle input {
+  width: 0.86rem;
+  height: 0.86rem;
+  margin: 0;
+  accent-color: rgb(var(--tp-ink) / 0.72);
+}
+
+.cloud-app-shell--compact .control-group--mobile-time #sync-status {
+  grid-column: 1 / -1;
+}
+
+.cloud-app-shell--compact .control-group--compact-seed-tools {
+  grid-column: 1 / -1;
+  grid-template-columns: var(--compact-label-width) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.46rem;
+}
+
+.cloud-app-shell--compact .control-group--compact-seed-tools .control-group__label {
+  grid-column: 1;
+}
+
+.cloud-app-shell--compact .control-group--compact-seed-tools .slider-group {
+  grid-column: 2;
+  grid-template-columns: minmax(0, 1fr) minmax(4.35rem, auto);
+}
+
+.cloud-app-shell--compact .control-group--compact-seed-tools .slider-group label {
+  display: none;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere {
+  grid-column: 1 / -1;
+  grid-template-columns:
+    var(--compact-label-width)
+    var(--compact-time-control-width)
+    minmax(0, 1fr)
+    var(--compact-scale-control-width);
+  grid-template-rows: var(--compact-row-height) auto;
+  align-items: center;
+  column-gap: 0.46rem;
+  row-gap: 0.34rem;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere > .control-group__label {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere > .digital-group--atmosphere-time {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.cloud-app-shell--compact .digital-group--atmosphere-time {
+  display: grid;
+  grid-template-columns: minmax(5.75rem, 1fr) minmax(4.2rem, auto);
+  align-items: center;
+  gap: 0.36rem;
+  width: 100%;
+}
+
+.cloud-app-shell--compact .digital-group--atmosphere-time .time-input {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere > #btn-grid {
+  grid-column: 4;
+  grid-row: 1;
+}
+
+.cloud-app-shell--compact .digital-group--atmosphere-time .time-input::-webkit-calendar-picker-indicator {
+  width: 0;
+  height: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere > .solar-orbit-widget {
+  grid-area: auto;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: stretch;
+  align-self: center;
+  width: 100%;
+  height: auto;
+  aspect-ratio: var(--compact-orbit-aspect);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid rgb(var(--tp-ink) / 0.12);
+  background:
+    repeating-linear-gradient(90deg, rgb(var(--tp-ink) / 0.045) 0 1px, transparent 1px 14px),
+    repeating-linear-gradient(0deg, rgb(var(--tp-ink) / 0.035) 0 1px, transparent 1px 14px);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) var(--compact-atmosphere-dashboard-height);
+  gap: 0.18rem;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere #atm-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  cursor: inherit;
+  touch-action: none;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere > .solar-orbit-widget.is-dragging {
+  cursor: grabbing;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere .atm-dashboard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.28rem;
+  margin-top: 0;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere .atm-meter {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.08rem;
+  min-width: 0;
+  color: rgb(var(--tp-ink) / 0.72);
+  font-size: 0.52rem;
+  line-height: 1;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere .atm-meter span {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere .atm-meter strong {
+  margin-left: 0.08rem;
+  color: rgb(var(--tp-ink) / 0.82);
+  font-weight: 720;
+}
+
+.cloud-app-shell--compact .control-group--compact-atmosphere .atm-meter i {
+  height: 0.24rem;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-grid,
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle,
+.cloud-app-shell--compact .control-panel--mobile-time #btn-random-seed {
+  width: 100%;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle {
+  position: relative;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  color: transparent;
+  font-size: 0;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle::before,
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle::after {
+  content: "";
+  display: block;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle::before {
+  width: 0;
+  height: 0;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin-left: 0.05rem;
+  transform: translate(-50%, -50%);
+  border-top: 0.42rem solid transparent;
+  border-bottom: 0.42rem solid transparent;
+  border-left: 0.72rem solid rgb(var(--compact-play-accent) / 0.56);
+  filter: drop-shadow(0 0 3px rgb(var(--compact-play-accent) / 0.16));
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle::after {
+  display: none;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"] {
+  display: block;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::before,
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::after {
+  position: absolute;
+  display: block;
+  top: 50%;
+  width: 0.18rem;
+  height: 0.88rem;
+  margin: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--compact-play-accent) / 0.58),
+    rgb(var(--compact-play-accent) / 0.34)
+  );
+  filter: drop-shadow(0 0 3px rgb(var(--compact-play-accent) / 0.16));
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::before {
+  left: calc(50% - 0.24rem);
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::after {
+  left: calc(50% + 0.06rem);
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time button,
+.cloud-app-shell--compact .control-panel--mobile-time .seed-input,
+.cloud-app-shell--compact .control-panel--mobile-time .time-input {
+  min-height: var(--compact-row-height);
+  font-family: var(--tp-font);
+  font-size: var(--compact-text-size);
+  font-weight: 560;
+  letter-spacing: 0.015em;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time .panel-button {
+  min-width: 1.55rem;
+  min-height: 1.18rem;
+  padding: 0 0.28rem;
+  font-size: 0.66rem;
+  line-height: 1;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time .slider-group {
+  min-height: var(--compact-row-height);
+  gap: 0.5rem;
+  padding: 0;
+  color: var(--tp-text-soft);
+  font-family: var(--tp-font);
+  font-size: var(--compact-text-size);
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time .slider-group label,
+.cloud-app-shell--compact .control-panel--mobile-time .slider-label,
+.cloud-app-shell--compact .control-panel--mobile-time .readout {
+  font-family: var(--tp-font);
+  font-size: 0.72rem;
+  font-weight: 680;
+  line-height: 1;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time .readout,
+.cloud-app-shell--compact .control-panel--mobile-time .seed-input,
+.cloud-app-shell--compact .control-panel--mobile-time .time-input {
+  font-variant-numeric: tabular-nums;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time input[type="range"] {
+  height: var(--compact-row-height);
+  cursor: pointer;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time input[type="range"]::-webkit-slider-runnable-track {
+  height: 0.38rem;
+  border: 1px solid rgb(var(--tp-ink) / 0.12);
+  background: linear-gradient(90deg, rgb(var(--tp-ink) / 0.42), rgb(255 255 255 / 0.58));
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time input[type="range"]::-webkit-slider-thumb {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: -0.39rem;
+  border: 1px solid rgb(var(--tp-ink) / 0.32);
+  background: rgb(var(--tp-ink) / 0.62);
+  cursor: pointer;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time button:focus-visible,
+.cloud-app-shell--compact .control-panel--mobile-time input:focus-visible,
+.cloud-app-shell--compact .compact-sync-toggle:focus-within {
+  outline: 2px solid rgb(var(--tp-ink) / 0.5);
+  outline-offset: 2px;
+}
+
+@media (max-width: 460px) {
+  .cloud-app-shell--compact #ui-bar {
+    max-height: 62dvh;
+  }
+
+  .cloud-app-shell--compact .control-panel--mobile-time {
+    --compact-atmosphere-visual-height: clamp(8.8rem, 36vw, 9.5rem);
+    --compact-time-control-width: clamp(10.25rem, 46vw, 11.6rem);
+    --compact-scale-control-width: clamp(5rem, 21vw, 6rem);
+    max-height: 62dvh;
+  }
+
+  .cloud-app-shell--compact .control-panel--mobile-time .control-panel__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cloud-app-shell--compact .control-group--mobile-time,
+  .cloud-app-shell--compact .control-group--compact-seed-tools,
+  .cloud-app-shell--compact .control-group--compact-atmosphere {
+    grid-column: 1;
+  }
+
+  .cloud-app-shell--compact .control-group--mobile-time {
+    grid-template-columns: calc(var(--compact-row-height) + 0.42rem) minmax(0, 1fr);
+  }
+
+  .cloud-app-shell--compact .control-group--compact-seed-tools {
+    grid-template-columns: var(--compact-label-width) minmax(0, 1fr);
+  }
+
+  .cloud-app-shell--compact .control-group--compact-atmosphere {
+    grid-template-columns:
+      var(--compact-label-width)
+      var(--compact-time-control-width)
+      var(--compact-scale-control-width);
+  }
+
+  .cloud-app-shell--compact .digital-group--atmosphere-time {
+    grid-template-columns: minmax(5.55rem, 1fr) minmax(3.8rem, auto);
+  }
+
+  .cloud-app-shell--compact .compact-sync-toggle {
+    grid-column: 2;
+  }
+
+  .cloud-app-shell--compact .control-group--compact-atmosphere > #btn-grid {
+    grid-column: 3;
+  }
+
+  .cloud-app-shell--compact .control-group--compact-atmosphere > .solar-orbit-widget {
+    width: 100%;
+    height: auto;
+  }
+
+  .cloud-app-shell--compact .control-group--compact-atmosphere #atm-canvas {
+    width: 100%;
+    height: 100%;
   }
 }

@@ -29,7 +29,7 @@ output.
 npm install
 npm run dev
 npm run check
-npm run test:06
+npm run test:live-entry
 npm run test:browser
 ```
 
@@ -39,8 +39,8 @@ Local preview:
 http://127.0.0.1:5173/
 ```
 
-The `test:06` script name is historical. It now runs the current single-canvas
-cloud renderer through browser-backed smoke checks.
+`test:live-entry` checks the current single-canvas live entry, while
+`test:browser` runs the broader browser-backed smoke suite.
 
 ## Useful URLs
 
@@ -87,7 +87,8 @@ non-flat cloud output.
 
 ```powershell
 npm run capture:3d-still
-npm run test:06-mobile
+npm run test:live-entry
+npm run test:ui-capture
 npm run test:raymarch
 npm run test:browser
 ```

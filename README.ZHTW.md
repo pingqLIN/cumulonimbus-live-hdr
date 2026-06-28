@@ -26,7 +26,7 @@ Cumulonimbus Live HDR 是 Vite/TypeScript 的單一 canvas WebGL 積雨雲視覺
 npm install
 npm run dev
 npm run check
-npm run test:06
+npm run test:live-entry
 npm run test:browser
 ```
 
@@ -36,8 +36,8 @@ npm run test:browser
 http://127.0.0.1:5173/
 ```
 
-`test:06` 是歷史命名；目前會透過 browser-backed smoke 檢查現行單一 canvas
-雲體 renderer。
+`test:live-entry` 會檢查現行單一 canvas live 入口；`test:browser` 會跑較完整的
+browser-backed smoke suite。
 
 ## 常用 URL
 
@@ -82,7 +82,8 @@ runtime error 與非空雲體輸出。
 
 ```powershell
 npm run capture:3d-still
-npm run test:06-mobile
+npm run test:live-entry
+npm run test:ui-capture
 npm run test:raymarch
 npm run test:browser
 ```

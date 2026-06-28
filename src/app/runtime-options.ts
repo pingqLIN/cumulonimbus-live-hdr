@@ -123,6 +123,11 @@ export function resolveRuntimeOptions(
     ortho: readBoolean(params, ["ortho"], preset.ortho ?? false),
     showGrid: readBoolean(params, ["grid", "showGrid"], preset.showGrid ?? false),
     surfaceMode: resolveSurfaceMode(params.get("surface")) ?? preset.surfaceMode ?? "none",
+    mobileCumulusMode: readBoolean(
+      params,
+      ["mobileCumulusMode", "mobileShape"],
+      preset.mobileCumulusMode ?? false
+    ),
     cameraYawDegrees: readOptionalNumber(params, ["cameraYawDegrees", "yawDegrees", "yaw"]) ?? preset.cameraYawDegrees,
     cameraPitchDegrees:
       readOptionalNumber(params, ["cameraPitchDegrees", "pitchDegrees", "pitch"]) ??
@@ -181,7 +186,7 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         photographicStyle: false,
         cameraDistance: 24,
         maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * ATTACHED_06_MOBILE_RENDER_SCALE * ATTACHED_06_MOBILE_RENDER_SCALE),
-        mobileCumulusMode: true
+        mobileCumulusMode: false
       };
     case "broadcast-landscape":
       return {

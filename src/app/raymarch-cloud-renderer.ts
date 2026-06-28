@@ -437,9 +437,9 @@ function usesSingleCloudModel(options: RaymarchCloudOptions): boolean {
 
 function resolveMobileCumulusMode(
   options: RaymarchCloudOptions,
-  displayProfile: BrowserDisplayProfile
+  _displayProfile: BrowserDisplayProfile
 ): number {
-  return (options.mobileCumulusMode ?? displayProfile.mobileWideView) ? 1 : 0;
+  return options.mobileCumulusMode ? 1 : 0;
 }
 
 function createWebGLContext(

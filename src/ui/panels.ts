@@ -1,5 +1,7 @@
 import { enableRestoreDock, updateRestoreDock } from "./controls.js";
 
+const PANEL_DRAG_START_THRESHOLD_PX = 4;
+
 export function bindPanels(root: ParentNode): void {
   const panels = [...root.querySelectorAll<HTMLElement>(".control-panel[data-panel-key]")];
   for (const panel of panels) {
@@ -64,16 +66,73 @@ export function bindPanels(root: ParentNode): void {
 }
 
 function bindPanelDrag(panel: HTMLElement): void {
+  if (panel.classList.contains("control-panel--mobile-time")) {
+    return;
+  }
+
   const handle = panel.querySelector<HTMLElement>(".control-panel__chrome");
   if (!handle) {
     return;
   }
 
+  let pointerArmed = false;
   let dragging = false;
   let startX = 0;
   let startY = 0;
   let startLeft = 0;
   let startTop = 0;
+  let activePointerId: number | undefined;
+  let pendingLeft = 0;
+  let pendingTop = 0;
+  let hasPendingPosition = false;
+  let animationFrame: number | undefined;
+
+  const applyPendingPosition = (): void => {
+    animationFrame = undefined;
+    if (!hasPendingPosition) {
+      return;
+    }
+    panel.style.left = `${pendingLeft}px`;
+    panel.style.top = `${pendingTop}px`;
+    panel.style.right = "auto";
+    panel.style.bottom = "auto";
+    panel.style.transform = "none";
+    panel.dataset.floatingCustomized = "true";
+    hasPendingPosition = false;
+  };
+
+  const schedulePositionUpdate = (): void => {
+    if (animationFrame !== undefined) {
+      return;
+    }
+    animationFrame = requestAnimationFrame(applyPendingPosition);
+  };
+
+  const endDrag = (event?: PointerEvent): void => {
+    if ((!pointerArmed && !dragging) || (event && event.pointerId !== activePointerId)) {
+      return;
+    }
+    const wasDragging = dragging;
+    pointerArmed = false;
+    dragging = false;
+    if (wasDragging && animationFrame !== undefined) {
+      cancelAnimationFrame(animationFrame);
+      applyPendingPosition();
+    } else if (animationFrame !== undefined) {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = undefined;
+    }
+    hasPendingPosition = false;
+    panel.classList.remove("floating-panel--dragging");
+    if (activePointerId !== undefined && handle.hasPointerCapture(activePointerId)) {
+      try {
+        handle.releasePointerCapture(activePointerId);
+      } catch {
+        // Ignore release races after the browser has already cancelled capture.
+      }
+    }
+    activePointerId = undefined;
+  };
 
   handle.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || panel.hidden) {
@@ -84,37 +143,40 @@ function bindPanelDrag(panel: HTMLElement): void {
       return;
     }
     const rect = panel.getBoundingClientRect();
-    dragging = true;
+    pointerArmed = true;
+    dragging = false;
     startX = event.clientX;
     startY = event.clientY;
     startLeft = rect.left;
     startTop = rect.top;
-    panel.classList.add("floating-panel--dragging");
-    panel.setPointerCapture(event.pointerId);
+    activePointerId = event.pointerId;
+    handle.setPointerCapture(event.pointerId);
   });
 
   handle.addEventListener("pointermove", (event) => {
-    if (!dragging) {
+    if (!pointerArmed || event.pointerId !== activePointerId) {
       return;
     }
-    const nextLeft = clamp(startLeft + event.clientX - startX, 8, window.innerWidth - 80);
-    const nextTop = clamp(startTop + event.clientY - startY, 8, window.innerHeight - 42);
-    panel.style.left = `${nextLeft}px`;
-    panel.style.top = `${nextTop}px`;
-    panel.style.right = "auto";
-    panel.style.bottom = "auto";
-    panel.style.transform = "none";
-    panel.dataset.floatingCustomized = "true";
+    const deltaX = event.clientX - startX;
+    const deltaY = event.clientY - startY;
+    if (!dragging) {
+      const dragDistance = Math.hypot(deltaX, deltaY);
+      if (dragDistance < PANEL_DRAG_START_THRESHOLD_PX) {
+        return;
+      }
+      dragging = true;
+      panel.classList.add("floating-panel--dragging");
+    }
+    pendingLeft = clamp(startLeft + deltaX, 8, window.innerWidth - 80);
+    pendingTop = clamp(startTop + deltaY, 8, window.innerHeight - 42);
+    hasPendingPosition = true;
+    schedulePositionUpdate();
+    event.preventDefault();
   });
 
-  handle.addEventListener("pointerup", (event) => {
-    if (!dragging) {
-      return;
-    }
-    dragging = false;
-    panel.classList.remove("floating-panel--dragging");
-    panel.releasePointerCapture(event.pointerId);
-  });
+  handle.addEventListener("pointerup", endDrag);
+  handle.addEventListener("pointercancel", endDrag);
+  handle.addEventListener("lostpointercapture", () => endDrag());
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

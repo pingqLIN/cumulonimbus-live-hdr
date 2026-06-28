@@ -44,7 +44,7 @@ flowchart TD
 - 主線輸出腳本：`npm run render:quick`, `npm run render:test`, `npm run render:demo-loop`
 - 主要抓圖路徑：`npm run capture:field-still`, `npm run capture:3d-still`
 - 主要驗證：
-  - `npm run test:06`
+  - `npm run test:live-entry`
   - `npm run test:browser`
   - `npm run test:smoke`
   - `npm run test:3d-capture`

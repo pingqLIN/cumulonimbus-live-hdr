@@ -4,6 +4,7 @@ outputs/*
 !outputs/demo/
 !outputs/demo/**
 *.log
+Trace-*.json.gz
 .env
 .worktrees/
 screen/

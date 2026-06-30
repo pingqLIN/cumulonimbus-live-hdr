@@ -120,9 +120,19 @@ export function resolveRuntimeOptions(
       "atmosphere",
     transparentBackground: readTransparentBackground(params),
     hdr10: readBoolean(params, ["hdr10", "hdr", "hdrMode"], preset.hdr10 ?? false),
+    dither: readBoolean(params, ["dither", "displayDither"], preset.dither ?? false),
     ortho: readBoolean(params, ["ortho"], preset.ortho ?? false),
     showGrid: readBoolean(params, ["grid", "showGrid"], preset.showGrid ?? false),
     surfaceMode: resolveSurfaceMode(params.get("surface")) ?? preset.surfaceMode ?? "none",
+    morphologyStyle:
+      resolveMorphologyStyle(
+        params.get("morphologyStyle") ??
+          params.get("morphology") ??
+          params.get("shapeStyle") ??
+          params.get("shape")
+      ) ??
+      preset.morphologyStyle ??
+      "giant-cumulonimbus",
     mobileCumulusMode: readBoolean(
       params,
       ["mobileCumulusMode", "mobileShape"],
@@ -184,6 +194,7 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         skyMode: "clear",
         lightPreset: "daylight",
         photographicStyle: false,
+        morphologyStyle: "giant-cumulonimbus",
         cameraDistance: 24,
         maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * ATTACHED_06_MOBILE_RENDER_SCALE * ATTACHED_06_MOBILE_RENDER_SCALE),
         mobileCumulusMode: false
@@ -262,6 +273,7 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         skyMode: "clear",
         lightPreset: "daylight",
         photographicStyle: false,
+        morphologyStyle: "giant-cumulonimbus",
         cameraDistance: 16,
         maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * ATTACHED_06_RENDER_SCALE * ATTACHED_06_RENDER_SCALE),
         mobileCumulusMode: false
@@ -365,6 +377,58 @@ function resolveSurfaceMode(value: string | null): RaymarchCloudOptions["surface
     return value;
   }
   return undefined;
+}
+
+function resolveMorphologyStyle(value: string | null): RaymarchCloudOptions["morphologyStyle"] | undefined {
+  switch (value?.toLowerCase()) {
+    case "seeded":
+    case "seed":
+    case "random":
+    case "pool":
+    case "recipe":
+      return "seeded";
+    case "baseline":
+    case "base":
+    case "sphere":
+    case "original-sphere":
+      return "baseline";
+    case "macro-boundary":
+    case "macro":
+    case "boundary":
+    case "contrast":
+    case "supercontrast":
+      return "macro-boundary";
+    case "flatten":
+    case "flat":
+    case "compressed":
+    case "compression":
+      return "flatten";
+    case "skew-twist":
+    case "skew":
+    case "twist":
+    case "oblique":
+      return "skew-twist";
+    case "tear-silk":
+    case "tear":
+    case "silk":
+    case "wind":
+    case "dissipating":
+      return "tear-silk";
+    case "budding":
+    case "bud":
+    case "yeast":
+    case "large-small":
+    case "binary":
+      return "budding";
+    case "giant-cumulonimbus":
+    case "giant":
+    case "cumulonimbus":
+    case "cb":
+    case "tower":
+      return "giant-cumulonimbus";
+    default:
+      return undefined;
+  }
 }
 
 function readTransparentBackground(params: URLSearchParams): boolean {

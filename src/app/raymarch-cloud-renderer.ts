@@ -5,6 +5,19 @@ import {
 } from "./display-profile.js";
 import { raymarchCloudFragmentShader, raymarchCloudVertexShader } from "./raymarch-cloud-shader.js";
 
+export const CLOUD_MORPHOLOGY_STYLES = [
+  "seeded",
+  "baseline",
+  "macro-boundary",
+  "flatten",
+  "skew-twist",
+  "tear-silk",
+  "budding",
+  "giant-cumulonimbus"
+] as const;
+
+export type CloudMorphologyStyle = (typeof CLOUD_MORPHOLOGY_STYLES)[number];
+
 export type RaymarchCloudOptions = {
   seed?: number;
   time?: number;
@@ -28,9 +41,11 @@ export type RaymarchCloudOptions = {
   skyMode?: "workbench" | "clear" | "sunset" | "moonlight" | "atmosphere";
   transparentBackground?: boolean;
   hdr10?: boolean;
+  dither?: boolean;
   ortho?: boolean;
   showGrid?: boolean;
   surfaceMode?: "none" | "ocean" | "hills";
+  morphologyStyle?: CloudMorphologyStyle;
   cameraYawDegrees?: number;
   cameraPitchDegrees?: number;
   cameraDistance?: number;
@@ -116,7 +131,8 @@ export class RaymarchCloudRenderer {
     this.material = new THREE.ShaderMaterial({
       defines: {
         CUMULONIMBUS_MAX_RAY_STEPS: this.staticRayStepLimit(),
-        CUMULONIMBUS_SINGLE_CLOUD: usesSingleCloudModel(options) ? 1 : 0
+        CUMULONIMBUS_SINGLE_CLOUD: usesSingleCloudModel(options) ? 1 : 0,
+        CUMULONIMBUS_MORPHOLOGY_STYLE: resolveMorphologyStyleValue(options.morphologyStyle)
       },
       vertexShader: raymarchCloudVertexShader,
       fragmentShader: raymarchCloudFragmentShader,
@@ -135,6 +151,7 @@ export class RaymarchCloudRenderer {
         uCloudCurl: {
           value: clampFinite(options.cloudCurl, this.displayProfile.mobileWideView ? 0.86 : 0.78, 0, 1.2)
         },
+        uMorphologyStyle: { value: resolveMorphologyStyleValue(options.morphologyStyle) },
         uSystemCount: { value: resolveSystemCount(options.systems) },
         uIsOrtho: { value: options.ortho ? 1 : 0 },
         uOrthoSize: { value: this.orthoFrustumSize },
@@ -155,6 +172,7 @@ export class RaymarchCloudRenderer {
         uHorizonStrength: { value: clampFinite(options.horizonStrength, 1, 0, 1) },
         uTransparentBackground: { value: options.transparentBackground ? 1 : 0 },
         uHdr10Mode: { value: options.hdr10 ? 1 : 0 },
+        uDitherEnabled: { value: options.dither ? 1 : 0 },
         uHdrReferencePeakNits: { value: HDR10_REFERENCE_PEAK_NITS },
         uMobileCumulusMode: { value: resolveMobileCumulusMode(options, this.displayProfile) }
       }
@@ -171,12 +189,17 @@ export class RaymarchCloudRenderer {
 
     const staticStepLimit = this.staticRayStepLimit();
     const singleCloudDefine = usesSingleCloudModel(this.options) ? 1 : 0;
+    const morphologyStyleDefine = resolveMorphologyStyleValue(this.options.morphologyStyle);
     if (this.material.defines.CUMULONIMBUS_MAX_RAY_STEPS !== staticStepLimit) {
       this.material.defines.CUMULONIMBUS_MAX_RAY_STEPS = staticStepLimit;
       this.material.needsUpdate = true;
     }
     if (this.material.defines.CUMULONIMBUS_SINGLE_CLOUD !== singleCloudDefine) {
       this.material.defines.CUMULONIMBUS_SINGLE_CLOUD = singleCloudDefine;
+      this.material.needsUpdate = true;
+    }
+    if (this.material.defines.CUMULONIMBUS_MORPHOLOGY_STYLE !== morphologyStyleDefine) {
+      this.material.defines.CUMULONIMBUS_MORPHOLOGY_STYLE = morphologyStyleDefine;
       this.material.needsUpdate = true;
     }
 
@@ -194,6 +217,9 @@ export class RaymarchCloudRenderer {
       this.displayProfile.mobileWideView ? 0.86 : 0.78,
       0,
       1.2
+    );
+    this.material.uniforms.uMorphologyStyle!.value = resolveMorphologyStyleValue(
+      this.options.morphologyStyle
     );
     this.material.uniforms.uSystemCount!.value = resolveSystemCount(this.options.systems);
     this.material.uniforms.uIsOrtho!.value = this.options.ortho ? 1 : 0;
@@ -255,6 +281,7 @@ export class RaymarchCloudRenderer {
     );
     this.material.uniforms.uTransparentBackground!.value = this.options.transparentBackground ? 1 : 0;
     this.material.uniforms.uHdr10Mode!.value = this.options.hdr10 ? 1 : 0;
+    this.material.uniforms.uDitherEnabled!.value = this.options.dither ? 1 : 0;
     this.material.uniforms.uMobileCumulusMode!.value = resolveMobileCumulusMode(
       this.options,
       this.displayProfile
@@ -420,6 +447,27 @@ function resolveSurfaceModeValue(name: RaymarchCloudOptions["surfaceMode"]): num
     return 0;
   }
   return 0;
+}
+
+function resolveMorphologyStyleValue(name: RaymarchCloudOptions["morphologyStyle"]): number {
+  switch (name) {
+    case "baseline":
+      return 1;
+    case "macro-boundary":
+      return 2;
+    case "flatten":
+      return 3;
+    case "skew-twist":
+      return 4;
+    case "tear-silk":
+      return 5;
+    case "budding":
+      return 6;
+    case "giant-cumulonimbus":
+      return 7;
+    default:
+      return 0;
+  }
 }
 
 function resolveSystemCount(value: number | undefined): number {

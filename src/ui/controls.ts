@@ -51,6 +51,11 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     app.setOptions({ hdr10: next });
     elements.hdr10Button?.classList.toggle("enabled", next);
   });
+  elements.ditherButton?.addEventListener("click", () => {
+    const next = !app.getOptions().dither;
+    app.setOptions({ dither: next });
+    elements.ditherButton?.classList.toggle("enabled", next);
+  });
   elements.autoQualityButton?.addEventListener("click", () => {
     const enabled = !elements.autoQualityButton?.classList.contains("enabled");
     elements.autoQualityButton?.classList.toggle("enabled", enabled);
@@ -105,6 +110,9 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
   elements.surfaceSelect?.addEventListener("change", () => {
     const value = elements.surfaceSelect?.value;
     app.setOptions({ surfaceMode: value === "ocean" || value === "hills" ? value : "none" });
+  });
+  elements.morphologySelect?.addEventListener("change", () => {
+    app.setOptions({ morphologyStyle: resolveMorphologySelectValue(elements.morphologySelect?.value) });
   });
 
   bindNumberInput(elements.seedInput, (value) => app.setOptions({ seed: Math.max(1, Math.round(value)) }));
@@ -177,6 +185,7 @@ function collectControls(root: ParentNode) {
     gridButton: root.querySelector<HTMLButtonElement>("#btn-grid"),
     languageSelect: root.querySelector<HTMLSelectElement>("#select-language"),
     surfaceSelect: root.querySelector<HTMLSelectElement>("#select-surface"),
+    morphologySelect: root.querySelector<HTMLSelectElement>("#select-morphology"),
     seedInput: root.querySelector<HTMLInputElement>("#input-seed"),
     randomSeedButton: root.querySelector<HTMLButtonElement>("#btn-random-seed"),
     systemsSlider: root.querySelector<HTMLInputElement>("#slider-systems"),
@@ -184,6 +193,7 @@ function collectControls(root: ParentNode) {
     qualitySlider: root.querySelector<HTMLInputElement>("#slider-quality"),
     qualityReadout: root.querySelector<HTMLElement>("#quality-readout"),
     hdr10Button: root.querySelector<HTMLButtonElement>("#btn-hdr10"),
+    ditherButton: root.querySelector<HTMLButtonElement>("#btn-dither"),
     tropoSlider: root.querySelector<HTMLInputElement>("#slider-tropo"),
     tropoReadout: root.querySelector<HTMLElement>("#tropo-readout"),
     freezingSlider: root.querySelector<HTMLInputElement>("#slider-freezing"),
@@ -262,6 +272,7 @@ function syncControls(
   setActive(elements.portraitButton, options.orientation === "portrait");
   setValue(elements.languageSelect, uiLanguage);
   setValue(elements.surfaceSelect, options.surfaceMode ?? "none");
+  setValue(elements.morphologySelect, options.morphologyStyle ?? "seeded");
   setValue(elements.seedInput, String(options.seed ?? 574));
   setValue(elements.systemsSlider, String(options.systems ?? 1));
   setValue(elements.tropoSlider, String(options.tropopause ?? 11.2));
@@ -294,6 +305,7 @@ function syncControls(
   updateFpsLine(elements.fpsCounter, options, paused, elements);
   elements.gridButton?.classList.toggle("enabled", options.showGrid ?? false);
   elements.hdr10Button?.classList.toggle("enabled", options.hdr10 ?? false);
+  elements.ditherButton?.classList.toggle("enabled", options.dither ?? false);
 }
 
 function toggleSecondaryPanels(root: ParentNode): void {
@@ -483,6 +495,23 @@ function setValue(element: HTMLInputElement | HTMLSelectElement | null, value: s
 function setActive(element: HTMLElement | null, active: boolean): void {
   element?.classList.toggle("active", active);
   element?.setAttribute("aria-pressed", active ? "true" : "false");
+}
+
+function resolveMorphologySelectValue(
+  value: string | undefined
+): NonNullable<RuntimeOptions["morphologyStyle"]> {
+  switch (value) {
+    case "baseline":
+    case "macro-boundary":
+    case "flatten":
+    case "skew-twist":
+    case "tear-silk":
+    case "budding":
+    case "giant-cumulonimbus":
+      return value;
+    default:
+      return "seeded";
+  }
 }
 
 function setPlaybackButton(element: HTMLElement | null, paused: boolean): void {

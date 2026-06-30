@@ -251,10 +251,24 @@ function buildShellMarkup(
               </div>
               <button id="btn-auto-quality" class="btn-toggle quality-auto" type="button">Auto power</button>
               <button id="btn-hdr10" class="btn-toggle" type="button">HDR10</button>
+              <button id="btn-dither" class="btn-toggle" type="button">Dither</button>
             </div>
 
             <div class="control-group control-group--cloud-structure">
               <span class="control-group__label">Cloud structure</span>
+              <label class="select-group morphology-select">
+                <span>Morph</span>
+                <select id="select-morphology" class="tp-select">
+                  <option value="seeded">Seeded pool</option>
+                  <option value="baseline">Base sphere</option>
+                  <option value="macro-boundary">Macro edge</option>
+                  <option value="flatten">Flattened</option>
+                  <option value="skew-twist">Skew twist</option>
+                  <option value="tear-silk">Tear silk</option>
+                  <option value="budding">Budding</option>
+                  <option value="giant-cumulonimbus">Giant Cb</option>
+                </select>
+              </label>
               <div class="slider-group accent-red">
                 <label for="slider-tropo">Top</label>
                 <input id="slider-tropo" type="range" min="8" max="18" step="0.5" value="8">

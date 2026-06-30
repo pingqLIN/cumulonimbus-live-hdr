@@ -23,13 +23,21 @@ export const raymarchCloudFragmentShader = String.raw`
             uniform float uSunViewerAngle;
             uniform float uFreezingLevel;
             uniform float uWindShear;
+            uniform float uFbmOctaves;
+            uniform float uCloudCurl;
+            uniform float uMorphologyStyle;
             uniform float uPhotographicStyle;
             uniform float uLightPreset;
             uniform float uSkyMode;
             uniform float uTransparentBackground;
             uniform float uHdr10Mode;
+            uniform float uDitherEnabled;
             uniform float uHdrReferencePeakNits;
             uniform float uMobileCumulusMode;
+
+#ifndef CUMULONIMBUS_MORPHOLOGY_STYLE
+#define CUMULONIMBUS_MORPHOLOGY_STYLE 0
+#endif
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
@@ -50,6 +58,22 @@ export const raymarchCloudFragmentShader = String.raw`
                 float weight = 0.5;
                 for (int i = 0; i < 4; i++) {
                     f += weight * (1.0 - abs(noise(p * 2.0 - 1.0)));
+                    p = vec3(
+                        p.x * 1.74 + p.z * 0.31,
+                        p.y * 1.91 + p.x * 0.17,
+                        p.z * 1.63 - p.y * 0.23
+                    );
+                    weight *= 0.5;
+                }
+                return f;
+            }
+
+            float fbmAdaptive(vec3 p) {
+                float f = 0.0;
+                float weight = 0.5;
+                for (int i = 0; i < 6; i++) {
+                    float octaveGate = 1.0 - step(uFbmOctaves, float(i));
+                    f += octaveGate * weight * (1.0 - abs(noise(p * 2.0 - 1.0)));
                     p = vec3(
                         p.x * 1.74 + p.z * 0.31,
                         p.y * 1.91 + p.x * 0.17,
@@ -309,6 +333,253 @@ export const raymarchCloudFragmentShader = String.raw`
                 return smin(field, cbLobe(p, center, radius, phase, roughness), blend);
             }
 
+            float sphericalRecipe(float slot) {
+                return hash(uSeed * 0.0137 + slot * 17.371);
+            }
+
+            float sphericalTrait(float slot, float onset, float full) {
+                return smoothstep(onset, full, sphericalRecipe(slot));
+            }
+
+            float morphologyMask(float style) {
+                return 1.0 - step(0.5, abs(float(CUMULONIMBUS_MORPHOLOGY_STYLE) - style));
+            }
+
+            float morphologyForcedTrait(float seeded, float style, float strength) {
+                return clamp(max(seeded, morphologyMask(style) * strength), 0.0, 1.0);
+            }
+
+            vec3 sphericalRecipeAxis(float slot) {
+                float angle = sphericalRecipe(slot) * 6.28318;
+                float z = mix(-0.72, 0.72, sphericalRecipe(slot + 0.37));
+                float xy = sqrt(max(0.001, 1.0 - z * z));
+                return normalize(vec3(cos(angle) * xy, z, sin(angle) * xy));
+            }
+
+            vec3 sphericalCloudCenter() {
+                return vec3(
+                    (hash(uSeed * 0.017 + 11.7) - 0.5) * 0.44,
+                    mix(0.24, 0.82, hash(uSeed * 0.019 + 23.1)),
+                    (hash(uSeed * 0.013 + 31.4) - 0.5) * 0.36
+                );
+            }
+
+            float sphericalCloudRadius() {
+                return mix(2.38, 2.92, hash(uSeed * 0.021 + 41.6));
+            }
+
+            float sphericalHeightCoverage(vec3 modelP) {
+                vec3 center = sphericalCloudCenter();
+                float radius = sphericalCloudRadius();
+                float h = clamp((modelP.y - (center.y - radius)) / max(0.001, radius * 2.0), 0.0, 1.0);
+                float buoyantCore = mix(0.42, 0.58, hash(uSeed * 0.027 + 53.2));
+                float falloff = mix(1.34, 1.72, hash(uSeed * 0.031 + 61.8));
+                float coverage = 1.0 - pow(abs(h - buoyantCore) * falloff, 2.0);
+                return clamp(coverage, 0.22, 1.0);
+            }
+
+            vec3 sphericalMorphLocal(vec3 local, float phase) {
+                float radius = sphericalCloudRadius();
+                float curl01 = clamp(uCloudCurl / 1.2, 0.0, 1.0);
+                float flattenTrait = sphericalTrait(62.0, 0.58, 0.92);
+                float skewTrait = sphericalTrait(63.0, 0.52, 0.9);
+                float twistTrait = sphericalTrait(64.0, 0.62, 0.94);
+                float baselineStyle = morphologyMask(1.0);
+                float skewTwistStyle = morphologyMask(4.0);
+                flattenTrait = morphologyForcedTrait(flattenTrait, 3.0, 1.0) * (1.0 - baselineStyle);
+                skewTrait = morphologyForcedTrait(skewTrait, 4.0, 1.0) * (1.0 - baselineStyle);
+                twistTrait = morphologyForcedTrait(twistTrait, 4.0, 1.0) * (1.0 - baselineStyle);
+                float h = clamp(local.y / max(0.001, radius * 2.0) + 0.5, 0.0, 1.0);
+                vec2 windAxis = windShearAxis(uSeed * 0.006 + 9.0);
+                vec2 crossAxis = vec2(-windAxis.y, windAxis.x);
+
+                float verticalScale = mix(1.52, mix(0.46, 0.74, sphericalRecipe(65.0)), flattenTrait);
+                verticalScale *= mix(1.0, 1.16, skewTwistStyle);
+                local.y /= max(0.32, verticalScale);
+                float flatWideScale = mix(1.0, mix(1.28, 1.82, sphericalRecipe(66.0)), flattenTrait);
+                float flatNarrowScale = mix(1.0, mix(1.12, 1.54, sphericalRecipe(68.0)), flattenTrait);
+                flatWideScale *= mix(1.0, 1.56, skewTwistStyle);
+                flatNarrowScale *= mix(1.0, 1.28, skewTwistStyle);
+                float alongWind = dot(local.xz, windAxis);
+                float crossWind = dot(local.xz, crossAxis);
+                local.xz = windAxis * (alongWind / flatWideScale) + crossAxis * (crossWind * flatNarrowScale);
+
+                float skewProfile = mix(-0.54, 0.68, sphericalRecipe(67.0));
+                float skewDirection = mix(-1.0, 1.0, step(0.5, sphericalRecipe(67.0)));
+                skewProfile = mix(skewProfile, skewDirection * mix(0.74, 1.04, sphericalRecipe(72.0)), skewTwistStyle);
+                float skew = (h - 0.5) * radius * skewProfile
+                    * max(uWindShear, mix(0.0, 0.74, skewTwistStyle))
+                    * mix(1.0, 2.45, skewTwistStyle)
+                    * skewTrait;
+                local.xz -= windAxis * skew;
+
+                float twistAmount = mix(-1.55, 1.55, sphericalRecipe(70.0)) * curl01 * mix(0.22, 1.0, twistTrait) * mix(1.0, 1.64, skewTwistStyle);
+                float turbulentTwist = (noise(local * 0.21 + vec3(phase, uSeed * 0.005, -phase)) - 0.5) * 0.28 * curl01 * twistTrait * mix(1.0, 1.9, skewTwistStyle);
+                float twist = (h - 0.5) * twistAmount + turbulentTwist;
+                mat2 twistMatrix = mat2(cos(twist), -sin(twist), sin(twist), cos(twist));
+                local.xz = twistMatrix * local.xz;
+
+                float lean = (h - 0.5) * radius * mix(-0.14, 0.22, sphericalRecipe(71.0))
+                    * max(uWindShear, mix(0.0, 0.68, skewTwistStyle))
+                    * mix(0.35, 1.0, skewTrait)
+                    * mix(1.0, 2.4, skewTwistStyle);
+                local.xz -= windAxis * lean;
+                return local;
+            }
+
+            float sphericalSupercontrastBoundary(vec3 local, float phase, float coverage) {
+                float r = max(0.001, length(local));
+                vec3 normal = local / r;
+                float curl01 = clamp(uCloudCurl / 1.2, 0.0, 1.0);
+                float macroTrait = sphericalTrait(60.0, 0.62, 0.95);
+                float macroPulse = sphericalTrait(61.0, 0.78, 0.97);
+                float baselineStyle = morphologyMask(1.0);
+                macroTrait = morphologyForcedTrait(macroTrait, 2.0, 1.0);
+                macroPulse = morphologyForcedTrait(macroPulse, 2.0, 0.82);
+                float macroStrength = clamp(macroTrait * 1.38 + macroPulse * 0.62, 0.0, 1.75);
+                macroStrength *= 1.0 - baselineStyle;
+                vec3 stretchAxis = sphericalRecipeAxis(80.0);
+                vec3 protrudeAxis = sphericalRecipeAxis(90.0);
+                vec3 compressAxis = sphericalRecipeAxis(100.0);
+
+                float stretchGate = sphericalTrait(83.0, 0.46, 0.86);
+                float protrudeGate = sphericalTrait(93.0, 0.48, 0.88);
+                float compressGate = sphericalTrait(103.0, 0.52, 0.9);
+                stretchGate = morphologyForcedTrait(stretchGate, 2.0, 1.0) * (1.0 - baselineStyle);
+                protrudeGate = morphologyForcedTrait(protrudeGate, 2.0, 1.0) * (1.0 - baselineStyle);
+                compressGate = morphologyForcedTrait(compressGate, 2.0, 0.68) * (1.0 - baselineStyle);
+                float stretchPower = mix(1.25, 3.4, sphericalRecipe(81.0));
+                float stretch = pow(abs(dot(normal, stretchAxis)), stretchPower)
+                    * mix(0.10, 0.74, sphericalRecipe(82.0)) * stretchGate;
+                float protrude = pow(max(0.0, dot(normal, protrudeAxis)), mix(1.65, 5.8, sphericalRecipe(91.0)))
+                    * mix(0.12, 0.86, sphericalRecipe(92.0)) * protrudeGate;
+                float compress = pow(max(0.0, dot(normal, compressAxis)), mix(1.4, 4.8, sphericalRecipe(101.0)))
+                    * mix(0.10, 0.68, sphericalRecipe(102.0)) * compressGate;
+
+                float contour = fbmAdaptive(normal * mix(4.8, 8.8, sphericalRecipe(110.0)) + vec3(phase * 0.12, uSeed * 0.004, -phase * 0.07));
+                float hardRidge = smoothstep(0.54, 0.60, contour) * (1.0 - smoothstep(0.76, 0.86, contour));
+                float hardNotch = smoothstep(0.20, 0.30, contour) * (1.0 - smoothstep(0.42, 0.50, contour));
+                float contourGate = sphericalTrait(112.0, 0.62, 0.94) * smoothstep(0.08, 0.42, macroStrength);
+                contourGate = max(contourGate, morphologyMask(2.0) * smoothstep(0.08, 0.42, macroStrength) * 0.85);
+                float profile = stretch + protrude - compress + (hardRidge - hardNotch * 0.72) * mix(0.04, 0.32, sphericalRecipe(111.0)) * contourGate;
+                return profile * macroStrength * mix(0.58, 1.18, curl01) * mix(0.72, 1.14, coverage);
+            }
+
+            float sphericalRadialVariation(vec3 local, float phase) {
+                float r = max(0.001, length(local));
+                vec3 normal = local / r;
+                float curl = clamp(uCloudCurl, 0.0, 1.2);
+                float drift = uTime * mix(0.018, 0.046, curl / 1.2);
+                vec3 broadDomain = normal * mix(1.52, 2.48, hash(uSeed * 0.033 + 73.0))
+                    + vec3(phase * 0.13 + drift, uSeed * 0.003, -phase * 0.09);
+                vec3 cellularDomain = normal * mix(3.1, 5.2, hash(uSeed * 0.039 + 83.4))
+                    + vec3(-phase * 0.11, phase * 0.07 + drift, uSeed * 0.005);
+                float broad = fbmAdaptive(broadDomain);
+                float cellular = fbmAdaptive(cellularDomain + broad * 0.8);
+                float scallop =
+                    sin(normal.x * mix(8.0, 14.0, hash(uSeed * 0.043 + 97.0)) + phase) *
+                    cos(normal.y * mix(7.0, 11.0, hash(uSeed * 0.047 + 103.0)) - phase * 0.6) *
+                    sin(normal.z * mix(8.0, 13.0, hash(uSeed * 0.051 + 109.0)) + phase * 0.3);
+                float baselineStyle = morphologyMask(1.0);
+                return ((broad - 0.5) * 0.52 + (cellular - 0.47) * 0.36 + scallop * 0.075)
+                    * mix(0.48, 0.92, curl / 1.2)
+                    * mix(1.0, 0.32, baselineStyle);
+            }
+
+            float mapSphericalCloudMacro(vec3 p) {
+                vec3 modelP = worldToModelSpace(p);
+                vec3 center = sphericalCloudCenter();
+                float radius = sphericalCloudRadius();
+                float phase = uSeed * 0.017 + uTime * 0.018;
+                vec3 local = sphericalMorphLocal(modelP - center, phase);
+                float coverage = sphericalHeightCoverage(modelP);
+                float radialVariation = sphericalRadialVariation(local, phase);
+                float boundaryProfile = sphericalSupercontrastBoundary(local, phase, coverage);
+                float buoyancyInflation = (coverage - 0.56) * mix(0.18, 0.34, clamp(uCloudCurl, 0.0, 1.2) / 1.2);
+                return length(local) - (radius + radialVariation + boundaryProfile + buoyancyInflation);
+            }
+
+            float mapBuddingCloudMacro(vec3 p) {
+                vec3 modelP = worldToModelSpace(p);
+                vec3 center = sphericalCloudCenter();
+                float radius = sphericalCloudRadius();
+                float phase = uSeed * 0.017 + uTime * 0.018;
+                vec2 windAxis2 = windShearAxis(uSeed * 0.006 + 9.0);
+                vec3 budDir = normalize(vec3(
+                    mix(0.82, 1.0, abs(windAxis2.x)) * sign(windAxis2.x + 0.001),
+                    mix(0.1, 0.28, sphericalRecipe(150.0)),
+                    windAxis2.y * 0.18
+                ));
+
+                vec3 mainLocal = sphericalMorphLocal(modelP - center, phase);
+                float mainCoverage = sphericalHeightCoverage(modelP);
+                float mainProfile = sphericalRadialVariation(mainLocal, phase) * 0.68
+                    + sphericalSupercontrastBoundary(mainLocal, phase, mainCoverage) * 0.32;
+                float main = length(mainLocal) - radius * 0.96 - mainProfile;
+
+                vec3 budCenter = center + budDir * radius * mix(0.72, 0.86, sphericalRecipe(151.0));
+                budCenter.y += radius * mix(-0.02, 0.16, sphericalRecipe(152.0));
+                float budRadius = radius * mix(0.42, 0.58, sphericalRecipe(153.0));
+                vec3 budLocal = sphericalMorphLocal(modelP - budCenter, phase + 1.7);
+                float budProfile = sphericalRadialVariation(budLocal * 1.18, phase + 1.7) * 0.38
+                    + sphericalSupercontrastBoundary(budLocal, phase + 1.7, 0.74) * 0.18;
+                float bud = length(budLocal) - budRadius - budProfile;
+
+                vec3 neckCenter = center + budDir * radius * 0.66;
+                neckCenter.y += radius * 0.04;
+                float neck = length(modelP - neckCenter) - radius * mix(0.34, 0.48, sphericalRecipe(154.0));
+                return smin(smin(main, bud, radius * 0.34), neck, radius * 0.24);
+            }
+
+            float mapOriginalGiantCumulonimbusMacro(vec3 p) {
+                float widthStretch = mix(1.0, 1.12, smoothstep(0.5, 2.0, uAspect));
+                vec3 layoutP = p;
+                layoutP.x /= widthStretch;
+                vec3 modelP = worldToModelSpace(layoutP);
+                float photo = uPhotographicStyle;
+                float seedPhase = uSeed * 0.0027;
+
+                float tower = getCell01(
+                    modelP,
+                    vec2(0.0, 0.0),
+                    mix(3.55, 2.28, photo),
+                    seedPhase,
+                    5.35,
+                    0.64,
+                    1.54,
+                    0.0,
+                    mix(1.26, 0.94, photo)
+                );
+                float feederLeft = getCell01(
+                    modelP,
+                    vec2(-2.04, -0.64),
+                    mix(2.72, 1.82, photo),
+                    seedPhase + 2.1,
+                    mix(4.25, 3.58, photo),
+                    0.78,
+                    1.16,
+                    0.16,
+                    mix(0.88, 0.56, photo)
+                );
+                float feederRight = getCell01(
+                    modelP,
+                    vec2(1.82, 0.56),
+                    mix(2.48, 1.68, photo),
+                    seedPhase + 4.2,
+                    mix(4.7, 3.82, photo),
+                    0.84,
+                    1.92,
+                    0.12,
+                    mix(1.08, 0.7, photo)
+                );
+
+                float macro = smin(tower, feederLeft, mix(1.38, 0.96, photo));
+                macro = smin(macro, feederRight, mix(1.24, 0.88, photo));
+                float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.32 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.18);
+                float groundLimiter = (MODEL_LOCAL_BASE - 0.42) - modelP.y;
+                return smax(smax(macro, capLimiter, 0.2), groundLimiter, 0.26);
+            }
+
             float mapMobileCumulusMacro(vec3 p) {
                 float widthStretch = mix(1.0, 1.08, smoothstep(0.5, 2.0, uAspect));
                 vec3 layoutP = p;
@@ -351,6 +622,15 @@ export const raymarchCloudFragmentShader = String.raw`
                 if (uMobileCumulusMode > 0.5) {
                     macro = mapMobileCumulusMacro(p);
                 } else {
+#if CUMULONIMBUS_SINGLE_CLOUD
+#if CUMULONIMBUS_MORPHOLOGY_STYLE == 7
+                    macro = mapOriginalGiantCumulonimbusMacro(p);
+#elif CUMULONIMBUS_MORPHOLOGY_STYLE == 6
+                    macro = mapBuddingCloudMacro(p);
+#else
+                    macro = mapSphericalCloudMacro(p);
+#endif
+#else
 
                     float widthStretch = mix(1.0, 1.2, smoothstep(0.5, 2.0, uAspect));
                     vec3 layoutP = p;
@@ -405,6 +685,7 @@ export const raymarchCloudFragmentShader = String.raw`
                     float capLimiter = modelP.y - (MODEL_LOCAL_TROPO + 0.2 + (noise(vec3(modelP.xz * 0.18, uSeed * 0.23)) - 0.5) * 0.14);
                     float groundLimiter = (MODEL_LOCAL_BASE - 0.35) - modelP.y;
                     macro = smax(smax(macro, capLimiter, 0.18), groundLimiter, 0.22);
+#endif
                 }
                 return macro;
             }
@@ -459,9 +740,63 @@ export const raymarchCloudFragmentShader = String.raw`
                     float photo = uPhotographicStyle;
                     float mobileFullness = step(0.5, uMobileCumulusMode);
                     float carving = noise(q * 0.4 + uTime * 0.1) * mix(1.5, 1.28, photo) * mix(1.0, 0.72, mobileFullness);
-                    float details = fbm(q * 1.2) * 1.0;
-                    float microBillow = fbm(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(uSeed * 0.017, 1.9, uTime * 0.04));
-                    float broadBillow = fbm(vec3(q.x * 0.92, q.y * 1.24, q.z * 0.92) + vec3(uSeed * 0.023, 6.1, -uTime * 0.02));
+                    float details = fbmAdaptive(q * 1.2) * 1.0;
+                    float microBillow = fbmAdaptive(vec3(q.x * 1.9, q.y * 2.05, q.z * 1.9) + vec3(uSeed * 0.017, 1.9, uTime * 0.04));
+                    float broadBillow = fbmAdaptive(vec3(q.x * 0.92, q.y * 1.24, q.z * 0.92) + vec3(uSeed * 0.023, 6.1, -uTime * 0.02));
+#if CUMULONIMBUS_SINGLE_CLOUD
+#if CUMULONIMBUS_MORPHOLOGY_STYLE == 7
+                    float sphereCoverage = 0.74;
+                    float coverageErosion = broadBillow;
+                    float surfaceTrait = 0.0;
+                    float silkTrait = 0.0;
+                    float tearTrait = 0.0;
+                    float windTear = 0.0;
+                    float fuzzyShell = smoothstep(-0.36, 0.82, macro) * (1.0 - smoothstep(0.84, 1.0, macro));
+                    float silkEdge = 0.0;
+                    float leeEdge = 0.0;
+                    float tearNoise = 0.0;
+                    carving *= 0.78;
+                    details *= 0.95;
+#else
+                    float sphereCoverage = sphericalHeightCoverage(baseQ);
+                    float baselineStyle = morphologyMask(1.0);
+                    float tearSilkStyle = morphologyMask(5.0);
+                    float coverageErosion = fbmAdaptive(vec3(
+                        baseQ.x * 0.42 + uTime * 0.036,
+                        baseQ.y * 0.34 + uSeed * 0.011,
+                        baseQ.z * 0.42 - uTime * 0.018
+                    ));
+                    float spherePhase = uSeed * 0.017 + uTime * 0.018;
+                    vec3 sphereLocal = sphericalMorphLocal(baseQ - sphericalCloudCenter(), spherePhase);
+                    float sphereRadius = sphericalCloudRadius();
+                    vec2 sphereWindAxis = windShearAxis(uSeed * 0.006 + 9.0);
+                    vec2 sphereCrossAxis = vec2(-sphereWindAxis.y, sphereWindAxis.x);
+                    float sphereDownwind = dot(sphereLocal.xz, sphereWindAxis) / max(0.001, sphereRadius);
+                    float sphereCrosswind = dot(sphereLocal.xz, sphereCrossAxis) / max(0.001, sphereRadius);
+                    float fuzzyShell = smoothstep(-0.36, 0.82, macro) * (1.0 - smoothstep(0.84, 1.0, macro));
+                    float leeEdge = smoothstep(0.04, 0.96, sphereDownwind) * fuzzyShell;
+                    float fiberNoise = noise(vec3(
+                        sphereDownwind * mix(3.4, 5.8, sphericalRecipe(120.0)) + uTime * 0.055,
+                        sphereCrosswind * mix(7.0, 13.0, sphericalRecipe(121.0)),
+                        baseQ.y * mix(1.2, 2.4, sphericalRecipe(122.0)) + uSeed * 0.018
+                    ));
+                    float silkEdge = smoothstep(mix(0.50, 0.62, sphericalRecipe(123.0)), 0.88, fiberNoise) * fuzzyShell;
+                    float tearNoise = fbmAdaptive(vec3(
+                        sphereDownwind * 2.8 + uTime * 0.04,
+                        sphereCrosswind * 3.7 + uSeed * 0.009,
+                        baseQ.y * 1.1 - uTime * 0.026
+                    ));
+                    float surfaceTrait = sphericalTrait(128.0, 0.68, 0.96);
+                    float silkTrait = sphericalTrait(129.0, 0.84, 0.99);
+                    float tearTrait = sphericalTrait(130.0, 0.84, 0.99);
+                    surfaceTrait = morphologyForcedTrait(surfaceTrait, 5.0, 0.92) * (1.0 - baselineStyle);
+                    silkTrait = morphologyForcedTrait(silkTrait, 5.0, 1.0) * (1.0 - baselineStyle);
+                    tearTrait = morphologyForcedTrait(tearTrait, 5.0, 1.0) * (1.0 - baselineStyle);
+                    float windTear = leeEdge * smoothstep(mix(0.40, 0.60, sphericalRecipe(124.0)), 0.86, tearNoise)
+                        * mix(0.45, 1.28, uWindShear) * mix(1.0, 1.34, tearSilkStyle) * tearTrait;
+                    details *= mix(0.95, 1.08 + clamp(uCloudCurl, 0.0, 1.2) * 0.1, surfaceTrait);
+#endif
+#endif
                     vec2 iceAxis = windShearAxis(uSeed * 0.003 + 4.0);
                     float iceFiber = noise(vec3(
                         dot(q.xz, iceAxis) * 0.18 + uTime * 0.026,
@@ -471,6 +806,17 @@ export const raymarchCloudFragmentShader = String.raw`
                     float towerBand = smoothstep(0.12, 0.58, height01) * (1.0 - smoothstep(0.78, 1.02, height01));
                     float surfaceShell = smoothstep(-0.7, 0.16, macro) * (1.0 - smoothstep(0.18, 0.82, macro));
                     d += details - carving * 0.8;
+#if CUMULONIMBUS_SINGLE_CLOUD
+                    float coreFullness = 1.0 - smoothstep(-0.48, 0.22, macro);
+                    d += coreFullness * mix(0.18, 0.08, surfaceTrait);
+                    d *= mix(0.88, 1.12, sphereCoverage);
+                    d += (sphereCoverage - 0.5) * 0.14;
+                    d += surfaceShell * (coverageErosion - 0.5) * mix(0.04, 0.34, surfaceTrait) * mix(0.74, 1.2, clamp(uCloudCurl, 0.0, 1.2) / 1.2);
+                    d -= surfaceShell * smoothstep(0.70, 0.94, coverageErosion) * mix(0.02, 0.12, surfaceTrait);
+                    d -= surfaceShell * windTear * mix(0.24, 0.64, sphericalRecipe(125.0));
+                    d += fuzzyShell * silkEdge * silkTrait * mix(0.08, 0.26, sphericalRecipe(126.0)) * (1.0 - windTear * 0.5);
+                    d += leeEdge * tearTrait * (1.0 - smoothstep(0.52, 0.92, tearNoise)) * mix(0.03, 0.14, sphericalRecipe(127.0));
+#endif
                     d += mobileFullness * smoothstep(-0.62, 0.12, macro) * (1.0 - smoothstep(0.20, 0.74, macro)) * 0.18;
                     d += surfaceShell * towerBand * (microBillow - 0.46) * mix(0.42, 0.74, photo);
                     d += surfaceShell * (1.0 - anvilBand) * (broadBillow - 0.44) * mix(0.0, 0.42, photo);
@@ -552,6 +898,18 @@ export const raymarchCloudFragmentShader = String.raw`
                 vec3 pqCode = nitsToPq(mappedNits);
                 vec3 daylightBalance = mix(vec3(0.92, 0.96, 1.04), vec3(1.06, 1.02, 0.94), sunHeight01 * (0.35 + cloudForwardScatter * 0.45));
                 return clamp(pow(pqCode, vec3(1.0 / 1.18)) * daylightBalance, 0.0, 1.0);
+            }
+
+            float interleavedGradientNoise(vec2 pixel) {
+                return fract(52.9829189 * fract(0.06711056 * pixel.x + 0.00583715 * pixel.y));
+            }
+
+            vec3 applyDisplayDither(vec3 displayColor) {
+                if (uDitherEnabled < 0.5) {
+                    return displayColor;
+                }
+                float dither = interleavedGradientNoise(gl_FragCoord.xy) - 0.5;
+                return clamp(displayColor + vec3(dither / 255.0), 0.0, 1.0);
             }
 
             vec3 gridOverlay(vec3 col, vec3 ro, vec3 rd) {
@@ -835,6 +1193,7 @@ export const raymarchCloudFragmentShader = String.raw`
                 vec3 sdrColor = pow(ACESFilm(col), vec3(1.0 / 2.2));
                 vec3 hdr10Color = hdr10ReferencePreview(col, densityAcc, sunHeight01, sunForward);
                 col = mix(sdrColor, hdr10Color, uHdr10Mode);
+                col = applyDisplayDither(col);
                 float finalAlpha = mix(1.0, densityAcc, uTransparentBackground);
                 gl_FragColor = vec4(col, finalAlpha);
             }

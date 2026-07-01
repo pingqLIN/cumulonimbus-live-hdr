@@ -1,5 +1,4 @@
 import { type Orientation, type RenderMode, type RuntimeOptions } from "../app/runtime-options.js";
-import { CLOUD_MORPHOLOGY_LIBRARY } from "../app/cloud-morphology-library.js";
 
 export type AppShell = {
   readonly root: HTMLElement;
@@ -267,13 +266,6 @@ function buildShellMarkup(
 
             <div class="control-group control-group--cloud-structure">
               <span class="control-group__label">Cloud structure</span>
-              <label class="select-group morphology-select">
-                <span>Morph</span>
-                <select id="select-morphology" class="tp-select">
-                  ${buildMorphologySelectOptions()}
-                </select>
-              </label>
-              ${buildMorphologyLibraryMarkup()}
               <div class="slider-group accent-red">
                 <label for="slider-tropo">Top</label>
                 <input id="slider-tropo" type="range" min="8" max="18" step="0.5" value="8">
@@ -369,52 +361,4 @@ function resolveInitialCanvasSize(options: RuntimeOptions): { width: number; hei
     width: Math.round(options.simWidth ?? fallback.width),
     height: Math.round(options.simHeight ?? fallback.height)
   };
-}
-
-function buildMorphologySelectOptions(): string {
-  return CLOUD_MORPHOLOGY_LIBRARY.map(
-    (entry) => `<option value="${entry.value}">${escapeHtml(entry.label)}</option>`
-  ).join("");
-}
-
-function buildMorphologyLibraryMarkup(): string {
-  const cards = CLOUD_MORPHOLOGY_LIBRARY.map(
-    (entry) => `
-      <button class="morphology-card" type="button" data-morphology-style="${entry.value}" aria-pressed="false">
-        <span class="morphology-card__code">${escapeHtml(entry.code)}</span>
-        <strong>${escapeHtml(entry.label)}</strong>
-        <span class="morphology-card__intent">${escapeHtml(entry.intent)}</span>
-        <em>${entry.traits.map(escapeHtml).join(" / ")}</em>
-      </button>`
-  ).join("");
-
-  return `
-    <div id="cloud-morphology-library" class="morphology-library" aria-label="Cloud morphology library">
-      <div class="morphology-library__status" aria-live="polite">
-        <span class="morphology-library__eyebrow">Morphology database</span>
-        <strong id="morphology-library-current">Seeded pool</strong>
-        <small id="morphology-library-intent">Seed-driven blend of macro silhouette, surface breakup, and edge traits.</small>
-      </div>
-      <div class="morphology-library__grid" role="list" aria-label="Available morphology styles">
-        ${cards}
-      </div>
-    </div>
-  `;
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (match) => {
-    switch (match) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return "&#39;";
-    }
-  });
 }

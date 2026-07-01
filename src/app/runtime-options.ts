@@ -1,5 +1,4 @@
 import { type BrowserDisplayProfile } from "./display-profile.js";
-import { resolveCloudMorphologyStyleAlias } from "./cloud-morphology-library.js";
 import { type RaymarchCloudOptions } from "./raymarch-cloud-renderer.js";
 
 export const SAFE_LIVE_MAX_PIXELS = 1280 * 720;
@@ -9,6 +8,8 @@ export const ATTACHED_06_STEP_SIZE = 0.18;
 export const ATTACHED_06_MOBILE_STEP_SIZE = 0.2;
 export const ATTACHED_06_MAX_STEPS = 142;
 export const ATTACHED_06_MOBILE_MAX_STEPS = 133;
+const STABLE_CLOUD_MORPHOLOGY_STYLE =
+  "giant-cumulonimbus" satisfies RaymarchCloudOptions["morphologyStyle"];
 
 export type Orientation = "portrait" | "landscape";
 export type RenderMode = "canvas" | "page";
@@ -241,15 +242,7 @@ export function resolveRuntimeOptions(
     ortho: readBoolean(params, ["ortho"], preset.ortho ?? false),
     showGrid: readBoolean(params, ["grid", "showGrid"], preset.showGrid ?? false),
     surfaceMode: resolveSurfaceMode(params.get("surface")) ?? preset.surfaceMode ?? "none",
-    morphologyStyle:
-      resolveMorphologyStyle(
-        params.get("morphologyStyle") ??
-          params.get("morphology") ??
-          params.get("shapeStyle") ??
-          params.get("shape")
-      ) ??
-      preset.morphologyStyle ??
-      "giant-cumulonimbus",
+    morphologyStyle: STABLE_CLOUD_MORPHOLOGY_STYLE,
     mobileCumulusMode: readBoolean(
       params,
       ["mobileCumulusMode", "mobileShape"],
@@ -587,12 +580,6 @@ function resolveSurfaceMode(value: string | null): RaymarchCloudOptions["surface
     return value;
   }
   return undefined;
-}
-
-function resolveMorphologyStyle(
-  value: string | null
-): RaymarchCloudOptions["morphologyStyle"] | undefined {
-  return resolveCloudMorphologyStyleAlias(value);
 }
 
 function readTransparentBackground(params: URLSearchParams): boolean {

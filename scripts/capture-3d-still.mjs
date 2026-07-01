@@ -116,6 +116,7 @@ try {
     processCleanup: {
       browser: result.processCleanup
     },
+    uiState: result.uiState,
     analysis
   };
 } finally {
@@ -316,6 +317,8 @@ async function runBrowserCdpScreenshot(browser, targetUrl, targetOutputPath, opt
     );
     await delay(options.waitMs);
 
+    const uiState = await readCaptureUiState(client);
+
     if (runtimeErrors.length > 0) {
       throw new Error(`Browser runtime errors during capture: ${runtimeErrors.join("\n")}`);
     }
@@ -340,6 +343,7 @@ async function runBrowserCdpScreenshot(browser, targetUrl, targetOutputPath, opt
       status: 0,
       stdout: "",
       stderr: "",
+      uiState,
       processCleanup: stopProcessTree(child)
     };
   } catch (error) {
@@ -356,6 +360,23 @@ async function runBrowserCdpScreenshot(browser, targetUrl, targetOutputPath, opt
       // Ignore CDP close races while tearing down the browser.
     }
   }
+}
+
+async function readCaptureUiState(client) {
+  const result = await client.send("Runtime.evaluate", {
+    returnByValue: true,
+    expression: `(() => ({
+      href: location.href,
+      renderStatus: document.documentElement.dataset.renderStatus || '',
+      morphology: document.documentElement.dataset.morphology || '',
+      hasMorphSelect: Boolean(document.querySelector('#select-morphology')),
+      hasMorphLibrary: Boolean(document.querySelector('#cloud-morphology-library')),
+      morphButtonCount: document.querySelectorAll('[data-morphology-style]').length,
+      textHasMorphologyDatabase: document.body.innerText.includes('Morphology database'),
+      textHasMacroEdge: document.body.innerText.includes('Macro edge')
+    }))()`
+  });
+  return result.result?.value ?? null;
 }
 
 async function waitForCanvasRuntime(client, timeoutMs, width, height, runtimeErrors, expectExactCanvasSize) {

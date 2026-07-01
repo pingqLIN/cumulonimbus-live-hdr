@@ -1,10 +1,5 @@
 import { type CloudAppController, type RenderStats } from "../app/cloud-app.js";
 import {
-  getCloudMorphologyEntry,
-  isCloudMorphologyStyle,
-  resolveCloudMorphologyStyleAlias
-} from "../app/cloud-morphology-library.js";
-import {
   createMobileQualityPatch,
   getMobileQualitySettings,
   getNextMobileQualityTier,
@@ -118,20 +113,6 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     const value = elements.surfaceSelect?.value;
     app.setOptions({ surfaceMode: value === "ocean" || value === "hills" ? value : "none" });
   });
-  elements.morphologySelect?.addEventListener("change", () => {
-    const morphologyStyle = resolveMorphologySelectValue(elements.morphologySelect?.value);
-    app.setOptions({
-      morphologyStyle
-    });
-    syncMorphologyLibrary(elements, morphologyStyle);
-  });
-  for (const button of elements.morphologyButtons) {
-    button.addEventListener("click", () => {
-      const morphologyStyle = resolveMorphologySelectValue(button.dataset.morphologyStyle);
-      app.setOptions({ morphologyStyle });
-      syncControls(elements, app.getOptions(), app.isPaused());
-    });
-  }
 
   bindNumberInput(elements.seedInput, (value) =>
     app.setOptions({ seed: Math.max(1, Math.round(value)) })
@@ -230,10 +211,6 @@ function collectControls(root: ParentNode) {
     gridButton: root.querySelector<HTMLButtonElement>("#btn-grid"),
     languageSelect: root.querySelector<HTMLSelectElement>("#select-language"),
     surfaceSelect: root.querySelector<HTMLSelectElement>("#select-surface"),
-    morphologySelect: root.querySelector<HTMLSelectElement>("#select-morphology"),
-    morphologyButtons: [...root.querySelectorAll<HTMLButtonElement>("[data-morphology-style]")],
-    morphologyCurrentLabel: root.querySelector<HTMLElement>("#morphology-library-current"),
-    morphologyCurrentIntent: root.querySelector<HTMLElement>("#morphology-library-intent"),
     seedInput: root.querySelector<HTMLInputElement>("#input-seed"),
     randomSeedButton: root.querySelector<HTMLButtonElement>("#btn-random-seed"),
     systemsSlider: root.querySelector<HTMLInputElement>("#slider-systems"),
@@ -394,8 +371,6 @@ function syncControls(
   setActive(elements.portraitButton, options.orientation === "portrait");
   setValue(elements.languageSelect, uiLanguage);
   setValue(elements.surfaceSelect, options.surfaceMode ?? "none");
-  setValue(elements.morphologySelect, options.morphologyStyle ?? "seeded");
-  syncMorphologyLibrary(elements, options.morphologyStyle ?? "seeded");
   setValue(elements.seedInput, String(options.seed ?? 574));
   setValue(elements.systemsSlider, String(options.systems ?? 1));
   setValue(elements.tropoSlider, String(options.tropopause ?? 11.2));
@@ -613,28 +588,6 @@ function setValue(element: HTMLInputElement | HTMLSelectElement | null, value: s
 function setActive(element: HTMLElement | null, active: boolean): void {
   element?.classList.toggle("active", active);
   element?.setAttribute("aria-pressed", active ? "true" : "false");
-}
-
-function resolveMorphologySelectValue(
-  value: string | undefined
-): NonNullable<RuntimeOptions["morphologyStyle"]> {
-  return resolveCloudMorphologyStyleAlias(value) ?? "seeded";
-}
-
-function syncMorphologyLibrary(
-  elements: ReturnType<typeof collectControls>,
-  value: RuntimeOptions["morphologyStyle"]
-): void {
-  const entry = getCloudMorphologyEntry(value);
-  updateText(elements.morphologyCurrentLabel, entry.label);
-  updateText(elements.morphologyCurrentIntent, entry.intent);
-  for (const button of elements.morphologyButtons) {
-    const active = isCloudMorphologyStyle(button.dataset.morphologyStyle)
-      ? button.dataset.morphologyStyle === entry.value
-      : false;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", active ? "true" : "false");
-  }
 }
 
 function setPlaybackButton(element: HTMLElement | null, paused: boolean): void {

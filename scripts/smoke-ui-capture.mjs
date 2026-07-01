@@ -24,6 +24,8 @@ const capture = spawnSync(
     readStringArg("--look", "demo-like"),
     "--simPreset",
     readStringArg("--simPreset", "low"),
+    "--morphology",
+    readStringArg("--morphology", "macro-boundary"),
     "--orientation",
     orientation,
     "--width",
@@ -54,9 +56,16 @@ const result = JSON.parse(capture.stdout);
 assert.equal(result.ok, true);
 assert.match(result.url, /[?&]view=3d(?:&|$)/);
 assert.match(result.url, /[?&]look=demo-like(?:&|$)/);
+assert.match(result.url, /[?&]morphology=macro-boundary(?:&|$)/);
 assert.match(result.url, new RegExp(`[?&]orientation=${orientation}(?:&|$)`));
 assert.doesNotMatch(result.url, /[?&]capture=1(?:&|$)/);
 assert.doesNotMatch(result.url, /[?&]live=1(?:&|$)/);
+assert.equal(result.uiState?.morphology, "giant-cumulonimbus");
+assert.equal(result.uiState?.hasMorphSelect, false);
+assert.equal(result.uiState?.hasMorphLibrary, false);
+assert.equal(result.uiState?.morphButtonCount, 0);
+assert.equal(result.uiState?.textHasMorphologyDatabase, false);
+assert.equal(result.uiState?.textHasMacroEdge, false);
 assert.ok(
   result.png.width > 0 && result.png.width <= width,
   `expected UI canvas width to be within 1..${width}, got ${result.png.width}`
@@ -79,7 +88,11 @@ assert.ok(
 );
 
 console.log(
-  JSON.stringify({ ok: true, outputPath, url: result.url, analysis: result.analysis }, null, 2)
+  JSON.stringify(
+    { ok: true, outputPath, url: result.url, uiState: result.uiState, analysis: result.analysis },
+    null,
+    2
+  )
 );
 
 function readNumberArg(name, fallback) {

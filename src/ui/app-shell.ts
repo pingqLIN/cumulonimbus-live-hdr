@@ -1,8 +1,5 @@
-import {
-  type Orientation,
-  type RenderMode,
-  type RuntimeOptions
-} from "../app/runtime-options.js";
+import { type Orientation, type RenderMode, type RuntimeOptions } from "../app/runtime-options.js";
+import { CLOUD_MORPHOLOGY_LIBRARY } from "../app/cloud-morphology-library.js";
 
 export type AppShell = {
   readonly root: HTMLElement;
@@ -12,8 +9,14 @@ export type AppShell = {
 
 export function createAppShell(options: RuntimeOptions): AppShell {
   const root = document.querySelector<HTMLElement>("#app") ?? document.body;
-  const compactControls = options.presetName === "mobile-cumulus" || options.displayProfile.mobileWideView;
-  root.innerHTML = buildShellMarkup(options.orientation, options.renderMode, compactControls, options.controlsVisible);
+  const compactControls =
+    options.presetName === "mobile-cumulus" || options.displayProfile.mobileWideView;
+  root.innerHTML = buildShellMarkup(
+    options.orientation,
+    options.renderMode,
+    compactControls,
+    options.controlsVisible
+  );
   if (compactControls) {
     configureCompactControlSurface(root);
   }
@@ -69,12 +72,20 @@ function configureCompactControlSurface(root: ParentNode): void {
   syncLocationButton?.remove();
 
   const gridButton = root.querySelector<HTMLButtonElement>("#btn-grid");
-  const seedRow = root.querySelector<HTMLInputElement>("#input-seed")?.closest<HTMLElement>(".slider-group");
+  const seedRow = root
+    .querySelector<HTMLInputElement>("#input-seed")
+    ?.closest<HTMLElement>(".slider-group");
   let seedToolsGroup: HTMLElement | null = null;
   if (seedRow) {
     seedToolsGroup = document.createElement("div");
     seedToolsGroup.className = "control-group control-group--compact-seed-tools";
     seedToolsGroup.innerHTML = '<span class="control-group__label">Seed</span>';
+    seedRow.querySelector<HTMLButtonElement>("#btn-random-seed")?.replaceChildren();
+    const randomSeedButton = seedRow.querySelector<HTMLButtonElement>("#btn-random-seed");
+    if (randomSeedButton) {
+      randomSeedButton.setAttribute("aria-label", "Randomize seed");
+      randomSeedButton.title = "Randomize seed";
+    }
     seedToolsGroup.append(seedRow);
   }
 
@@ -208,7 +219,7 @@ function buildShellMarkup(
               <span class="control-group__label">Time</span>
               <div class="slider-group">
                 <label for="slider-time">Speed</label>
-                <input id="slider-time" type="range" min="0" max="5" step="0.25" value="1">
+                <input id="slider-time" type="range" min="0" max="5" step="0.1" value="1">
                 <span id="time-readout" class="readout">1.0x</span>
               </div>
               <button id="btn-time-toggle" class="btn-toggle" type="button" aria-label="Resume">Resume</button>
@@ -259,16 +270,10 @@ function buildShellMarkup(
               <label class="select-group morphology-select">
                 <span>Morph</span>
                 <select id="select-morphology" class="tp-select">
-                  <option value="seeded">Seeded pool</option>
-                  <option value="baseline">Base sphere</option>
-                  <option value="macro-boundary">Macro edge</option>
-                  <option value="flatten">Flattened</option>
-                  <option value="skew-twist">Skew twist</option>
-                  <option value="tear-silk">Tear silk</option>
-                  <option value="budding">Budding</option>
-                  <option value="giant-cumulonimbus">Giant Cb</option>
+                  ${buildMorphologySelectOptions()}
                 </select>
               </label>
+              ${buildMorphologyLibraryMarkup()}
               <div class="slider-group accent-red">
                 <label for="slider-tropo">Top</label>
                 <input id="slider-tropo" type="range" min="8" max="18" step="0.5" value="8">
@@ -358,9 +363,58 @@ function requireElement<T extends Element>(selector: string): T {
 }
 
 function resolveInitialCanvasSize(options: RuntimeOptions): { width: number; height: number } {
-  const fallback = options.orientation === "landscape" ? { width: 960, height: 540 } : { width: 540, height: 960 };
+  const fallback =
+    options.orientation === "landscape" ? { width: 960, height: 540 } : { width: 540, height: 960 };
   return {
     width: Math.round(options.simWidth ?? fallback.width),
     height: Math.round(options.simHeight ?? fallback.height)
   };
+}
+
+function buildMorphologySelectOptions(): string {
+  return CLOUD_MORPHOLOGY_LIBRARY.map(
+    (entry) => `<option value="${entry.value}">${escapeHtml(entry.label)}</option>`
+  ).join("");
+}
+
+function buildMorphologyLibraryMarkup(): string {
+  const cards = CLOUD_MORPHOLOGY_LIBRARY.map(
+    (entry) => `
+      <button class="morphology-card" type="button" data-morphology-style="${entry.value}" aria-pressed="false">
+        <span class="morphology-card__code">${escapeHtml(entry.code)}</span>
+        <strong>${escapeHtml(entry.label)}</strong>
+        <span class="morphology-card__intent">${escapeHtml(entry.intent)}</span>
+        <em>${entry.traits.map(escapeHtml).join(" / ")}</em>
+      </button>`
+  ).join("");
+
+  return `
+    <div id="cloud-morphology-library" class="morphology-library" aria-label="Cloud morphology library">
+      <div class="morphology-library__status" aria-live="polite">
+        <span class="morphology-library__eyebrow">Morphology database</span>
+        <strong id="morphology-library-current">Seeded pool</strong>
+        <small id="morphology-library-intent">Seed-driven blend of macro silhouette, surface breakup, and edge traits.</small>
+      </div>
+      <div class="morphology-library__grid" role="list" aria-label="Available morphology styles">
+        ${cards}
+      </div>
+    </div>
+  `;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (match) => {
+    switch (match) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      default:
+        return "&#39;";
+    }
+  });
 }

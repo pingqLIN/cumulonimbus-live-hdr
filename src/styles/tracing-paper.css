@@ -53,7 +53,12 @@ body[data-controls-hidden="true"] .cloud-app-shell {
     linear-gradient(rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
     rgb(var(--tp-paper) / 0.52);
-  background-size: 96px 96px, 96px 96px, 12px 12px, 12px 12px, auto;
+  background-size:
+    96px 96px,
+    96px 96px,
+    12px 12px,
+    12px 12px,
+    auto;
   border: 1px solid var(--tp-line-heavy);
   border-radius: 0;
   box-shadow:
@@ -138,7 +143,9 @@ body[data-controls-hidden="true"] .cloud-app-shell {
   overflow: hidden;
   pointer-events: auto;
   resize: both;
-  transition: opacity 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .control-panel:hover,
@@ -447,6 +454,104 @@ button[aria-pressed="true"],
   font-weight: 760;
 }
 
+.morphology-library {
+  display: grid;
+  gap: 0.44rem;
+  padding: 0.42rem;
+  border: 1px solid var(--tp-line);
+  background: rgb(255 255 255 / 0.12);
+}
+
+.morphology-library__status {
+  display: grid;
+  gap: 0.12rem;
+  padding-bottom: 0.36rem;
+  border-bottom: 1px solid var(--tp-line);
+}
+
+.morphology-library__eyebrow,
+.morphology-card__code,
+.morphology-card em {
+  font-family: var(--tp-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.morphology-library__eyebrow {
+  color: var(--tp-text-faint);
+  font-size: 0.55rem;
+  font-weight: 760;
+}
+
+.morphology-library__status strong {
+  color: var(--tp-text);
+  font-family: var(--tp-font);
+  font-size: 0.78rem;
+  line-height: 1.08;
+}
+
+.morphology-library__status small {
+  color: var(--tp-text-soft);
+  font-family: var(--tp-font);
+  font-size: 0.58rem;
+  line-height: 1.34;
+}
+
+.morphology-library__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.32rem;
+}
+
+.morphology-card {
+  min-height: 4.9rem;
+  padding: 0.38rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.16rem 0.34rem;
+  text-align: left;
+}
+
+.morphology-card__code {
+  min-width: 2rem;
+  padding-top: 0.08rem;
+  color: var(--tp-text-faint);
+  font-size: 0.52rem;
+  font-weight: 780;
+}
+
+.morphology-card strong {
+  overflow: hidden;
+  color: var(--tp-text);
+  font-size: 0.64rem;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.morphology-card__intent {
+  grid-column: 1 / -1;
+  color: var(--tp-text-soft);
+  font-size: 0.56rem;
+  line-height: 1.26;
+}
+
+.morphology-card em {
+  grid-column: 1 / -1;
+  color: var(--tp-text-faint);
+  font-size: 0.5rem;
+  font-style: normal;
+  line-height: 1.15;
+}
+
+.morphology-card.active,
+.morphology-card[aria-pressed="true"] {
+  border-color: rgb(var(--tp-ink) / 0.76);
+  background: rgb(246 242 236 / 0.36);
+  box-shadow: inset 0 0 0 1px rgb(var(--tp-ink) / 0.16);
+}
+
 .seed-input,
 .time-input {
   width: 100%;
@@ -690,10 +795,15 @@ button[aria-pressed="true"],
     border-top: 1px solid var(--tp-line);
     padding: 0.4rem 0 0;
   }
+
+  .morphology-library__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .cloud-app-shell--compact #ui-bar {
-  inset: auto max(0.55rem, env(safe-area-inset-right)) max(0.55rem, env(safe-area-inset-bottom)) max(0.55rem, env(safe-area-inset-left));
+  inset: auto max(0.55rem, env(safe-area-inset-right)) max(0.55rem, env(safe-area-inset-bottom))
+    max(0.55rem, env(safe-area-inset-left));
   height: auto;
   max-height: min(58dvh, 30rem);
   display: flex;
@@ -704,11 +814,29 @@ button[aria-pressed="true"],
 
 .cloud-app-shell--compact .hud-panel {
   top: max(0.5rem, env(safe-area-inset-top));
-  left: max(0.5rem, env(safe-area-inset-left));
-  width: min(23rem, calc(100vw - 1rem));
-  min-height: 0;
+  right: max(0, env(safe-area-inset-right));
+  left: max(0, env(safe-area-inset-left));
+  width: auto;
+  height: 9.37rem;
+  min-height: 9.37rem;
+  margin: 10px 8px 0;
   padding: 0.52rem 0.82rem 0.58rem;
-  opacity: 0.82;
+  border: 0;
+  color: #969673;
+  background:
+    linear-gradient(rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--tp-ink) / 0.05) 1px, transparent 1px),
+    linear-gradient(rgb(var(--tp-ink) / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--tp-ink) / 0.025) 1px, transparent 1px), #647690;
+  background-size:
+    96px 96px,
+    96px 96px,
+    12px 12px,
+    12px 12px,
+    auto;
+  opacity: 0.72;
+  font-size: 1.125rem;
+  font-weight: 300;
 }
 
 .cloud-app-shell--compact .project-kicker {
@@ -719,14 +847,16 @@ button[aria-pressed="true"],
 
 .cloud-app-shell--compact .project-title {
   margin: 0.24rem 1.65rem 0.24rem 0;
-  font-size: 1rem;
+  color: #969673;
+  font-size: 1.1875rem;
   line-height: 1.12;
 }
 
 .cloud-app-shell--compact .hud-line {
   margin: 0.14rem 0;
-  color: rgb(var(--tp-ink) / 0.72);
+  color: #969673;
   font-size: 0.58rem;
+  font-weight: 300;
   line-height: 1.28;
 }
 
@@ -736,7 +866,8 @@ button[aria-pressed="true"],
 
 .cloud-app-shell--compact #fps-counter {
   margin-top: 0.34rem;
-  color: rgb(var(--tp-ink) / 0.62);
+  color: #969673;
+  font-size: 0.6425rem;
 }
 
 .cloud-app-shell--compact .hud-close-button {
@@ -749,7 +880,9 @@ button[aria-pressed="true"],
   --compact-row-height: 2.12rem;
   --compact-atmosphere-visual-height: clamp(9.4rem, 15dvh, 10rem);
   --compact-atmosphere-dashboard-height: 1.55rem;
-  --compact-atmosphere-row-height: calc((var(--compact-atmosphere-visual-height) - var(--compact-gap)) / 2);
+  --compact-atmosphere-row-height: calc(
+    (var(--compact-atmosphere-visual-height) - var(--compact-gap)) / 2
+  );
   --compact-orbit-aspect: 3 / 1;
   --compact-gap: 0.44rem;
   --compact-text-size: 0.68rem;
@@ -792,7 +925,7 @@ button[aria-pressed="true"],
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 0;
-  padding: 0.4rem 0.46rem 0.46rem;
+  padding: 0.525rem 1.2725rem 0.3975rem;
   overflow: auto;
 }
 
@@ -881,6 +1014,7 @@ button[aria-pressed="true"],
   grid-template-columns: var(--compact-label-width) minmax(0, 1fr);
   align-items: center;
   column-gap: 0.46rem;
+  margin-left: 5px;
 }
 
 .cloud-app-shell--compact .control-group--compact-seed-tools .control-group__label {
@@ -889,7 +1023,7 @@ button[aria-pressed="true"],
 
 .cloud-app-shell--compact .control-group--compact-seed-tools .slider-group {
   grid-column: 2;
-  grid-template-columns: minmax(0, 1fr) minmax(4.35rem, auto);
+  grid-template-columns: minmax(0, 1fr) var(--compact-row-height);
 }
 
 .cloud-app-shell--compact .control-group--compact-seed-tools .slider-group label {
@@ -907,6 +1041,8 @@ button[aria-pressed="true"],
   align-items: center;
   column-gap: 0.46rem;
   row-gap: 0.34rem;
+  margin-top: 1px;
+  margin-left: 4px;
 }
 
 .cloud-app-shell--compact .control-group--compact-atmosphere > .control-group__label {
@@ -937,7 +1073,9 @@ button[aria-pressed="true"],
   grid-row: 1;
 }
 
-.cloud-app-shell--compact .digital-group--atmosphere-time .time-input::-webkit-calendar-picker-indicator {
+.cloud-app-shell--compact
+  .digital-group--atmosphere-time
+  .time-input::-webkit-calendar-picker-indicator {
   width: 0;
   height: 0;
   margin: 0;
@@ -962,14 +1100,17 @@ button[aria-pressed="true"],
     repeating-linear-gradient(90deg, rgb(var(--tp-ink) / 0.045) 0 1px, transparent 1px 14px),
     repeating-linear-gradient(0deg, rgb(var(--tp-ink) / 0.035) 0 1px, transparent 1px 14px);
   display: grid;
-  grid-template-rows: minmax(0, 1fr) var(--compact-atmosphere-dashboard-height);
-  gap: 0.18rem;
+  grid-template-columns: minmax(6.7rem, 0.36fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0.42rem;
   overflow: hidden;
   cursor: grab;
   touch-action: none;
 }
 
 .cloud-app-shell--compact .control-group--compact-atmosphere #atm-canvas {
+  grid-column: 2;
+  grid-row: 1;
   display: block;
   width: 100%;
   height: 100%;
@@ -985,10 +1126,13 @@ button[aria-pressed="true"],
 
 .cloud-app-shell--compact .control-group--compact-atmosphere .atm-dashboard {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: end;
-  gap: 0.28rem;
+  grid-column: 1;
+  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr);
+  align-self: end;
+  gap: 0.34rem;
   margin-top: 0;
+  padding: 0.18rem 0 0.34rem;
 }
 
 .cloud-app-shell--compact .control-group--compact-atmosphere .atm-meter {
@@ -1016,19 +1160,59 @@ button[aria-pressed="true"],
   height: 0.24rem;
 }
 
-.cloud-app-shell--compact .control-panel--mobile-time #btn-grid,
-.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle,
-.cloud-app-shell--compact .control-panel--mobile-time #btn-random-seed {
+.cloud-app-shell--compact .control-panel--mobile-time #btn-grid {
   width: 100%;
 }
 
 .cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle {
   position: relative;
-  min-width: 0;
+  width: var(--compact-row-height);
+  min-width: var(--compact-row-height);
+  height: var(--compact-row-height);
+  min-height: var(--compact-row-height);
+  border-radius: 999px;
   padding: 0;
   overflow: hidden;
   color: transparent;
   font-size: 0;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-random-seed {
+  position: relative;
+  width: var(--compact-row-height);
+  min-width: var(--compact-row-height);
+  height: var(--compact-row-height);
+  min-height: var(--compact-row-height);
+  justify-self: end;
+  border-radius: 999px;
+  border-color: rgb(var(--compact-play-accent) / 0.5);
+  color: transparent;
+  background: rgb(var(--compact-play-accent) / 0.08);
+  font-size: 0;
+  overflow: hidden;
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-random-seed::before {
+  content: "";
+  position: absolute;
+  inset: 0.53rem;
+  border: 0.13rem solid rgb(var(--compact-play-accent) / 0.72);
+  border-left-color: transparent;
+  border-radius: 999px;
+  transform: rotate(-34deg);
+}
+
+.cloud-app-shell--compact .control-panel--mobile-time #btn-random-seed::after {
+  content: "";
+  position: absolute;
+  top: 0.42rem;
+  right: 0.48rem;
+  width: 0;
+  height: 0;
+  border-top: 0.18rem solid transparent;
+  border-bottom: 0.18rem solid transparent;
+  border-left: 0.32rem solid rgb(var(--compact-play-accent) / 0.78);
+  transform: rotate(45deg);
 }
 
 .cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle::before,
@@ -1055,12 +1239,18 @@ button[aria-pressed="true"],
   display: none;
 }
 
-.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"] {
+.cloud-app-shell--compact
+  .control-panel--mobile-time
+  #btn-time-toggle.compact-play-toggle[aria-pressed="false"] {
   display: block;
 }
 
-.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::before,
-.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::after {
+.cloud-app-shell--compact
+  .control-panel--mobile-time
+  #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::before,
+.cloud-app-shell--compact
+  .control-panel--mobile-time
+  #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::after {
   position: absolute;
   display: block;
   top: 50%;
@@ -1078,11 +1268,15 @@ button[aria-pressed="true"],
   filter: drop-shadow(0 0 3px rgb(var(--compact-play-accent) / 0.16));
 }
 
-.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::before {
+.cloud-app-shell--compact
+  .control-panel--mobile-time
+  #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::before {
   left: calc(50% - 0.24rem);
 }
 
-.cloud-app-shell--compact .control-panel--mobile-time #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::after {
+.cloud-app-shell--compact
+  .control-panel--mobile-time
+  #btn-time-toggle.compact-play-toggle[aria-pressed="false"]::after {
   left: calc(50% + 0.06rem);
 }
 
@@ -1133,7 +1327,9 @@ button[aria-pressed="true"],
   cursor: pointer;
 }
 
-.cloud-app-shell--compact .control-panel--mobile-time input[type="range"]::-webkit-slider-runnable-track {
+.cloud-app-shell--compact
+  .control-panel--mobile-time
+  input[type="range"]::-webkit-slider-runnable-track {
   height: 0.38rem;
   border: 1px solid rgb(var(--tp-ink) / 0.12);
   background: linear-gradient(90deg, rgb(var(--tp-ink) / 0.42), rgb(255 255 255 / 0.58));

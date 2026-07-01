@@ -1,4 +1,5 @@
 import { type BrowserDisplayProfile } from "./display-profile.js";
+import { resolveCloudMorphologyStyleAlias } from "./cloud-morphology-library.js";
 import { type RaymarchCloudOptions } from "./raymarch-cloud-renderer.js";
 
 export const SAFE_LIVE_MAX_PIXELS = 1280 * 720;
@@ -12,6 +13,90 @@ export const ATTACHED_06_MOBILE_MAX_STEPS = 133;
 export type Orientation = "portrait" | "landscape";
 export type RenderMode = "canvas" | "page";
 export type PresetSource = "query" | "browser-profile" | "default";
+export type MobileQualityTier = "low" | "balanced" | "standard" | "high";
+
+export type MobileQualitySettings = {
+  readonly tier: MobileQualityTier;
+  readonly label: string;
+  readonly renderScale: number;
+  readonly fps: number;
+  readonly fbmOctaves: number;
+  readonly stepSize: number;
+  readonly maxSteps: number;
+  readonly staticMaxSteps: number;
+  readonly maxPixels: number;
+  readonly upgradeFrameBudgetMs: number;
+};
+
+export const MOBILE_QUALITY_TIERS: readonly MobileQualitySettings[] = [
+  {
+    tier: "low",
+    label: "LOW",
+    renderScale: 0.45,
+    fps: 24,
+    fbmOctaves: 4,
+    stepSize: 0.36,
+    maxSteps: 36,
+    staticMaxSteps: 40,
+    maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * 0.45 * 0.45),
+    upgradeFrameBudgetMs: 16
+  },
+  {
+    tier: "balanced",
+    label: "BAL",
+    renderScale: 0.56,
+    fps: 24,
+    fbmOctaves: 4,
+    stepSize: 0.32,
+    maxSteps: 46,
+    staticMaxSteps: 48,
+    maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * 0.56 * 0.56),
+    upgradeFrameBudgetMs: 18
+  },
+  {
+    tier: "standard",
+    label: "STD",
+    renderScale: 0.68,
+    fps: 30,
+    fbmOctaves: 5,
+    stepSize: 0.27,
+    maxSteps: 58,
+    staticMaxSteps: 64,
+    maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * 0.68 * 0.68),
+    upgradeFrameBudgetMs: 20
+  },
+  {
+    tier: "high",
+    label: "HIGH",
+    renderScale: 0.8,
+    fps: 30,
+    fbmOctaves: 5,
+    stepSize: 0.24,
+    maxSteps: 72,
+    staticMaxSteps: 72,
+    maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * 0.8 * 0.8),
+    upgradeFrameBudgetMs: Number.POSITIVE_INFINITY
+  }
+] as const;
+
+const MOBILE_QUALITY_PARAM_NAMES = ["qualityTier", "mobileQuality", "qualityPreset"] as const;
+const AUTO_QUALITY_PARAM_NAMES = ["autoQuality", "adaptiveQuality", "mobileAutoQuality"] as const;
+const MANUAL_RENDER_QUALITY_PARAM_NAMES = [
+  ...MOBILE_QUALITY_PARAM_NAMES,
+  "fps",
+  "simFps",
+  "fbmOctaves",
+  "octaves",
+  "cloudOctaves",
+  "stepSize",
+  "rayStep",
+  "maxSteps",
+  "steps",
+  "staticMaxSteps",
+  "compileSteps",
+  "shaderSteps",
+  "maxPixels"
+] as const;
 
 export type RuntimeOptions = RaymarchCloudOptions & {
   readonly presetName?: string;
@@ -25,6 +110,8 @@ export type RuntimeOptions = RaymarchCloudOptions & {
   readonly controlsVisible: boolean;
   readonly captureFrameLimit: number;
   readonly exposeRuntimeDebug: boolean;
+  readonly autoQuality: boolean;
+  readonly qualityTier?: MobileQualityTier;
 };
 
 export function resolveRuntimeOptions(
@@ -35,6 +122,10 @@ export function resolveRuntimeOptions(
   const renderMode = resolveRenderMode(params);
   const presetSelection = resolvePresetSelection(params, displayProfile);
   const preset = resolvePreset(presetSelection.presetName);
+  const qualityPlan = resolveMobileQualityPlan(params, displayProfile);
+  const mobileQuality = displayProfile.mobileWideView
+    ? getMobileQualitySettings(qualityPlan.qualityTier)
+    : undefined;
   const seed = Math.floor(
     readNumber(params, ["seed"], preset.seed ?? createRuntimeSeed(), 1, Number.MAX_SAFE_INTEGER)
   );
@@ -45,10 +136,18 @@ export function resolveRuntimeOptions(
     displayProfile,
     orientation,
     renderMode,
+    qualityTier: qualityPlan.qualityTier,
+    autoQuality: qualityPlan.autoQuality,
     seed,
     time: readNumber(params, ["time"], preset.time ?? 2.2, 0, 1_000_000),
-    timeScale: readNumber(params, ["timeScale", "speed"], 1, 0, 12),
-    fps: readNumber(params, ["fps", "simFps"], 30, 1, 360),
+    timeScale: readNumber(
+      params,
+      ["timeScale", "speed"],
+      displayProfile.mobileWideView ? 0.3 : 1,
+      0,
+      12
+    ),
+    fps: readNumber(params, ["fps", "simFps"], mobileQuality?.fps ?? 30, 1, 360),
     systems: readNumber(params, ["systems", "systemCount"], preset.systems ?? 1, 1, 10),
     tropopause: readNumber(params, ["tropopause", "tropo"], preset.tropopause ?? 11.2, 4, 20),
     freezingLevel: readNumber(
@@ -62,7 +161,7 @@ export function resolveRuntimeOptions(
     fbmOctaves: readNumber(
       params,
       ["fbmOctaves", "octaves", "cloudOctaves"],
-      preset.fbmOctaves ?? 5,
+      mobileQuality?.fbmOctaves ?? preset.fbmOctaves ?? 5,
       4,
       6
     ),
@@ -80,12 +179,24 @@ export function resolveRuntimeOptions(
       0,
       1
     ),
-    stepSize: readOptionalNumberWithFallback(params, ["stepSize", "rayStep"], preset.stepSize, 0.08, 0.6),
-    maxSteps: readOptionalNumberWithFallback(params, ["maxSteps", "steps"], preset.maxSteps, 24, 144),
+    stepSize: readOptionalNumberWithFallback(
+      params,
+      ["stepSize", "rayStep"],
+      mobileQuality?.stepSize ?? preset.stepSize,
+      0.08,
+      0.6
+    ),
+    maxSteps: readOptionalNumberWithFallback(
+      params,
+      ["maxSteps", "steps"],
+      mobileQuality?.maxSteps ?? preset.maxSteps,
+      24,
+      144
+    ),
     staticMaxSteps: readOptionalNumberWithFallback(
       params,
       ["staticMaxSteps", "compileSteps", "shaderSteps"],
-      preset.staticMaxSteps,
+      mobileQuality?.staticMaxSteps ?? preset.staticMaxSteps,
       24,
       96
     ),
@@ -111,9 +222,15 @@ export function resolveRuntimeOptions(
       -180,
       180
     ),
-    photographicStyle: readBoolean(params, ["photographic", "photo"], preset.photographicStyle ?? true),
+    photographicStyle: readBoolean(
+      params,
+      ["photographic", "photo"],
+      preset.photographicStyle ?? true
+    ),
     lightPreset:
-      resolveLightPreset(params.get("light") ?? params.get("lighting")) ?? preset.lightPreset ?? "daylight",
+      resolveLightPreset(params.get("light") ?? params.get("lighting")) ??
+      preset.lightPreset ??
+      "daylight",
     skyMode:
       resolveSkyMode(params.get("sky") ?? params.get("background") ?? params.get("bg")) ??
       preset.skyMode ??
@@ -138,15 +255,27 @@ export function resolveRuntimeOptions(
       ["mobileCumulusMode", "mobileShape"],
       preset.mobileCumulusMode ?? false
     ),
-    cameraYawDegrees: readOptionalNumber(params, ["cameraYawDegrees", "yawDegrees", "yaw"]) ?? preset.cameraYawDegrees,
+    cameraYawDegrees:
+      readOptionalNumber(params, ["cameraYawDegrees", "yawDegrees", "yaw"]) ??
+      preset.cameraYawDegrees,
     cameraPitchDegrees:
       readOptionalNumber(params, ["cameraPitchDegrees", "pitchDegrees", "pitch"]) ??
       preset.cameraPitchDegrees,
-    cameraDistance: readOptionalNumber(params, ["cameraDistance", "distance"]) ?? preset.cameraDistance,
-    cameraTargetOffsetX: readOptionalNumber(params, ["cameraTargetOffsetX", "targetOffsetX", "panX"]) ?? preset.cameraTargetOffsetX,
-    cameraTargetOffsetY: readOptionalNumber(params, ["cameraTargetOffsetY", "targetOffsetY", "panY"]) ?? preset.cameraTargetOffsetY,
-    cameraTargetOffsetZ: readOptionalNumber(params, ["cameraTargetOffsetZ", "targetOffsetZ", "panZ"]) ?? preset.cameraTargetOffsetZ,
-    maxPixels: readOptionalClampedNumber(params, ["maxPixels"], 128 * 128, 3840 * 2160) ?? preset.maxPixels,
+    cameraDistance:
+      readOptionalNumber(params, ["cameraDistance", "distance"]) ?? preset.cameraDistance,
+    cameraTargetOffsetX:
+      readOptionalNumber(params, ["cameraTargetOffsetX", "targetOffsetX", "panX"]) ??
+      preset.cameraTargetOffsetX,
+    cameraTargetOffsetY:
+      readOptionalNumber(params, ["cameraTargetOffsetY", "targetOffsetY", "panY"]) ??
+      preset.cameraTargetOffsetY,
+    cameraTargetOffsetZ:
+      readOptionalNumber(params, ["cameraTargetOffsetZ", "targetOffsetZ", "panZ"]) ??
+      preset.cameraTargetOffsetZ,
+    maxPixels:
+      readOptionalClampedNumber(params, ["maxPixels"], 128 * 128, 3840 * 2160) ??
+      mobileQuality?.maxPixels ??
+      preset.maxPixels,
     simWidth: readOptionalNumber(params, ["simWidth", "width"]),
     simHeight: readOptionalNumber(params, ["simHeight", "height"]),
     preserveDrawingBuffer: shouldPreserveDrawingBuffer(params),
@@ -154,6 +283,35 @@ export function resolveRuntimeOptions(
     controlsVisible: shouldShowControls(params, renderMode),
     captureFrameLimit: Math.round(readNumber(params, ["captureFrames"], 0, 0, 600)),
     exposeRuntimeDebug: shouldExposeRuntimeDebug(params)
+  };
+}
+
+export function getMobileQualitySettings(
+  tier: MobileQualityTier | undefined
+): MobileQualitySettings {
+  return (
+    MOBILE_QUALITY_TIERS.find((settings) => settings.tier === tier) ?? MOBILE_QUALITY_TIERS[0]!
+  );
+}
+
+export function getNextMobileQualityTier(
+  tier: MobileQualityTier | undefined
+): MobileQualityTier | undefined {
+  const index = MOBILE_QUALITY_TIERS.findIndex((settings) => settings.tier === tier);
+  const next = MOBILE_QUALITY_TIERS[index < 0 ? 1 : index + 1];
+  return next?.tier;
+}
+
+export function createMobileQualityPatch(tier: MobileQualityTier): Partial<RuntimeOptions> {
+  const settings = getMobileQualitySettings(tier);
+  return {
+    qualityTier: settings.tier,
+    fps: settings.fps,
+    fbmOctaves: settings.fbmOctaves,
+    stepSize: settings.stepSize,
+    maxSteps: settings.maxSteps,
+    staticMaxSteps: settings.staticMaxSteps,
+    maxPixels: settings.maxPixels
   };
 }
 
@@ -168,37 +326,83 @@ export function resolveOrientation(
   return displayProfile.mobileWideView ? "portrait" : "landscape";
 }
 
+function resolveMobileQualityPlan(
+  params: URLSearchParams,
+  displayProfile: BrowserDisplayProfile
+): Pick<RuntimeOptions, "autoQuality" | "qualityTier"> {
+  const requestedTier = resolveMobileQualityTier(
+    readFirstParam(params, MOBILE_QUALITY_PARAM_NAMES)
+  );
+  const manualQuality = hasAnyParam(params, MANUAL_RENDER_QUALITY_PARAM_NAMES);
+  const autoQuality =
+    displayProfile.mobileWideView && readBoolean(params, AUTO_QUALITY_PARAM_NAMES, !manualQuality);
+
+  return {
+    autoQuality,
+    qualityTier: displayProfile.mobileWideView ? (requestedTier ?? "low") : undefined
+  };
+}
+
+function resolveMobileQualityTier(value: string | null): MobileQualityTier | undefined {
+  switch (value?.toLowerCase()) {
+    case "low":
+    case "lowest":
+    case "safe":
+    case "min":
+    case "minimum":
+      return "low";
+    case "balanced":
+    case "balance":
+    case "medium":
+    case "mid":
+      return "balanced";
+    case "standard":
+    case "std":
+    case "normal":
+      return "standard";
+    case "high":
+    case "hi":
+    case "max":
+      return "high";
+    default:
+      return undefined;
+  }
+}
+
 export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
   switch (name?.toLowerCase()) {
     case "mobile":
     case "mobile-horizon":
     case "portrait-horizon":
-    case "mobile-cumulus":
+    case "mobile-cumulus": {
+      const mobileLow = getMobileQualitySettings("low");
       return {
         seed: 134,
-        time: 0,
+        time: 9.6,
         systems: 1,
         tropopause: 8,
         freezingLevel: 3,
         windShear: 0.3,
-        fbmOctaves: 5,
+        fps: mobileLow.fps,
+        fbmOctaves: mobileLow.fbmOctaves,
         cloudCurl: 0.78,
         horizonStrength: 1,
-        stepSize: ATTACHED_06_MOBILE_STEP_SIZE,
-        maxSteps: ATTACHED_06_MOBILE_MAX_STEPS,
-        staticMaxSteps: 96,
-        sunIntensity: 4,
-        ambientIntensity: 0.68,
-        sunElevation: 32,
-        sunViewerAngle: -50,
+        stepSize: mobileLow.stepSize,
+        maxSteps: mobileLow.maxSteps,
+        staticMaxSteps: mobileLow.staticMaxSteps,
+        sunIntensity: 5.8,
+        ambientIntensity: 0.94,
+        sunElevation: 49,
+        sunViewerAngle: -36,
         skyMode: "clear",
         lightPreset: "daylight",
         photographicStyle: false,
         morphologyStyle: "giant-cumulonimbus",
         cameraDistance: 24,
-        maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * ATTACHED_06_MOBILE_RENDER_SCALE * ATTACHED_06_MOBILE_RENDER_SCALE),
+        maxPixels: mobileLow.maxPixels,
         mobileCumulusMode: false
       };
+    }
     case "broadcast-landscape":
       return {
         seed: 574,
@@ -275,7 +479,9 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         photographicStyle: false,
         morphologyStyle: "giant-cumulonimbus",
         cameraDistance: 16,
-        maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * ATTACHED_06_RENDER_SCALE * ATTACHED_06_RENDER_SCALE),
+        maxPixels: Math.round(
+          SAFE_LIVE_MAX_PIXELS * ATTACHED_06_RENDER_SCALE * ATTACHED_06_RENDER_SCALE
+        ),
         mobileCumulusMode: false
       };
     default:
@@ -327,7 +533,11 @@ function shouldPreserveDrawingBuffer(params: URLSearchParams): boolean {
     params.has("preserveDrawing") ||
     params.has("preserveBuffer")
   ) {
-    return readBoolean(params, ["preserveDrawingBuffer", "preserveDrawing", "preserveBuffer"], false);
+    return readBoolean(
+      params,
+      ["preserveDrawingBuffer", "preserveDrawing", "preserveBuffer"],
+      false
+    );
   }
   return params.has("captureFrames") || params.get("capture") === "1";
 }
@@ -379,56 +589,10 @@ function resolveSurfaceMode(value: string | null): RaymarchCloudOptions["surface
   return undefined;
 }
 
-function resolveMorphologyStyle(value: string | null): RaymarchCloudOptions["morphologyStyle"] | undefined {
-  switch (value?.toLowerCase()) {
-    case "seeded":
-    case "seed":
-    case "random":
-    case "pool":
-    case "recipe":
-      return "seeded";
-    case "baseline":
-    case "base":
-    case "sphere":
-    case "original-sphere":
-      return "baseline";
-    case "macro-boundary":
-    case "macro":
-    case "boundary":
-    case "contrast":
-    case "supercontrast":
-      return "macro-boundary";
-    case "flatten":
-    case "flat":
-    case "compressed":
-    case "compression":
-      return "flatten";
-    case "skew-twist":
-    case "skew":
-    case "twist":
-    case "oblique":
-      return "skew-twist";
-    case "tear-silk":
-    case "tear":
-    case "silk":
-    case "wind":
-    case "dissipating":
-      return "tear-silk";
-    case "budding":
-    case "bud":
-    case "yeast":
-    case "large-small":
-    case "binary":
-      return "budding";
-    case "giant-cumulonimbus":
-    case "giant":
-    case "cumulonimbus":
-    case "cb":
-    case "tower":
-      return "giant-cumulonimbus";
-    default:
-      return undefined;
-  }
+function resolveMorphologyStyle(
+  value: string | null
+): RaymarchCloudOptions["morphologyStyle"] | undefined {
+  return resolveCloudMorphologyStyleAlias(value);
 }
 
 function readTransparentBackground(params: URLSearchParams): boolean {
@@ -482,6 +646,20 @@ export function readOptionalNumber(
     }
   }
   return undefined;
+}
+
+function readFirstParam(params: URLSearchParams, names: readonly string[]): string | null {
+  for (const name of names) {
+    const value = params.get(name);
+    if (value !== null && value !== "") {
+      return value;
+    }
+  }
+  return null;
+}
+
+function hasAnyParam(params: URLSearchParams, names: readonly string[]): boolean {
+  return names.some((name) => params.has(name));
 }
 
 function readOptionalClampedNumber(

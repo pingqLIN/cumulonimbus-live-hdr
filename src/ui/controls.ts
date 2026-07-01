@@ -1,15 +1,21 @@
+import { type CloudAppController, type RenderStats } from "../app/cloud-app.js";
 import {
-  type CloudAppController,
-  type RenderStats
-} from "../app/cloud-app.js";
+  getCloudMorphologyEntry,
+  isCloudMorphologyStyle,
+  resolveCloudMorphologyStyleAlias
+} from "../app/cloud-morphology-library.js";
 import {
-  ATTACHED_06_MAX_STEPS,
-  ATTACHED_06_RENDER_SCALE,
+  createMobileQualityPatch,
+  getMobileQualitySettings,
+  getNextMobileQualityTier,
   SAFE_LIVE_MAX_PIXELS,
   type RuntimeOptions
 } from "../app/runtime-options.js";
 
 const QUALITY_MAX_PIXELS = SAFE_LIVE_MAX_PIXELS;
+const MOBILE_AUTO_INITIAL_DELAY_MS = 900;
+const MOBILE_AUTO_STEP_DELAY_MS = 1400;
+const MOBILE_AUTO_RECHECK_DELAY_MS = 2600;
 let uiLanguage = "zh-TW";
 let renderTelemetryFrame: number | undefined;
 
@@ -18,6 +24,7 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
   configureLocationSync(elements);
   syncControls(elements, app.getOptions(), app.isPaused());
   startRenderTelemetry(elements, app);
+  const restartMobileAutoQuality = bindMobileAutoQuality(elements, app);
 
   elements.landscapeButton?.addEventListener("click", () => {
     app.setOrientation("landscape");
@@ -58,16 +65,12 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
   });
   elements.autoQualityButton?.addEventListener("click", () => {
     const enabled = !elements.autoQualityButton?.classList.contains("enabled");
-    elements.autoQualityButton?.classList.toggle("enabled", enabled);
-    if (enabled) {
-      app.setOptions({
-        maxPixels: Math.round(QUALITY_MAX_PIXELS * ATTACHED_06_RENDER_SCALE * ATTACHED_06_RENDER_SCALE),
-        maxSteps: ATTACHED_06_MAX_STEPS,
-        staticMaxSteps: 96
-      });
-      setValue(elements.qualitySlider, ATTACHED_06_RENDER_SCALE.toFixed(2));
-      updateText(elements.qualityReadout, `${ATTACHED_06_RENDER_SCALE.toFixed(2)}x`);
-    }
+    app.setOptions({
+      ...(enabled ? createMobileQualityPatch("low") : {}),
+      autoQuality: enabled
+    });
+    syncControls(elements, app.getOptions(), app.isPaused());
+    restartMobileAutoQuality();
   });
   elements.timeToggleButton?.addEventListener("click", () => {
     const paused = app.togglePaused();
@@ -101,8 +104,12 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     syncAtmosphereToSystemTime(elements, app);
     syncControls(elements, app.getOptions(), app.isPaused());
   });
-  elements.linkSunElevationButton?.addEventListener("click", () => toggleSunElevationLink(elements));
-  elements.linkElevationSunButton?.addEventListener("click", () => toggleSunElevationLink(elements));
+  elements.linkSunElevationButton?.addEventListener("click", () =>
+    toggleSunElevationLink(elements)
+  );
+  elements.linkElevationSunButton?.addEventListener("click", () =>
+    toggleSunElevationLink(elements)
+  );
   elements.languageSelect?.addEventListener("change", () => {
     uiLanguage = elements.languageSelect?.value ?? "zh-TW";
     document.documentElement.lang = uiLanguage;
@@ -112,30 +119,63 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     app.setOptions({ surfaceMode: value === "ocean" || value === "hills" ? value : "none" });
   });
   elements.morphologySelect?.addEventListener("change", () => {
-    app.setOptions({ morphologyStyle: resolveMorphologySelectValue(elements.morphologySelect?.value) });
+    const morphologyStyle = resolveMorphologySelectValue(elements.morphologySelect?.value);
+    app.setOptions({
+      morphologyStyle
+    });
+    syncMorphologyLibrary(elements, morphologyStyle);
   });
+  for (const button of elements.morphologyButtons) {
+    button.addEventListener("click", () => {
+      const morphologyStyle = resolveMorphologySelectValue(button.dataset.morphologyStyle);
+      app.setOptions({ morphologyStyle });
+      syncControls(elements, app.getOptions(), app.isPaused());
+    });
+  }
 
-  bindNumberInput(elements.seedInput, (value) => app.setOptions({ seed: Math.max(1, Math.round(value)) }));
-  bindSlider(elements.systemsSlider, elements.systemsReadout, (value) => value.toFixed(0), (value) =>
-    app.setOptions({ systems: Math.round(value) })
+  bindNumberInput(elements.seedInput, (value) =>
+    app.setOptions({ seed: Math.max(1, Math.round(value)) })
   );
-  bindSlider(elements.qualitySlider, elements.qualityReadout, (value) => `${value.toFixed(2)}x`, (value) => {
-    elements.autoQualityButton?.classList.remove("enabled");
-    app.setOptions({ maxPixels: Math.round(QUALITY_MAX_PIXELS * value * value) });
-  }, () =>
-    updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
+  bindSlider(
+    elements.systemsSlider,
+    elements.systemsReadout,
+    (value) => value.toFixed(0),
+    (value) => app.setOptions({ systems: Math.round(value) })
   );
-  bindSlider(elements.tropoSlider, elements.tropoReadout, (value) => `${value.toFixed(1)}km`, (value) =>
-    app.setOptions({ tropopause: value }), () =>
-      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
+  bindSlider(
+    elements.qualitySlider,
+    elements.qualityReadout,
+    (value) => `${value.toFixed(2)}x`,
+    (value) => {
+      elements.autoQualityButton?.classList.remove("enabled");
+      app.setOptions({
+        autoQuality: false,
+        qualityTier: undefined,
+        maxPixels: Math.round(QUALITY_MAX_PIXELS * value * value)
+      });
+    },
+    () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
-  bindSlider(elements.freezingSlider, elements.freezingReadout, (value) => `${value.toFixed(1)}km`, (value) =>
-    app.setOptions({ freezingLevel: value }), () =>
-      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
+  bindSlider(
+    elements.tropoSlider,
+    elements.tropoReadout,
+    (value) => `${value.toFixed(1)}km`,
+    (value) => app.setOptions({ tropopause: value }),
+    () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
-  bindSlider(elements.shearSlider, elements.shearReadout, (value) => value.toFixed(2), (value) =>
-    app.setOptions({ windShear: value }), () =>
-      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
+  bindSlider(
+    elements.freezingSlider,
+    elements.freezingReadout,
+    (value) => `${value.toFixed(1)}km`,
+    (value) => app.setOptions({ freezingLevel: value }),
+    () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
+  );
+  bindSlider(
+    elements.shearSlider,
+    elements.shearReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ windShear: value }),
+    () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
   bindSlider(
     elements.sunSlider,
@@ -170,10 +210,15 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     syncControls(elements, app.getOptions(), app.isPaused());
   });
   bindAtmosphereSunDrag(elements, app);
-  bindSlider(elements.timeSlider, elements.timeReadout, (value) => `${value.toFixed(1)}x`, (value) =>
-    app.setOptions({ timeScale: value }), () =>
-      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
+  bindSlider(
+    elements.timeSlider,
+    elements.timeReadout,
+    (value) => `${value.toFixed(1)}x`,
+    (value) => app.setOptions({ timeScale: value }),
+    () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
+
+  restartMobileAutoQuality();
 }
 
 function collectControls(root: ParentNode) {
@@ -186,6 +231,9 @@ function collectControls(root: ParentNode) {
     languageSelect: root.querySelector<HTMLSelectElement>("#select-language"),
     surfaceSelect: root.querySelector<HTMLSelectElement>("#select-surface"),
     morphologySelect: root.querySelector<HTMLSelectElement>("#select-morphology"),
+    morphologyButtons: [...root.querySelectorAll<HTMLButtonElement>("[data-morphology-style]")],
+    morphologyCurrentLabel: root.querySelector<HTMLElement>("#morphology-library-current"),
+    morphologyCurrentIntent: root.querySelector<HTMLElement>("#morphology-library-intent"),
     seedInput: root.querySelector<HTMLInputElement>("#input-seed"),
     randomSeedButton: root.querySelector<HTMLButtonElement>("#btn-random-seed"),
     systemsSlider: root.querySelector<HTMLInputElement>("#slider-systems"),
@@ -254,11 +302,85 @@ function startRenderTelemetry(
   const tick = (now: number): void => {
     if (now - lastUpdate >= 500) {
       lastUpdate = now;
-      updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements, app.getRenderStats());
+      updateFpsLine(
+        elements.fpsCounter,
+        app.getOptions(),
+        app.isPaused(),
+        elements,
+        app.getRenderStats()
+      );
     }
     renderTelemetryFrame = requestAnimationFrame(tick);
   };
   renderTelemetryFrame = requestAnimationFrame(tick);
+}
+
+function bindMobileAutoQuality(
+  elements: ReturnType<typeof collectControls>,
+  app: CloudAppController
+): () => void {
+  let timer: number | undefined;
+
+  const clearTimer = (): void => {
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      timer = undefined;
+    }
+  };
+
+  const shouldRun = (): boolean => {
+    const options = app.getOptions();
+    return options.displayProfile.mobileWideView && options.autoQuality;
+  };
+
+  const schedule = (delayMs = MOBILE_AUTO_INITIAL_DELAY_MS): void => {
+    clearTimer();
+    if (!shouldRun()) {
+      return;
+    }
+    timer = window.setTimeout(evaluate, delayMs);
+  };
+
+  const evaluate = (): void => {
+    timer = undefined;
+    const options = app.getOptions();
+    if (!shouldRun()) {
+      return;
+    }
+    if (document.documentElement.dataset.renderStatus !== "ready") {
+      schedule(500);
+      return;
+    }
+
+    const currentTier = options.qualityTier ?? "low";
+    const currentSettings = getMobileQualitySettings(currentTier);
+    const nextTier = getNextMobileQualityTier(currentTier);
+    if (!nextTier) {
+      syncControls(elements, options, app.isPaused());
+      return;
+    }
+
+    const stats = app.getRenderStats();
+    const frameMs = stats.lastFrameDurationMs ?? stats.averageFrameDurationMs;
+    if (frameMs === undefined || !Number.isFinite(frameMs)) {
+      schedule(MOBILE_AUTO_RECHECK_DELAY_MS);
+      return;
+    }
+
+    if (frameMs <= currentSettings.upgradeFrameBudgetMs) {
+      app.setOptions({
+        ...createMobileQualityPatch(nextTier),
+        autoQuality: true
+      });
+      syncControls(elements, app.getOptions(), app.isPaused());
+      schedule(MOBILE_AUTO_STEP_DELAY_MS);
+      return;
+    }
+
+    schedule(MOBILE_AUTO_RECHECK_DELAY_MS);
+  };
+
+  return schedule;
 }
 
 function syncControls(
@@ -273,6 +395,7 @@ function syncControls(
   setValue(elements.languageSelect, uiLanguage);
   setValue(elements.surfaceSelect, options.surfaceMode ?? "none");
   setValue(elements.morphologySelect, options.morphologyStyle ?? "seeded");
+  syncMorphologyLibrary(elements, options.morphologyStyle ?? "seeded");
   setValue(elements.seedInput, String(options.seed ?? 574));
   setValue(elements.systemsSlider, String(options.systems ?? 1));
   setValue(elements.tropoSlider, String(options.tropopause ?? 11.2));
@@ -295,10 +418,7 @@ function syncControls(
   updateText(elements.sunAngleReadout, `${(options.sunViewerAngle ?? 18).toFixed(0)}deg`);
   updateText(elements.timeReadout, `${(options.timeScale ?? 1).toFixed(1)}x`);
   updateText(elements.qualityReadout, `${qualityScale.toFixed(2)}x`);
-  elements.autoQualityButton?.classList.toggle(
-    "enabled",
-    false
-  );
+  elements.autoQualityButton?.classList.toggle("enabled", options.autoQuality);
   setPlaybackButton(elements.timeToggleButton, paused);
   setDockPlaybackButton(elements.dockTimeToggleButton, paused);
   updateAtmosphereWidget(elements, options);
@@ -338,7 +458,9 @@ export function updateRestoreDock(root: ParentNode): void {
   }
   let hasHiddenItem = false;
   for (const button of dock.querySelectorAll<HTMLButtonElement>("[data-panel-restore]")) {
-    const panel = root.querySelector<HTMLElement>(`[data-panel-key="${button.dataset.panelRestore}"]`);
+    const panel = root.querySelector<HTMLElement>(
+      `[data-panel-key="${button.dataset.panelRestore}"]`
+    );
     const isHidden = Boolean(panel?.hidden);
     button.hidden = !isHidden;
     hasHiddenItem ||= isHidden;
@@ -370,10 +492,7 @@ function bindSlider(
   });
 }
 
-function bindNumberInput(
-  input: HTMLInputElement | null,
-  onValue: (value: number) => void
-): void {
+function bindNumberInput(input: HTMLInputElement | null, onValue: (value: number) => void): void {
   input?.addEventListener("change", () => {
     const value = Number(input.value);
     if (Number.isFinite(value)) {
@@ -474,9 +593,8 @@ function resolveAtmospherePointerPatch(
   const localY = clampNumber(clientY - rect.top, cy - radius, cy);
   const dx = localX - cx;
   const dy = cy - localY;
-  const orbitAngle = Math.hypot(dx, dy) < 1
-    ? Math.PI / 2
-    : clampNumber(Math.atan2(dy, dx), 0, Math.PI);
+  const orbitAngle =
+    Math.hypot(dx, dy) < 1 ? Math.PI / 2 : clampNumber(Math.atan2(dy, dx), 0, Math.PI);
   const progress = 1 - orbitAngle / Math.PI;
   const hour = 6 + progress * 12;
   const sunElevation = Math.round(Math.sin(orbitAngle) * 82);
@@ -500,17 +618,22 @@ function setActive(element: HTMLElement | null, active: boolean): void {
 function resolveMorphologySelectValue(
   value: string | undefined
 ): NonNullable<RuntimeOptions["morphologyStyle"]> {
-  switch (value) {
-    case "baseline":
-    case "macro-boundary":
-    case "flatten":
-    case "skew-twist":
-    case "tear-silk":
-    case "budding":
-    case "giant-cumulonimbus":
-      return value;
-    default:
-      return "seeded";
+  return resolveCloudMorphologyStyleAlias(value) ?? "seeded";
+}
+
+function syncMorphologyLibrary(
+  elements: ReturnType<typeof collectControls>,
+  value: RuntimeOptions["morphologyStyle"]
+): void {
+  const entry = getCloudMorphologyEntry(value);
+  updateText(elements.morphologyCurrentLabel, entry.label);
+  updateText(elements.morphologyCurrentIntent, entry.intent);
+  for (const button of elements.morphologyButtons) {
+    const active = isCloudMorphologyStyle(button.dataset.morphologyStyle)
+      ? button.dataset.morphologyStyle === entry.value
+      : false;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
   }
 }
 
@@ -736,7 +859,8 @@ function updateFpsLine(
 ): void {
   const qualityScale = resolveQualityScale(options);
   const quality = qualityScale.toFixed(2);
-  const canvas = elements?.cloudCanvas ?? document.querySelector<HTMLCanvasElement>("#cloud-canvas");
+  const canvas =
+    elements?.cloudCanvas ?? document.querySelector<HTMLCanvasElement>("#cloud-canvas");
   const bufferWidth = canvas?.width ?? 0;
   const bufferHeight = canvas?.height ?? 0;
   const bufferText = bufferWidth > 0 && bufferHeight > 0 ? `${bufferWidth}x${bufferHeight}` : "--";
@@ -746,7 +870,9 @@ function updateFpsLine(
       : options.orientation === "landscape"
         ? "1.78"
         : "0.56";
-  const autoText = elements?.autoQualityButton?.classList.contains("enabled") ? " AUTO" : "";
+  const qualityTierText = options.qualityTier
+    ? ` ${getMobileQualitySettings(options.qualityTier).label}`
+    : "";
   const fpsText = formatMetric(stats?.measuredFps, 1);
   const averageFpsText = formatMetric(stats?.averageFps, 1);
   const lastFrameMsText = formatMetric(stats?.lastFrameDurationMs, 1);
@@ -754,7 +880,7 @@ function updateFpsLine(
   const frameText = stats ? String(stats.frameCount) : "--";
   updateText(
     element,
-    `FPS: ${fpsText} | AVG: ${averageFpsText} | Frame: ${frameText} | Last: ${lastFrameMsText}ms | Mean: ${averageFrameMsText}ms | RES: ${quality}x eff ${quality}x${autoText} | BUF: ${bufferText} | Aspect: ${aspect} | Tropo: ${(options.tropopause ?? 12).toFixed(1)}km -> ${(options.tropopause ?? 12).toFixed(1)}km | Freeze: ${(
+    `FPS: ${fpsText} | AVG: ${averageFpsText} | Frame: ${frameText} | Last: ${lastFrameMsText}ms | Mean: ${averageFrameMsText}ms | RES: ${quality}x eff ${quality}x${options.autoQuality ? " AUTO" : ""}${qualityTierText} | BUF: ${bufferText} | Aspect: ${aspect} | Tropo: ${(options.tropopause ?? 12).toFixed(1)}km -> ${(options.tropopause ?? 12).toFixed(1)}km | Freeze: ${(
       options.freezingLevel ?? 5
     ).toFixed(1)}km | Shear: ${(options.windShear ?? 0.7).toFixed(2)} | Time: ${
       paused ? "paused" : `${(options.timeScale ?? 1).toFixed(1)}x`

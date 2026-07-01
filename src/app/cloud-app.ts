@@ -1,13 +1,6 @@
-import {
-  RaymarchCloudRenderer,
-  type RaymarchCloudOptions
-} from "./raymarch-cloud-renderer.js";
+import { RaymarchCloudRenderer, type RaymarchCloudOptions } from "./raymarch-cloud-renderer.js";
 import { type BrowserDisplayProfile } from "./display-profile.js";
-import {
-  createRuntimeSeed,
-  type Orientation,
-  type RuntimeOptions
-} from "./runtime-options.js";
+import { createRuntimeSeed, type Orientation, type RuntimeOptions } from "./runtime-options.js";
 
 declare global {
   interface Window {
@@ -130,7 +123,8 @@ export class CloudApp {
       startX: event.clientX,
       startY: event.clientY,
       startYaw: this.options.cameraYawDegrees ?? 0,
-      startPitch: this.options.cameraPitchDegrees ?? (this.options.displayProfile.mobileWideView ? -1 : -1),
+      startPitch:
+        this.options.cameraPitchDegrees ?? (this.options.displayProfile.mobileWideView ? -1 : -1),
       startDistance: this.options.cameraDistance ?? this.defaultCameraDistance(),
       startTargetOffsetX: this.options.cameraTargetOffsetX ?? 0,
       startTargetOffsetY: this.options.cameraTargetOffsetY ?? 0,
@@ -153,7 +147,9 @@ export class CloudApp {
     const dy = event.clientY - drag.startY;
     if (drag.mode === "orbit") {
       this.setOptions({
-        cameraYawDegrees: normalizeDegrees(drag.startYaw + dx * ORBIT_DEGREES_PER_PIXEL * drag.precisionScale),
+        cameraYawDegrees: normalizeDegrees(
+          drag.startYaw + dx * ORBIT_DEGREES_PER_PIXEL * drag.precisionScale
+        ),
         cameraPitchDegrees: clampNumber(
           drag.startPitch + dy * ORBIT_DEGREES_PER_PIXEL * drag.precisionScale,
           CAMERA_PITCH_MIN_DEGREES,
@@ -209,7 +205,8 @@ export class CloudApp {
     }
     const precisionScale = event.altKey ? 0.35 : 1;
     const yaw = this.options.cameraYawDegrees ?? 0;
-    const pitch = this.options.cameraPitchDegrees ?? (this.options.displayProfile.mobileWideView ? -1 : -1);
+    const pitch =
+      this.options.cameraPitchDegrees ?? (this.options.displayProfile.mobileWideView ? -1 : -1);
     const distance = this.options.cameraDistance ?? this.defaultCameraDistance();
     const key = event.key;
 
@@ -227,7 +224,12 @@ export class CloudApp {
       event.preventDefault();
       this.setOptions({
         cameraDistance: clampNumber(
-          distance * Math.exp((key === "ArrowUp" ? -KEY_DOLLY_DELTA_PIXELS : KEY_DOLLY_DELTA_PIXELS) * DOLLY_PER_PIXEL * precisionScale),
+          distance *
+            Math.exp(
+              (key === "ArrowUp" ? -KEY_DOLLY_DELTA_PIXELS : KEY_DOLLY_DELTA_PIXELS) *
+                DOLLY_PER_PIXEL *
+                precisionScale
+            ),
           CAMERA_DISTANCE_MIN,
           CAMERA_DISTANCE_MAX
         )
@@ -239,7 +241,12 @@ export class CloudApp {
       event.preventDefault();
       this.setOptions({
         cameraDistance: clampNumber(
-          distance * Math.exp((key === "+" || key === "=" ? -KEY_DOLLY_DELTA_PIXELS : KEY_DOLLY_DELTA_PIXELS) * DOLLY_PER_PIXEL * precisionScale),
+          distance *
+            Math.exp(
+              (key === "+" || key === "=" ? -KEY_DOLLY_DELTA_PIXELS : KEY_DOLLY_DELTA_PIXELS) *
+                DOLLY_PER_PIXEL *
+                precisionScale
+            ),
           CAMERA_DISTANCE_MIN,
           CAMERA_DISTANCE_MAX
         )
@@ -251,10 +258,18 @@ export class CloudApp {
       event.preventDefault();
       this.setOptions({
         cameraYawDegrees: normalizeDegrees(
-          yaw + (key === "ArrowLeft" ? -KEY_ORBIT_DEGREES : key === "ArrowRight" ? KEY_ORBIT_DEGREES : 0) * precisionScale
+          yaw +
+            (key === "ArrowLeft"
+              ? -KEY_ORBIT_DEGREES
+              : key === "ArrowRight"
+                ? KEY_ORBIT_DEGREES
+                : 0) *
+              precisionScale
         ),
         cameraPitchDegrees: clampNumber(
-          pitch + (key === "ArrowUp" ? KEY_ORBIT_DEGREES : key === "ArrowDown" ? -KEY_ORBIT_DEGREES : 0) * precisionScale,
+          pitch +
+            (key === "ArrowUp" ? KEY_ORBIT_DEGREES : key === "ArrowDown" ? -KEY_ORBIT_DEGREES : 0) *
+              precisionScale,
           CAMERA_PITCH_MIN_DEGREES,
           CAMERA_PITCH_MAX_DEGREES
         )
@@ -268,7 +283,9 @@ export class CloudApp {
   ) {
     this.frameIntervalMs = 1000 / (options.fps ?? 30);
     this.playbackTimeSeconds = options.time ?? 0;
-    this.paused = options.renderMode === "page" || options.timeScale <= 0;
+    this.paused =
+      (options.renderMode === "page" && !options.displayProfile.mobileWideView) ||
+      options.timeScale <= 0;
     this.startTime = performance.now();
     this.nextFrameTime = this.startTime;
     this.resetStartTime(this.startTime);
@@ -326,7 +343,9 @@ export class CloudApp {
       frameCount: this.renderedFrameCount,
       lastFrameDurationMs: this.lastFrameDurationMs,
       averageFrameDurationMs:
-        this.renderedFrameCount > 0 ? this.totalFrameDurationMs / this.renderedFrameCount : undefined,
+        this.renderedFrameCount > 0
+          ? this.totalFrameDurationMs / this.renderedFrameCount
+          : undefined,
       measuredFps:
         this.lastFrameIntervalMs !== undefined && this.lastFrameIntervalMs > 0
           ? 1000 / this.lastFrameIntervalMs
@@ -437,7 +456,8 @@ export class CloudApp {
     const yaw = degreesToRadians(drag.startYaw);
     const rightX = Math.cos(yaw);
     const rightZ = Math.sin(yaw);
-    const panScale = drag.startDistance * PAN_DRAG_UNITS_PER_PIXEL_AT_DISTANCE * drag.precisionScale;
+    const panScale =
+      drag.startDistance * PAN_DRAG_UNITS_PER_PIXEL_AT_DISTANCE * drag.precisionScale;
     const panRight = dx * panScale;
     const panUp = dy * panScale;
     this.setOptions({
@@ -523,7 +543,10 @@ export class CloudApp {
     if (!this.renderCurrentFrame(now)) {
       return;
     }
-    if (this.options.captureFrameLimit > 0 && this.renderedFrameCount >= this.options.captureFrameLimit) {
+    if (
+      this.options.captureFrameLimit > 0 &&
+      this.renderedFrameCount >= this.options.captureFrameLimit
+    ) {
       return;
     }
 
@@ -566,7 +589,8 @@ export class CloudApp {
       !this.renderer ||
       this.contextLost ||
       this.paused ||
-      (this.options.captureFrameLimit > 0 && this.renderedFrameCount >= this.options.captureFrameLimit)
+      (this.options.captureFrameLimit > 0 &&
+        this.renderedFrameCount >= this.options.captureFrameLimit)
     ) {
       return;
     }
@@ -619,7 +643,9 @@ export class CloudApp {
     }
     const rect = this.canvas.getBoundingClientRect();
     const fallback =
-      this.options.orientation === "landscape" ? { width: 960, height: 540 } : { width: 540, height: 960 };
+      this.options.orientation === "landscape"
+        ? { width: 960, height: 540 }
+        : { width: 540, height: 960 };
     const width = Math.round(this.options.simWidth ?? (rect.width || fallback.width));
     const height = Math.round(this.options.simHeight ?? (rect.height || fallback.height));
     this.renderer.resize(width, height);
@@ -644,15 +670,23 @@ export class CloudApp {
   private applyDocumentState(): void {
     document.documentElement.dataset.renderMode = this.options.renderMode;
     document.documentElement.dataset.orientation = this.options.orientation;
-    document.documentElement.dataset.deviceProfile = this.options.displayProfile.mobileWideView ? "mobile" : "desktop";
+    document.documentElement.dataset.deviceProfile = this.options.displayProfile.mobileWideView
+      ? "mobile"
+      : "desktop";
     document.documentElement.dataset.preset = this.options.presetName ?? "";
+    document.documentElement.dataset.morphology = this.options.morphologyStyle ?? "";
+    document.documentElement.dataset.qualityTier = this.options.qualityTier ?? "";
+    document.documentElement.dataset.autoQuality = this.options.autoQuality ? "true" : "false";
     document.body.dataset.background = this.options.transparentBackground ? "transparent" : "sky";
     document.body.dataset.ui = "tracing-paper";
     document.body.dataset.viewportMode = "background";
     document.body.dataset.controlsHidden = this.options.controlsVisible ? "false" : "true";
 
     const renderContainer = document.querySelector<HTMLElement>("#render-container");
-    renderContainer?.classList.toggle("viewport-landscape", this.options.orientation === "landscape");
+    renderContainer?.classList.toggle(
+      "viewport-landscape",
+      this.options.orientation === "landscape"
+    );
     renderContainer?.classList.toggle("viewport-portrait", this.options.orientation === "portrait");
 
     const targetLabel = document.querySelector<HTMLElement>("#target-label");
@@ -667,7 +701,9 @@ export class CloudApp {
   }
 
   private defaultCameraDistance(): number {
-    return this.options.displayProfile.mobileWideView ? MOBILE_CAMERA_DISTANCE : DEFAULT_CAMERA_DISTANCE;
+    return this.options.displayProfile.mobileWideView
+      ? MOBILE_CAMERA_DISTANCE
+      : DEFAULT_CAMERA_DISTANCE;
   }
 
   private exposeRuntimeDebug(): void {
@@ -707,7 +743,7 @@ function isArrowKey(key: string): boolean {
 }
 
 function normalizeDegrees(value: number): number {
-  const wrapped = ((value + 180) % 360 + 360) % 360 - 180;
+  const wrapped = ((((value + 180) % 360) + 360) % 360) - 180;
   return Object.is(wrapped, -0) ? 0 : wrapped;
 }
 

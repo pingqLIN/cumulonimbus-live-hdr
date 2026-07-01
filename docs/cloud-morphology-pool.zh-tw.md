@@ -6,22 +6,23 @@
 
 ## 型態清單
 
-| 值 | UI 名稱 | 形態意圖 |
-| --- | --- | --- |
-| `seeded` | Seeded pool | 由 seed 決定輪廓、表面、支解等多種 trait 的混合。 |
-| `baseline` | Base sphere | 保持接近球體，降低表面與超對比邊界變化。 |
-| `macro-boundary` | Macro edge | 強化突出、伸長、壓縮、硬邊輪廓與缺口。 |
-| `flatten` | Flattened | 壓扁與水平展寬，用於扁平雲體。 |
-| `skew-twist` | Skew twist | 加入偏斜、扭曲、沿風剪切，讓球體拓樸產生明顯姿態差。 |
-| `tear-silk` | Tear silk | 強化模糊邊界、風吹支解、絲狀消散。 |
-| `budding` | Budding | 一大一小的附著形態，近似酵母菌出芽。 |
-| `giant-cumulonimbus` | Giant Cb | 原始巨型積雨雲塔狀與砧狀輪廓，作為型態池成員。 |
+| 值                   | UI 名稱     | 形態意圖                                             |
+| -------------------- | ----------- | ---------------------------------------------------- |
+| `seeded`             | Seeded pool | 由 seed 決定輪廓、表面、支解等多種 trait 的混合。    |
+| `baseline`           | Base sphere | 保持接近球體，降低表面與超對比邊界變化。             |
+| `macro-boundary`     | Macro edge  | 強化突出、伸長、壓縮、硬邊輪廓與缺口。               |
+| `flatten`            | Flattened   | 壓扁與水平展寬，用於扁平雲體。                       |
+| `skew-twist`         | Skew twist  | 加入偏斜、扭曲、沿風剪切，讓球體拓樸產生明顯姿態差。 |
+| `tear-silk`          | Tear silk   | 強化模糊邊界、風吹支解、絲狀消散。                   |
+| `budding`            | Budding     | 一大一小的附著形態，近似酵母菌出芽。                 |
+| `giant-cumulonimbus` | Giant Cb    | 原始巨型積雨雲塔狀與砧狀輪廓，作為型態池成員。       |
 
 ## 可追溯公式
 
 型態池採用「樣式索引 + seed trait」的簡單公式：
 
 - `src/app/raymarch-cloud-renderer.ts` 定義 `CLOUD_MORPHOLOGY_STYLES`，並把樣式轉成數值送進 `uMorphologyStyle` 與 `CUMULONIMBUS_MORPHOLOGY_STYLE`。
+- `src/app/cloud-morphology-library.ts` 是 UI 使用的型態庫資料檔，集中保存名稱、短代碼、用途描述與 trait 標籤。
 - `src/app/runtime-options.ts` 從 URL 讀取 `morphologyStyle`、`morphology`、`shapeStyle` 或 `shape`。
 - `src/app/raymarch-cloud-shader.ts` 以 `sphericalRecipe(slot) = hash(uSeed * 0.0137 + slot * 17.371)` 生成可重複的 trait 取樣。
 - `sphericalTrait(slot, onset, full)` 用 `smoothstep` 控制 trait 何時出現、何時達到滿幅。
@@ -34,11 +35,15 @@
 
 ## UI 與 URL 用法
 
-UI 已加入 Cloud Body 面板：
+網頁控制後台已在 Cloud Body 面板加入型態庫：
 
 - 元件：`#select-morphology`
-- 標籤：`Morph`
+- 型態庫：`#cloud-morphology-library`
+- 卡片：`[data-morphology-style]`
+- 狀態文字：`#morphology-library-current` 與 `#morphology-library-intent`
 - 相關檔案：`src/ui/app-shell.ts`、`src/ui/controls.ts`
+
+點選型態卡或切換 Morph select 都會寫入同一個 `morphologyStyle` option，更新 active 卡片狀態，並立即套用到 renderer。
 
 URL 可直接指定：
 

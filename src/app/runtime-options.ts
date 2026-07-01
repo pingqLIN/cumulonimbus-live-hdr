@@ -1,5 +1,4 @@
 import { type BrowserDisplayProfile } from "./display-profile.js";
-import { resolveCloudMorphologyStyleAlias } from "./cloud-morphology-library.js";
 import { type RaymarchCloudOptions } from "./raymarch-cloud-renderer.js";
 
 export const SAFE_LIVE_MAX_PIXELS = 1280 * 720;
@@ -9,16 +8,8 @@ export const ATTACHED_06_STEP_SIZE = 0.18;
 export const ATTACHED_06_MOBILE_STEP_SIZE = 0.2;
 export const ATTACHED_06_MAX_STEPS = 142;
 export const ATTACHED_06_MOBILE_MAX_STEPS = 133;
-const MORPHOLOGY_PARAM_NAMES = ["morphologyStyle", "morphology", "shapeStyle", "shape"] as const;
-const HIDDEN_GROWTH_STYLES = [
-  "seeded",
-  "macro-boundary",
-  "flatten",
-  "skew-twist",
-  "tear-silk",
-  "budding",
-  "giant-cumulonimbus"
-] as const satisfies readonly NonNullable<RaymarchCloudOptions["morphologyStyle"]>[];
+const STABLE_CLOUD_MORPHOLOGY_STYLE =
+  "giant-cumulonimbus" satisfies RaymarchCloudOptions["morphologyStyle"];
 
 export type Orientation = "portrait" | "landscape";
 export type RenderMode = "canvas" | "page";
@@ -139,12 +130,6 @@ export function resolveRuntimeOptions(
   const seed = Math.floor(
     readNumber(params, ["seed"], preset.seed ?? createRuntimeSeed(), 1, Number.MAX_SAFE_INTEGER)
   );
-  const morphologyStyle = resolveMorphologyStyle(
-    params,
-    preset,
-    displayProfile,
-    createRuntimeSeed()
-  );
 
   return {
     ...preset,
@@ -257,7 +242,7 @@ export function resolveRuntimeOptions(
     ortho: readBoolean(params, ["ortho"], preset.ortho ?? false),
     showGrid: readBoolean(params, ["grid", "showGrid"], preset.showGrid ?? false),
     surfaceMode: resolveSurfaceMode(params.get("surface")) ?? preset.surfaceMode ?? "none",
-    morphologyStyle,
+    morphologyStyle: STABLE_CLOUD_MORPHOLOGY_STYLE,
     mobileCumulusMode: readBoolean(
       params,
       ["mobileCumulusMode", "mobileShape"],
@@ -595,42 +580,6 @@ function resolveSurfaceMode(value: string | null): RaymarchCloudOptions["surface
     return value;
   }
   return undefined;
-}
-
-function resolveMorphologyStyle(
-  params: URLSearchParams,
-  preset: RaymarchCloudOptions,
-  displayProfile: BrowserDisplayProfile,
-  hiddenRuleSeed: number
-): RaymarchCloudOptions["morphologyStyle"] {
-  const requestedStyle = resolveCloudMorphologyStyleAlias(
-    readFirstParam(params, MORPHOLOGY_PARAM_NAMES)
-  );
-  if (requestedStyle !== undefined) {
-    return requestedStyle;
-  }
-
-  return growHiddenCloudMorphology(hiddenRuleSeed, displayProfile) ?? preset.morphologyStyle;
-}
-
-function growHiddenCloudMorphology(
-  hiddenRuleSeed: number,
-  displayProfile: BrowserDisplayProfile
-): RaymarchCloudOptions["morphologyStyle"] {
-  const hourPhase = Math.floor((new Date().getHours() * 60 + new Date().getMinutes()) / 90);
-  const deviceSalt =
-    (displayProfile.mobileWideView ? 37 : 11) +
-    (displayProfile.coarsePointer ? 23 : 0) +
-    (displayProfile.iosChrome ? 41 : 0);
-  const index = positiveModulo(
-    hiddenRuleSeed + hourPhase * 17 + deviceSalt,
-    HIDDEN_GROWTH_STYLES.length
-  );
-  return HIDDEN_GROWTH_STYLES[index] ?? "giant-cumulonimbus";
-}
-
-function positiveModulo(value: number, divisor: number): number {
-  return ((Math.trunc(value) % divisor) + divisor) % divisor;
 }
 
 function readTransparentBackground(params: URLSearchParams): boolean {

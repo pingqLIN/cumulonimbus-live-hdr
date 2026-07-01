@@ -33,24 +33,15 @@
 - `mapBuddingCloudMacro(...)`：主球、小芽、neck 三者以 smooth union 合成，形成一大一小的出芽構型。
 - `mapOriginalGiantCumulonimbusMacro(...)`：復用原始 tower/anvil cell 邏輯，讓單雲模式也能直接切到巨型積雨雲。
 
-## Runtime 與 URL 用法
+## Runtime 用法
 
-網頁控制面板預設不顯示構型選擇器。頁面開啟時，
-`src/app/runtime-options.ts` 會用隱藏的生長規則，依據 runtime entropy、時間相位與裝置 profile，
-從型態池中挑選一種構型。挑選結果會寫入 `document.documentElement.dataset.morphology` 供診斷使用，
-並以 `morphologyStyle` 傳給 renderer。
+雲體構型資料庫仍保留在程式碼中，但公開網頁 runtime 目前不顯示也不調用它。
+`src/app/runtime-options.ts` 會透過 `STABLE_CLOUD_MORPHOLOGY_STYLE` 將 renderer 固定在
+`giant-cumulonimbus`，因此 live page 會刻意忽略 `morphology`、`shape` 或
+`morphologyStyle` 這類 query string。
 
-URL 仍可直接指定構型，方便 QA、截圖與定向 look development。支援的 key 包含
-`morphologyStyle`、`morphology`、`shapeStyle` 與 `shape`：
-
-```text
-/?morphology=seeded
-/?morphology=budding
-/?morphology=giant-cumulonimbus
-/?shape=tear-silk
-```
-
-截圖腳本會透過 `scripts/lib/preview-url.mjs` 轉送同一組 query key，因此自動化截圖與 UI 使用的是同一套型態池。
+此資料庫保留給之後受控實驗、離線截圖，或由呼叫端明確提供 morphology style 的
+renderer 工作流程。
 
 ## 已儲存的樣式檢查輸出
 
@@ -75,5 +66,5 @@ outputs/analysis/morphology-pool-samples-20260628/
 - `npm run check`
 - live-entry smoke capture
 - 八種型態各自截圖
-- landscape UI capture，並以 `morphology=macro-boundary` URL override 驗證
+- UI smoke capture，確認前台沒有可見 morphology selector/library
 - `git diff --check` 僅回報既有 CRLF normalization warning，未發現空白錯誤

@@ -83,7 +83,7 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
   elements.syncSystemTimeButton?.addEventListener("click", () => {
     const now = syncAtmosphereToSystemTime(elements, app);
     elements.syncSystemTimeButton?.classList.add("enabled");
-    updateText(elements.syncStatus, `Sync time ${now.toLocaleTimeString()}`);
+    updateText(elements.syncStatus, `System time ${now.toLocaleTimeString()}`);
     if (elements.syncStatus) {
       elements.syncStatus.hidden = false;
     }

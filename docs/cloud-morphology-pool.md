@@ -33,28 +33,16 @@ Special macro branches:
 - `mapBuddingCloudMacro(...)` merges a main spherical body, a smaller bud, and a neck using smooth union.
 - `mapOriginalGiantCumulonimbusMacro(...)` reuses the original tower/anvil cell logic for a single explicit giant Cb style.
 
-## Runtime And URL Usage
+## Runtime Usage
 
-The web control surface keeps morphology selection hidden by default. On page open,
-`src/app/runtime-options.ts` chooses a style from the morphology pool using a private
-growth rule that combines runtime entropy, time phase, and device profile. The chosen
-style is written to `document.documentElement.dataset.morphology` for diagnostics and
-sent to the renderer as `morphologyStyle`.
+The morphology database remains in the codebase, but the public web runtime does
+not expose or call it. `src/app/runtime-options.ts` currently pins the renderer to
+`giant-cumulonimbus` through `STABLE_CLOUD_MORPHOLOGY_STYLE`, so query strings such
+as `morphology`, `shape`, or `morphologyStyle` are intentionally ignored by the live
+page.
 
-URL parameters still override the hidden rule for QA, screenshot capture, and directed
-look development. Supported keys are `morphologyStyle`, `morphology`, `shapeStyle`, and
-`shape`.
-
-URL examples:
-
-```text
-/?morphology=seeded
-/?morphology=budding
-/?morphology=giant-cumulonimbus
-/?shape=tear-silk
-```
-
-Capture scripts forward the same query keys through `scripts/lib/preview-url.mjs`.
+The database is kept for future controlled experiments, offline captures, and
+direct renderer work where a caller explicitly supplies a morphology style.
 
 ## Saved Review Outputs
 
@@ -79,5 +67,5 @@ Checks run during this pass:
 - `npm run check`
 - live-entry smoke capture
 - individual style captures for all eight morphology styles
-- UI landscape capture with `morphology=macro-boundary` URL override
+- UI smoke capture confirming the visible morphology selector/library is absent
 - `git diff --check` showed only existing CRLF normalization warnings

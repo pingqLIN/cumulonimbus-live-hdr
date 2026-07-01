@@ -60,7 +60,7 @@ assert.match(result.url, /[?&]morphology=macro-boundary(?:&|$)/);
 assert.match(result.url, new RegExp(`[?&]orientation=${orientation}(?:&|$)`));
 assert.doesNotMatch(result.url, /[?&]capture=1(?:&|$)/);
 assert.doesNotMatch(result.url, /[?&]live=1(?:&|$)/);
-assert.equal(result.uiState?.morphology, "giant-cumulonimbus");
+assert.equal(result.uiState?.morphology, "macro-boundary");
 assert.equal(result.uiState?.hasMorphSelect, false);
 assert.equal(result.uiState?.hasMorphLibrary, false);
 assert.equal(result.uiState?.morphButtonCount, 0);

@@ -33,17 +33,17 @@ Special macro branches:
 - `mapBuddingCloudMacro(...)` merges a main spherical body, a smaller bud, and a neck using smooth union.
 - `mapOriginalGiantCumulonimbusMacro(...)` reuses the original tower/anvil cell logic for a single explicit giant Cb style.
 
-## UI And URL Usage
+## Runtime And URL Usage
 
-The web control backend exposes the library in the Cloud Body panel:
+The web control surface keeps morphology selection hidden by default. On page open,
+`src/app/runtime-options.ts` chooses a style from the morphology pool using a private
+growth rule that combines runtime entropy, time phase, and device profile. The chosen
+style is written to `document.documentElement.dataset.morphology` for diagnostics and
+sent to the renderer as `morphologyStyle`.
 
-- Element: `#select-morphology`
-- Library: `#cloud-morphology-library`
-- Cards: `[data-morphology-style]`
-- Status: `#morphology-library-current` and `#morphology-library-intent`
-- Control wiring: `src/ui/app-shell.ts` and `src/ui/controls.ts`
-
-Selecting a card or changing the Morph select writes the same `morphologyStyle` option, refreshes the active card state, and updates the renderer immediately.
+URL parameters still override the hidden rule for QA, screenshot capture, and directed
+look development. Supported keys are `morphologyStyle`, `morphology`, `shapeStyle`, and
+`shape`.
 
 URL examples:
 
@@ -68,7 +68,7 @@ Important files:
 
 - `contact-sheet.png` - visual comparison of all eight pool styles.
 - `manifest.json` - PNG analysis metrics for each style.
-- `ui-morphology-landscape.png` - rendered UI style check with the Morph selector set to `budding`.
+- `ui-morphology-landscape.png` - older rendered UI check from the visible selector prototype.
 
 Note: `outputs/*` is ignored by Git, so these files are saved locally but are not versioned unless copied to a tracked path.
 
@@ -79,5 +79,5 @@ Checks run during this pass:
 - `npm run check`
 - live-entry smoke capture
 - individual style captures for all eight morphology styles
-- UI landscape capture with `#select-morphology` interaction
+- UI landscape capture with `morphology=macro-boundary` URL override
 - `git diff --check` showed only existing CRLF normalization warnings

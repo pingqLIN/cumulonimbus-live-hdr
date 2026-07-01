@@ -33,19 +33,15 @@
 - `mapBuddingCloudMacro(...)`：主球、小芽、neck 三者以 smooth union 合成，形成一大一小的出芽構型。
 - `mapOriginalGiantCumulonimbusMacro(...)`：復用原始 tower/anvil cell 邏輯，讓單雲模式也能直接切到巨型積雨雲。
 
-## UI 與 URL 用法
+## Runtime 與 URL 用法
 
-網頁控制後台已在 Cloud Body 面板加入型態庫：
+網頁控制面板預設不顯示構型選擇器。頁面開啟時，
+`src/app/runtime-options.ts` 會用隱藏的生長規則，依據 runtime entropy、時間相位與裝置 profile，
+從型態池中挑選一種構型。挑選結果會寫入 `document.documentElement.dataset.morphology` 供診斷使用，
+並以 `morphologyStyle` 傳給 renderer。
 
-- 元件：`#select-morphology`
-- 型態庫：`#cloud-morphology-library`
-- 卡片：`[data-morphology-style]`
-- 狀態文字：`#morphology-library-current` 與 `#morphology-library-intent`
-- 相關檔案：`src/ui/app-shell.ts`、`src/ui/controls.ts`
-
-點選型態卡或切換 Morph select 都會寫入同一個 `morphologyStyle` option，更新 active 卡片狀態，並立即套用到 renderer。
-
-URL 可直接指定：
+URL 仍可直接指定構型，方便 QA、截圖與定向 look development。支援的 key 包含
+`morphologyStyle`、`morphology`、`shapeStyle` 與 `shape`：
 
 ```text
 /?morphology=seeded
@@ -68,7 +64,7 @@ outputs/analysis/morphology-pool-samples-20260628/
 
 - `contact-sheet.png`：八種型態的總覽圖。
 - `manifest.json`：每種型態的 PNG 分析與形態指標。
-- `ui-morphology-landscape.png`：包含 Morph selector 的 UI 樣式檢查截圖。
+- `ui-morphology-landscape.png`：舊版可見 selector prototype 的 UI 檢查截圖。
 
 注意：`.gitignore` 目前忽略 `outputs/*`，所以這些截圖與 manifest 是本機已保存，但不會自動進入 Git 版本控管。若要把樣式板變成版本化素材，應另存到 tracked 的 docs/assets 類路徑。
 
@@ -79,5 +75,5 @@ outputs/analysis/morphology-pool-samples-20260628/
 - `npm run check`
 - live-entry smoke capture
 - 八種型態各自截圖
-- landscape UI capture，並實際把 `#select-morphology` 切到 `budding`
+- landscape UI capture，並以 `morphology=macro-boundary` URL override 驗證
 - `git diff --check` 僅回報既有 CRLF normalization warning，未發現空白錯誤

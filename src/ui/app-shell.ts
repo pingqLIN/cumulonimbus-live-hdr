@@ -222,7 +222,7 @@ function buildShellMarkup(
                 <span id="time-readout" class="readout">1.0x</span>
               </div>
               <button id="btn-time-toggle" class="btn-toggle" type="button" aria-label="Resume">Resume</button>
-              <button id="btn-sync-system-time" class="btn-toggle" type="button">System time</button>
+              <button id="btn-sync-system-time" class="btn-toggle" type="button">Sync Time</button>
               <button id="btn-sync-location" class="btn-toggle" type="button" disabled title="Location sync is not connected">Location off</button>
               <button id="btn-time-reset" class="btn-toggle" type="button">Reset time</button>
               <div id="sync-status" class="sync-status" role="status" aria-live="polite" hidden></div>

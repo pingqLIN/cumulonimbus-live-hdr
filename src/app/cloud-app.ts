@@ -495,12 +495,16 @@ export class CloudApp {
   }
 
   private bindCameraInput(): void {
-    this.canvas.addEventListener("pointerdown", this.handleCanvasPointerDown);
-    this.canvas.addEventListener("pointermove", this.handleCanvasPointerMove);
-    this.canvas.addEventListener("pointerup", this.handleCanvasPointerEnd);
-    this.canvas.addEventListener("pointercancel", this.handleCanvasPointerEnd);
+    this.canvas.addEventListener("pointerdown", this.handleCanvasPointerDown, { passive: false });
+    this.canvas.addEventListener("pointermove", this.handleCanvasPointerMove, { passive: false });
+    this.canvas.addEventListener("pointerup", this.handleCanvasPointerEnd, { passive: false });
+    this.canvas.addEventListener("pointercancel", this.handleCanvasPointerEnd, { passive: false });
     this.canvas.addEventListener("wheel", this.handleCanvasWheel, { passive: false });
     this.canvas.addEventListener("contextmenu", this.handleCanvasContextMenu);
+    this.canvas.addEventListener("touchstart", this.handleCanvasTouchStart, { passive: false });
+    this.canvas.addEventListener("touchmove", this.handleCanvasTouchMove, { passive: false });
+    this.canvas.addEventListener("gesturestart", this.handleCanvasGesture, { passive: false });
+    this.canvas.addEventListener("gesturechange", this.handleCanvasGesture, { passive: false });
     this.canvas.addEventListener("keydown", this.handleCanvasKeyDown);
     window.addEventListener("resize", this.handleViewportResize, { passive: true });
     window.visualViewport?.addEventListener("resize", this.handleViewportResize, { passive: true });
@@ -515,6 +519,10 @@ export class CloudApp {
     this.canvas.removeEventListener("pointerup", this.handleCanvasPointerEnd);
     this.canvas.removeEventListener("pointercancel", this.handleCanvasPointerEnd);
     this.canvas.removeEventListener("wheel", this.handleCanvasWheel);
+    this.canvas.removeEventListener("touchstart", this.handleCanvasTouchStart);
+    this.canvas.removeEventListener("touchmove", this.handleCanvasTouchMove);
+    this.canvas.removeEventListener("gesturestart", this.handleCanvasGesture);
+    this.canvas.removeEventListener("gesturechange", this.handleCanvasGesture);
     this.canvas.removeEventListener("contextmenu", this.handleCanvasContextMenu);
     this.canvas.removeEventListener("keydown", this.handleCanvasKeyDown);
     window.removeEventListener("resize", this.handleViewportResize);
@@ -535,6 +543,24 @@ export class CloudApp {
       // Touch capture is best-effort on some mobile browsers during rapid multi-touch changes.
     }
   }
+
+  private readonly handleCanvasTouchStart = (event: TouchEvent): void => {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+  };
+
+  private readonly handleCanvasTouchMove = (event: TouchEvent): void => {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+  };
+
+  private readonly handleCanvasGesture = (event: Event): void => {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+  };
 
   private handleCanvasTouchPointerMove(event: PointerEvent): void {
     if (!this.activeTouchPointers.has(event.pointerId)) {

@@ -1,0 +1,43 @@
+{
+  "metadata": {
+    "runId": "run-2026-07-01T14-37-43-071Z-4300",
+    "schemaVersion": "2.2.0",
+    "projectVersion": "0.1.0",
+    "source": "smoke-render",
+    "paramsFingerprint": "389e9a59",
+    "paramsFingerprintKey": "20260510-0.48-mature-389e9a59"
+  },
+  "ok": true,
+  "generatedAt": "2026-07-01T14:37:43.074Z",
+  "renderConfig": {
+    "mode": "smoke",
+    "width": 90,
+    "height": 160,
+    "fps": 30,
+    "seconds": 3,
+    "frames": 90,
+    "seed": 20260510,
+    "backend": "cpu"
+  },
+  "averageDensity": 0.0445395650311579,
+  "activeEdgeRatio": 0.24583333333333332,
+  "peakSceneValue": 1.9093055050247,
+  "peakNits": 744.2442730085817,
+  "hdrEncoding": {
+    "diffuseWhiteNits": 203,
+    "sunEdgePeakNits": 1000,
+    "masterDisplayPeakNits": 1000,
+    "maxCll": 1000,
+    "encodingPeakNits": 1000,
+    "diffuseWhitePq": 0.5806888810416109,
+    "diffuseWhitePq16": 38055,
+    "sunEdgePeakPq": 0.751827096247041,
+    "sunEdgePeakPq16": 49271,
+    "maxCllPq": 0.751827096247041,
+    "maxCllPq16": 49271,
+    "masterDisplayPeakPq": 0.751827096247041,
+    "masterDisplayPeakPq16": 49271
+  },
+  "maxChannel": "r",
+  "renderDurationMs": 8877.2824
+}

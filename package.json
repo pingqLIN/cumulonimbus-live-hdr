@@ -32,6 +32,7 @@
     "test:webgpu-uniforms": "npm run build:core && node scripts/smoke-webgpu-uniforms.mjs",
     "test:cml-lite": "node scripts/cml-lite-density-grid-spike.mjs --gridX 24 --gridY 18 --gridZ 24 --width 60 --height 106 --frames 8 --fps 8 --simStepsPerFrame 2 --raySteps 18 --no-mp4 --outDir outputs/analysis/cml-lite-density-grid-smoke",
     "test:browser": "npm run build && node scripts/smoke-browser-suite.mjs",
+    "bench:cloud-ready": "node scripts/benchmark-cloud-ready.mjs",
     "test:field-capture": "npm run build && node scripts/smoke-field-capture.mjs",
     "test:3d-capture": "npm run build && node scripts/smoke-3d-capture.mjs",
     "test:ui-capture": "npm run build && node scripts/smoke-ui-capture.mjs",

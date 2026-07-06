@@ -1,5 +1,6 @@
 import "../styles/app.css";
 import { detectBrowserDisplayProfile } from "./display-profile.js";
+import { resolveExperienceProfile } from "./experience-profile.js";
 import { resolveRuntimeOptions } from "./runtime-options.js";
 import { createAppShell } from "../ui/app-shell.js";
 import { bindControls } from "../ui/controls.js";
@@ -9,7 +10,8 @@ import { bindStageEdgeFill } from "../ui/stage-edge-fill.js";
 const query = new URLSearchParams(window.location.search);
 const displayProfile = detectBrowserDisplayProfile();
 const options = resolveRuntimeOptions(query, displayProfile);
-const shell = createAppShell(options);
+const experienceProfile = resolveExperienceProfile(options);
+const shell = createAppShell(options, experienceProfile);
 const cleanupStageEdgeFill = bindStageEdgeFill(shell.renderContainer);
 let disposeApp: (() => void) | undefined;
 
@@ -27,7 +29,7 @@ window.addEventListener("beforeunload", () => {
 void import("./cloud-app.js")
   .then(({ CloudApp }) => {
     document.documentElement.dataset.appModuleStatus = "loaded";
-    const app = new CloudApp(shell.canvas, options);
+    const app = new CloudApp(shell.canvas, options, experienceProfile);
     disposeApp = () => app.dispose();
     bindControls(shell.root, app);
     bindPanels(shell.root);

@@ -3,6 +3,7 @@ import {
   detectBrowserDisplayProfile,
   type BrowserDisplayProfile
 } from "./display-profile.js";
+import { raymarchCloudLiteFragmentShader } from "./raymarch-cloud-lite-shader.js";
 import { raymarchCloudFragmentShader, raymarchCloudVertexShader } from "./raymarch-cloud-shader.js";
 
 export const CLOUD_MORPHOLOGY_STYLES = [
@@ -32,6 +33,19 @@ export type RaymarchCloudOptions = {
   horizonStrength?: number;
   stepSize?: number;
   maxSteps?: number;
+  earlyExitAlpha?: number;
+  shadowSamples?: number;
+  shadowStep?: number;
+  shadowOcclusion?: number;
+  densityMultiplier?: number;
+  carvingWeight?: number;
+  edgeErosionWeight?: number;
+  surfaceShadowSamples?: number;
+  surfaceShadowStep?: number;
+  surfaceShadowStrength?: number;
+  terrainFuzz?: number;
+  oceanCrestStrength?: number;
+  surfaceRadius?: number;
   sunIntensity?: number;
   ambientIntensity?: number;
   sunElevation?: number;
@@ -46,6 +60,7 @@ export type RaymarchCloudOptions = {
   showGrid?: boolean;
   surfaceMode?: "none" | "ocean" | "hills";
   morphologyStyle?: CloudMorphologyStyle;
+  shaderVariant?: "live-lite" | "full";
   cameraYawDegrees?: number;
   cameraPitchDegrees?: number;
   cameraDistance?: number;
@@ -83,6 +98,7 @@ export class RaymarchCloudRenderer {
   private readonly cameraPosition = new THREE.Vector3();
   private readonly cameraTarget = new THREE.Vector3();
   private readonly resolution = new THREE.Vector2();
+  private shaderVariant: NonNullable<RaymarchCloudOptions["shaderVariant"]>;
   private width = 0;
   private height = 0;
   private readonly displayProfile: BrowserDisplayProfile;
@@ -94,6 +110,7 @@ export class RaymarchCloudRenderer {
     private options: RaymarchCloudOptions = {}
   ) {
     this.displayProfile = options.displayProfile ?? detectBrowserDisplayProfile();
+    this.shaderVariant = resolveShaderVariant(options);
     this.tropopause = clampFinite(options.tropopause, 12, 4, 20);
     this.orthoFrustumSize = this.defaultOrthoFrustumSize();
     this.updateCameraFromOptions();
@@ -135,7 +152,7 @@ export class RaymarchCloudRenderer {
         CUMULONIMBUS_MORPHOLOGY_STYLE: resolveMorphologyStyleValue(options.morphologyStyle)
       },
       vertexShader: raymarchCloudVertexShader,
-      fragmentShader: raymarchCloudFragmentShader,
+      fragmentShader: resolveFragmentShader(this.shaderVariant),
       uniforms: {
         uTime: { value: clampFinite(options.time, 0, 0, 1_000_000) },
         uResolution: { value: this.resolution },
@@ -158,6 +175,19 @@ export class RaymarchCloudRenderer {
         uOrthoVerticalScale: { value: ORTHO_VERTICAL_WORLD_SCALE },
         uStepSize: { value: clampFinite(options.stepSize, this.defaultStepSize(), 0.08, 0.6) },
         uMaxSteps: { value: clampFinite(options.maxSteps, this.defaultMaxSteps(), 24, 144) },
+        uEarlyExitAlpha: { value: clampFinite(options.earlyExitAlpha, 0.955, 0.88, 0.985) },
+        uShadowSamples: { value: clampFinite(options.shadowSamples, 3, 0, 5) },
+        uShadowStep: { value: clampFinite(options.shadowStep, 0.34, 0.18, 0.9) },
+        uShadowOcclusion: { value: clampFinite(options.shadowOcclusion, 1, 0.25, 1.6) },
+        uDensityMultiplier: { value: clampFinite(options.densityMultiplier, 12.8, 6, 18) },
+        uCarvingWeight: { value: clampFinite(options.carvingWeight, 1, 0.35, 1.8) },
+        uEdgeErosionWeight: { value: clampFinite(options.edgeErosionWeight, 1, 0.25, 1.8) },
+        uSurfaceShadowSamples: { value: clampFinite(options.surfaceShadowSamples, 3, 0, 5) },
+        uSurfaceShadowStep: { value: clampFinite(options.surfaceShadowStep, 1.15, 0.3, 2.4) },
+        uSurfaceShadowStrength: { value: clampFinite(options.surfaceShadowStrength, 0.38, 0, 0.85) },
+        uTerrainFuzz: { value: clampFinite(options.terrainFuzz, 0.52, 0, 1) },
+        uOceanCrestStrength: { value: clampFinite(options.oceanCrestStrength, 0.72, 0, 1.4) },
+        uSurfaceRadius: { value: clampFinite(options.surfaceRadius, 12, 8, 32) },
         uSunIntensity: { value: clampFinite(options.sunIntensity, 4.6, 0, 10) },
         uAmbientIntensity: { value: clampFinite(options.ambientIntensity, 0.75, 0, 2) },
         uSunElevation: { value: clampFinite(options.sunElevation, 35, -20, 90) },
@@ -190,6 +220,12 @@ export class RaymarchCloudRenderer {
     const staticStepLimit = this.staticRayStepLimit();
     const singleCloudDefine = usesSingleCloudModel(this.options) ? 1 : 0;
     const morphologyStyleDefine = resolveMorphologyStyleValue(this.options.morphologyStyle);
+    const shaderVariant = resolveShaderVariant(this.options);
+    if (this.shaderVariant !== shaderVariant) {
+      this.shaderVariant = shaderVariant;
+      this.material.fragmentShader = resolveFragmentShader(shaderVariant);
+      this.material.needsUpdate = true;
+    }
     if (this.material.defines.CUMULONIMBUS_MAX_RAY_STEPS !== staticStepLimit) {
       this.material.defines.CUMULONIMBUS_MAX_RAY_STEPS = staticStepLimit;
       this.material.needsUpdate = true;
@@ -235,6 +271,69 @@ export class RaymarchCloudRenderer {
       this.defaultMaxSteps(),
       24,
       144
+    );
+    this.material.uniforms.uEarlyExitAlpha!.value = clampFinite(
+      this.options.earlyExitAlpha,
+      0.955,
+      0.88,
+      0.985
+    );
+    this.material.uniforms.uShadowSamples!.value = clampFinite(this.options.shadowSamples, 3, 0, 5);
+    this.material.uniforms.uShadowStep!.value = clampFinite(this.options.shadowStep, 0.34, 0.18, 0.9);
+    this.material.uniforms.uShadowOcclusion!.value = clampFinite(
+      this.options.shadowOcclusion,
+      1,
+      0.25,
+      1.6
+    );
+    this.material.uniforms.uDensityMultiplier!.value = clampFinite(
+      this.options.densityMultiplier,
+      12.8,
+      6,
+      18
+    );
+    this.material.uniforms.uCarvingWeight!.value = clampFinite(
+      this.options.carvingWeight,
+      1,
+      0.35,
+      1.8
+    );
+    this.material.uniforms.uEdgeErosionWeight!.value = clampFinite(
+      this.options.edgeErosionWeight,
+      1,
+      0.25,
+      1.8
+    );
+    this.material.uniforms.uSurfaceShadowSamples!.value = clampFinite(
+      this.options.surfaceShadowSamples,
+      3,
+      0,
+      5
+    );
+    this.material.uniforms.uSurfaceShadowStep!.value = clampFinite(
+      this.options.surfaceShadowStep,
+      1.15,
+      0.3,
+      2.4
+    );
+    this.material.uniforms.uSurfaceShadowStrength!.value = clampFinite(
+      this.options.surfaceShadowStrength,
+      0.38,
+      0,
+      0.85
+    );
+    this.material.uniforms.uTerrainFuzz!.value = clampFinite(this.options.terrainFuzz, 0.52, 0, 1);
+    this.material.uniforms.uOceanCrestStrength!.value = clampFinite(
+      this.options.oceanCrestStrength,
+      0.72,
+      0,
+      1.4
+    );
+    this.material.uniforms.uSurfaceRadius!.value = clampFinite(
+      this.options.surfaceRadius,
+      12,
+      8,
+      32
     );
     this.material.uniforms.uSunIntensity!.value = clampFinite(this.options.sunIntensity, 4.6, 0, 10);
     this.material.uniforms.uAmbientIntensity!.value = clampFinite(
@@ -468,6 +567,35 @@ function resolveMorphologyStyleValue(name: RaymarchCloudOptions["morphologyStyle
     default:
       return 0;
   }
+}
+
+function resolveShaderVariant(
+  options: RaymarchCloudOptions
+): NonNullable<RaymarchCloudOptions["shaderVariant"]> {
+  if (options.shaderVariant === "full") {
+    return "full";
+  }
+  if (requiresFullShader(options)) {
+    return "full";
+  }
+  return "live-lite";
+}
+
+function resolveFragmentShader(
+  variant: NonNullable<RaymarchCloudOptions["shaderVariant"]>
+): string {
+  return variant === "live-lite" ? raymarchCloudLiteFragmentShader : raymarchCloudFragmentShader;
+}
+
+function requiresFullShader(options: RaymarchCloudOptions): boolean {
+  return Boolean(
+    options.hdr10 ||
+      options.dither ||
+      options.photographicStyle ||
+      (options.surfaceMode && options.surfaceMode !== "none") ||
+      (options.skyMode && options.skyMode !== "clear" && options.skyMode !== "workbench") ||
+      (options.morphologyStyle && options.morphologyStyle !== "giant-cumulonimbus")
+  );
 }
 
 function resolveSystemCount(value: number | undefined): number {

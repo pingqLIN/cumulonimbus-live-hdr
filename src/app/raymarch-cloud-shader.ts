@@ -17,6 +17,19 @@ export const raymarchCloudFragmentShader = String.raw`
             uniform float uOrthoVerticalScale;
             uniform float uStepSize;
             uniform float uMaxSteps;
+            uniform float uEarlyExitAlpha;
+            uniform float uShadowSamples;
+            uniform float uShadowStep;
+            uniform float uShadowOcclusion;
+            uniform float uDensityMultiplier;
+            uniform float uCarvingWeight;
+            uniform float uEdgeErosionWeight;
+            uniform float uSurfaceShadowSamples;
+            uniform float uSurfaceShadowStep;
+            uniform float uSurfaceShadowStrength;
+            uniform float uTerrainFuzz;
+            uniform float uOceanCrestStrength;
+            uniform float uSurfaceRadius;
             uniform float uSunIntensity;
             uniform float uAmbientIntensity;
             uniform float uSunElevation;
@@ -37,6 +50,10 @@ export const raymarchCloudFragmentShader = String.raw`
 
 #ifndef CUMULONIMBUS_MORPHOLOGY_STYLE
 #define CUMULONIMBUS_MORPHOLOGY_STYLE 0
+#endif
+
+#ifndef CUMULONIMBUS_MAX_RAY_STEPS
+#define CUMULONIMBUS_MAX_RAY_STEPS 96
 #endif
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
@@ -805,7 +822,7 @@ export const raymarchCloudFragmentShader = String.raw`
                     ));
                     float towerBand = smoothstep(0.12, 0.58, height01) * (1.0 - smoothstep(0.78, 1.02, height01));
                     float surfaceShell = smoothstep(-0.7, 0.16, macro) * (1.0 - smoothstep(0.18, 0.82, macro));
-                    d += details - carving * 0.8;
+                    d += details - carving * 0.8 * uCarvingWeight;
 #if CUMULONIMBUS_SINGLE_CLOUD
                     float coreFullness = 1.0 - smoothstep(-0.48, 0.22, macro);
                     d += coreFullness * mix(0.18, 0.08, surfaceTrait);
@@ -826,7 +843,7 @@ export const raymarchCloudFragmentShader = String.raw`
                     d -= anvilBand * iceFactor * smoothstep(0.72, 0.98, iceFiber) * 0.12;
                     float edgeBand = smoothstep(-0.72, 0.34, macro);
                     float edgeCuts = noise(vec3(q.x * 0.82 + uSeed * 0.019, q.y * 0.92, q.z * 0.82 - uTime * 0.03));
-                    d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * mix(0.24, 0.38, photo) * mix(1.0, 0.42, mobileFullness);
+                    d -= edgeBand * smoothstep(0.5, 0.86, edgeCuts) * mix(0.24, 0.38, photo) * mix(1.0, 0.42, mobileFullness) * uEdgeErosionWeight;
                     float raggedFloor =
                         MODEL_LOCAL_BASE +
                         (noise(vec3(baseQ.xz * 0.58 + uSeed * 0.13, uSeed * 0.29)) - 0.5) * 0.68 +
@@ -962,39 +979,189 @@ export const raymarchCloudFragmentShader = String.raw`
                 return col;
             }
 
-            vec3 surfaceOverlay(vec3 col, vec3 ro, vec3 rd, vec3 lightDir, vec3 ambientColor) {
-                if (uSurfaceVisible < 0.5 || abs(rd.y) <= 0.001) return col;
-                float tS = (0.0 - ro.y) / rd.y;
-                if (tS <= 0.0 || tS > 220.0) return col;
+            float toonStep(float value, float edge, float softness) {
+                return smoothstep(edge - softness, edge + softness, value);
+            }
 
-                vec3 pS = ro + rd * tS;
-                float rangeFade = 1.0 - smoothstep(28.0, 92.0, length(pS.xz));
-                if (rangeFade <= 0.0) return col;
+            float surfaceRadius() {
+                return uSurfaceRadius;
+            }
 
-                float terrainNoise = fbm(vec3(pS.xz * 0.075, uSeed * 0.03));
-                float ridge = smoothstep(0.42, 0.84, terrainNoise);
-                vec3 normal = normalize(vec3(
-                    noise(vec3(pS.xz * 0.12 + vec2(1.7, 0.0), uSeed * 0.04)) - 0.5,
-                    1.45,
-                    noise(vec3(pS.xz * 0.12 + vec2(0.0, 3.1), uSeed * 0.04)) - 0.5
-                ));
-                float diffuse = clamp(dot(normal, lightDir) * 0.5 + 0.5, 0.0, 1.0);
-                float horizonFade = smoothstep(0.0, 0.12, -rd.y);
+            float feltHillHeight(vec2 xz) {
+                float seedPhase = uSeed * 0.013;
+                float h =
+                    sin(xz.x * 0.18 + seedPhase) * 0.36 +
+                    sin(xz.y * 0.15 - seedPhase * 0.7) * 0.30 +
+                    sin((xz.x + xz.y) * 0.105 + 1.8 + seedPhase * 0.23) * 0.25 +
+                    sin((xz.x - xz.y) * 0.085 - 2.4) * 0.18;
+                vec2 moundA = (xz - vec2(-4.4, 3.2)) / vec2(5.4, 3.8);
+                vec2 moundB = (xz - vec2(5.8, -2.7)) / vec2(4.6, 4.2);
+                vec2 moundC = (xz - vec2(1.4, 6.6)) / vec2(6.8, 3.6);
+                float sculptedMounds =
+                    exp(-dot(moundA, moundA)) * 0.78 +
+                    exp(-dot(moundB, moundB)) * 0.54 +
+                    exp(-dot(moundC, moundC)) * 0.36;
+                float dome = 1.0 - smoothstep(surfaceRadius() * 0.18, surfaceRadius() * 0.98, length(xz));
+                return -0.42 + (h * 0.72 + sculptedMounds) * dome;
+            }
 
-                vec3 oceanBase = mix(vec3(0.012, 0.11, 0.19), vec3(0.08, 0.34, 0.48), ridge);
-                float wave = sin(pS.x * 0.38 + uTime * 0.35) * sin(pS.z * 0.31 - uTime * 0.22);
-                float glint = pow(max(0.0, dot(reflect(rd, vec3(0.0, 1.0, 0.0)), lightDir)), 52.0);
-                float horizonLine = 1.0 - smoothstep(0.006, 0.05, abs(pS.y));
-                vec3 ocean = oceanBase
-                    + vec3(0.05, 0.1, 0.12) * wave * 0.12
-                    + vec3(0.9, 0.82, 0.55) * glint * 0.42
-                    + vec3(0.12, 0.28, 0.34) * horizonLine;
+            float oceanHeight(vec2 xz) {
+                return -0.42;
+            }
 
-                vec3 hillLow = vec3(0.12, 0.16, 0.09);
-                vec3 hillHigh = vec3(0.34, 0.30, 0.18);
-                vec3 hills = mix(hillLow, hillHigh, ridge) * (0.45 + diffuse * 0.62) + ambientColor * 0.24;
-                vec3 surfaceColor = mix(ocean, hills, step(0.5, uSurfaceMode));
-                float surfaceAlpha = rangeFade * horizonFade * mix(0.72, 0.98, smoothstep(-0.18, -0.02, rd.y));
+            float surfaceHeight(vec2 xz, float hillMode) {
+                return mix(oceanHeight(xz), feltHillHeight(xz), hillMode);
+            }
+
+            vec3 surfaceNormal(vec2 xz, float hillMode) {
+                float eps = 0.38;
+                float hx = surfaceHeight(xz + vec2(eps, 0.0), hillMode) - surfaceHeight(xz - vec2(eps, 0.0), hillMode);
+                float hz = surfaceHeight(xz + vec2(0.0, eps), hillMode) - surfaceHeight(xz - vec2(0.0, eps), hillMode);
+                return normalize(vec3(-hx, eps * 2.0, -hz));
+            }
+
+            float cloudShadowOnSurface(vec3 p, vec3 lightDir) {
+                if (uSurfaceShadowStrength <= 0.001 || uSurfaceShadowSamples < 0.5) {
+                    return 0.0;
+                }
+                float shadow = 0.0;
+                float normalizer = 1.0 / max(1.0, uSurfaceShadowSamples);
+                vec3 probe = p + lightDir * uSurfaceShadowStep * 0.35;
+                for (int i = 0; i < 5; i++) {
+                    if (float(i) >= uSurfaceShadowSamples) {
+                        continue;
+                    }
+                    probe += lightDir * uSurfaceShadowStep;
+                    if (probe.y < 0.0 || probe.y > uTropopause + 1.5) {
+                        continue;
+                    }
+                    float macro = mapCloudMacro(probe);
+                    if (macro < 1.4) {
+                        shadow += mapCloudFromMacro(probe, macro) * normalizer;
+                    }
+                }
+                return clamp(shadow * uSurfaceShadowStrength * 2.2, 0.0, 0.72);
+            }
+
+            vec3 feltHillMaterial(vec3 p, vec3 normal, vec3 rd, vec3 lightDir, vec3 lightColor, vec3 ambientColor, float cloudShadow) {
+                float diffuse = clamp(dot(normal, lightDir), 0.0, 1.0);
+                float band1 = toonStep(diffuse, 0.28, 0.025);
+                float band2 = toonStep(diffuse, 0.62, 0.03);
+                float band3 = toonStep(diffuse, 0.88, 0.025);
+                vec3 feltShadow = vec3(0.010, 0.070, 0.034);
+                vec3 feltBase = vec3(0.024, 0.135, 0.054);
+                vec3 feltLit = vec3(0.046, 0.215, 0.082);
+                vec3 feltHigh = vec3(0.082, 0.285, 0.108);
+                vec3 color = mix(feltShadow, feltBase, band1);
+                color = mix(color, feltLit, band2);
+                color = mix(color, feltHigh, band3 * 0.42);
+                float fuzz = (noise(vec3(p.xz * 4.4 + vec2(2.4, 8.7), uSeed * 0.071)) - 0.5) * 0.14 * uTerrainFuzz;
+                float velvet = pow(1.0 - clamp(abs(dot(normal, -rd)), 0.0, 1.0), 2.1) * 0.22 * uTerrainFuzz;
+                vec3 lightTint = mix(vec3(0.82, 0.9, 0.78), clamp(lightColor, vec3(0.0), vec3(1.45)), 0.18);
+                vec3 ambientTint = clamp(ambientColor * 1.8, vec3(0.0), vec3(0.32));
+                color = color * lightTint * 0.82 + ambientTint * vec3(0.22, 0.32, 0.20);
+                float liftTint = smoothstep(-0.38, 0.54, p.y);
+                float valleyTint = 1.0 - smoothstep(-0.40, 0.06, p.y);
+                color = mix(color, color + vec3(0.036, 0.095, 0.038), liftTint * 0.34);
+                color *= 1.0 - valleyTint * 0.12;
+                color += vec3(0.020, 0.052, 0.026) * velvet + color * fuzz;
+                color *= 1.0 - cloudShadow * 0.58;
+                return max(color, vec3(0.0));
+            }
+
+            vec3 oceanMaterial(vec3 p, vec3 normal, vec3 rd, vec3 lightDir, vec3 lightColor, vec3 ambientColor, float cloudShadow) {
+                float diffuse = clamp(dot(normal, lightDir), 0.0, 1.0);
+                float band = mix(0.58, 1.0, toonStep(diffuse, 0.55, 0.025));
+                vec3 abyss = vec3(0.0005, 0.006, 0.028);
+                vec3 deep = vec3(0.0014, 0.018, 0.055);
+                vec3 lit = vec3(0.0028, 0.030, 0.078);
+                vec3 color = mix(abyss, deep, band);
+                color = mix(color, lit, toonStep(diffuse, 0.78, 0.035) * 0.48);
+                float sheen = pow(max(0.0, dot(reflect(rd, normal), lightDir)), 96.0) * uOceanCrestStrength;
+                vec3 lightTint = clamp(lightColor, vec3(0.0), vec3(1.35));
+                vec3 ambientTint = clamp(ambientColor * 1.3, vec3(0.0), vec3(0.26));
+                color = color * mix(vec3(0.62, 0.72, 0.92), lightTint, 0.08) + ambientTint * vec3(0.10, 0.18, 0.34);
+                color += vec3(0.54, 0.66, 0.84) * sheen * 0.10;
+                color *= 1.0 - cloudShadow * 0.46;
+                return color;
+            }
+
+            vec3 surfaceSideMaterial(vec3 p, float hillMode, float topHeight) {
+                float modelThickness = mix(0.74, 1.42, hillMode);
+                float depth01 = clamp((topHeight - p.y) / modelThickness, 0.0, 1.0);
+                vec3 oceanSide = mix(vec3(0.004, 0.010, 0.026), vec3(0.006, 0.014, 0.032), depth01);
+                vec3 feltSide = mix(vec3(0.014, 0.060, 0.036), vec3(0.024, 0.096, 0.050), 1.0 - depth01);
+                vec3 side = mix(oceanSide, feltSide, hillMode);
+                float waterlineTrim = (1.0 - hillMode) * (1.0 - smoothstep(0.035, 0.13, abs(topHeight - p.y)));
+                return side + vec3(0.86, 0.92, 0.90) * waterlineTrim * 0.42;
+            }
+
+            vec3 surfaceOverlay(vec3 col, vec3 ro, vec3 rd, vec3 lightDir, vec3 lightColor, vec3 ambientColor) {
+                if (uSurfaceVisible < 0.5) return col;
+                float hillMode = step(0.5, uSurfaceMode);
+                float radius = surfaceRadius();
+                float nearestT = 1.0e6;
+                vec3 surfaceColor = col;
+                float surfaceAlpha = 0.0;
+
+                if (abs(rd.y) > 0.001) {
+                    float tTop = (0.0 - ro.y) / rd.y;
+                    for (int i = 0; i < 3; i++) {
+                        vec3 probe = ro + rd * tTop;
+                        float h = surfaceHeight(probe.xz, hillMode);
+                        tTop = (h - ro.y) / rd.y;
+                    }
+                    vec3 pTop = ro + rd * tTop;
+                        float edgeDistance = length(pTop.xz);
+                        float edgeAa = max(fwidth(edgeDistance), 0.11);
+                        float edgeMask = 1.0 - smoothstep(radius - 0.95 - edgeAa, radius + 0.34 + edgeAa, edgeDistance);
+                    if (tTop > 0.0 && tTop < 220.0 && edgeMask > 0.001) {
+                        vec3 normal = surfaceNormal(pTop.xz, hillMode);
+                        float cloudShadow = cloudShadowOnSurface(pTop + normal * 0.08, lightDir);
+                        vec3 hills = feltHillMaterial(pTop, normal, rd, lightDir, lightColor, ambientColor, cloudShadow);
+                        vec3 ocean = oceanMaterial(pTop, normal, rd, lightDir, lightColor, ambientColor, cloudShadow);
+                        surfaceColor = mix(ocean, hills, hillMode);
+                        vec2 viewDirXZ = dot(rd.xz, rd.xz) < 0.0001 ? vec2(0.0, 1.0) : normalize(rd.xz);
+                        vec2 radialDir = dot(pTop.xz, pTop.xz) < 0.0001 ? viewDirXZ : normalize(pTop.xz);
+                        float farSide = smoothstep(0.12, 0.88, dot(radialDir, viewDirXZ));
+                        float edgeWidth = mix(2.6, 4.8, smoothstep(18.0, 34.0, radius));
+                        float sideHint = smoothstep(radius - edgeWidth, radius - 0.65, length(pTop.xz)) * farSide;
+                        vec3 hintedSide = surfaceSideMaterial(vec3(pTop.x, pTop.y - mix(0.36, 0.68, hillMode), pTop.z), hillMode, pTop.y);
+                        surfaceColor = mix(surfaceColor, hintedSide, sideHint * mix(0.26, 0.46, hillMode));
+                        surfaceAlpha = edgeMask * smoothstep(0.0, 0.08, -rd.y) * 0.985;
+                        nearestT = tTop;
+                    }
+                }
+
+                float aC = dot(rd.xz, rd.xz);
+                float bC = 2.0 * dot(ro.xz, rd.xz);
+                float cC = dot(ro.xz, ro.xz) - radius * radius;
+                float disc = bC * bC - 4.0 * aC * cC;
+                if (disc > 0.0 && aC > 0.0001) {
+                    float tSide = (-bC - sqrt(disc)) / (2.0 * aC);
+                    vec3 pSide = ro + rd * tSide;
+                    float topHeight = surfaceHeight(pSide.xz, hillMode);
+                    float thickness = mix(0.74, 1.42, hillMode);
+                    float sideTopMargin = topHeight + 0.20 - pSide.y;
+                    float sideBottomMargin = pSide.y - (topHeight - thickness);
+                    float yAa = max(fwidth(pSide.y - topHeight), 0.075);
+                    float verticalCoverage =
+                        smoothstep(0.0, yAa * 3.4, sideTopMargin) *
+                        smoothstep(0.0, yAa * 5.6, sideBottomMargin);
+                    if (tSide > 0.0 && tSide < 220.0 && verticalCoverage > 0.001 && (tSide < nearestT || surfaceAlpha < 0.82)) {
+                        float depth = topHeight - pSide.y;
+                        float sideFade = 1.0 - smoothstep(thickness * 0.58, thickness, depth);
+                        float discAa = max(fwidth(disc), radius * 0.034);
+                        float sideCoverage = smoothstep(0.0, discAa * 4.8, disc);
+                        surfaceColor = surfaceSideMaterial(pSide, hillMode, topHeight);
+                        surfaceAlpha = 0.92 * sideFade * sideCoverage * verticalCoverage;
+                        nearestT = tSide;
+                    }
+                }
+
+                if (surfaceAlpha <= 0.001 || nearestT > 220.0) {
+                    return col;
+                }
                 return mix(col, surfaceColor, surfaceAlpha);
             }
 
@@ -1097,7 +1264,7 @@ export const raymarchCloudFragmentShader = String.raw`
                 col = mix(col, moonSky, moonMask);
                 col = mix(col, atmosphereSky, atmosphereMask);
                 if (uTransparentBackground < 0.5) {
-                    col = surfaceOverlay(col, ro, rd, lightDir, ambientColor);
+                    col = surfaceOverlay(col, ro, rd, lightDir, lightColor, ambientColor);
                     col = gridOverlay(col, ro, rd);
                 }
 
@@ -1115,8 +1282,8 @@ export const raymarchCloudFragmentShader = String.raw`
                     float cosTheta = dot(rd, lightDir);
                     float heightRange = max(0.1, uTropopause - MODEL_BASE_KM);
 
-                    for(int i = 0; i < 168; i++) {
-                        if (float(i) > uMaxSteps || t > maxT || densityAcc > 0.955) break;
+                    for(int i = 0; i < CUMULONIMBUS_MAX_RAY_STEPS; i++) {
+                        if (float(i) >= uMaxSteps || t > maxT || densityAcc > uEarlyExitAlpha) break;
                         vec3 p = ro + rd * t;
                         if (p.y < 0.0 || p.y > uTropopause + 1.2) {
                             t += stepSize * 3.0;
@@ -1139,8 +1306,12 @@ export const raymarchCloudFragmentShader = String.raw`
                             float phase = clamp(phaseHG(cosTheta, phaseG) * mix(0.7, 0.9, iceFactor) + phaseHG(cosTheta, -0.18) * 0.28, 0.0, 1.65);
                             float shadow = 0.0;
                             vec3 lPos = p;
-                            float lStep = 0.34;
-                            for(int j = 0; j < 3; j++) {
+                            float lStep = uShadowStep;
+                            float shadowNormalizer = 3.0 / max(1.0, uShadowSamples);
+                            for(int j = 0; j < 5; j++) {
+                                if (float(j) >= uShadowSamples) {
+                                    continue;
+                                }
                                 float jitter = float(j) * 1.37 + hash(dot(p.xz, vec2(17.0, 31.0)));
                                 vec3 shadowDir = normalize(lightDir + vec3(
                                     sin(jitter) * 0.16,
@@ -1150,11 +1321,11 @@ export const raymarchCloudFragmentShader = String.raw`
                                 lPos += shadowDir * lStep;
                                 float shadowMacro = mapCloudMacro(lPos);
                                 if (shadowMacro < 2.4) {
-                                    shadow += mapCloudFromMacro(lPos, shadowMacro);
+                                    shadow += mapCloudFromMacro(lPos, shadowMacro) * shadowNormalizer;
                                 }
                             }
                             float mixedPhaseShadow = 1.0 + smoothstep(0.36, 0.7, height01) * (1.0 - smoothstep(0.78, 0.94, height01)) * mix(0.38, 0.64, uPhotographicStyle);
-                            float transmittance = exp(-shadow * mix(0.86, 0.58, iceFactor) * mixedPhaseShadow);
+                            float transmittance = exp(-shadow * uShadowOcclusion * mix(0.86, 0.58, iceFactor) * mixedPhaseShadow);
                             float surfaceRelief = smoothstep(-0.72, 0.18, macro) * (1.0 - smoothstep(0.2, 0.92, macro));
                             float relief = fbm(vec3(p.x * 0.42, p.y * 0.58, p.z * 0.42) + uSeed * 0.021);
                             float fineRelief = 0.5;
@@ -1175,7 +1346,7 @@ export const raymarchCloudFragmentShader = String.raw`
                             vec3 directTerm = lightColor * phaseTint * transmittance * phase * reliefLight * directHeightLift;
                             vec3 lighting = ambientTerm + directTerm;
                             float cloudOpacity = mix(1.0, 0.46, uShowGrid);
-                            float alpha = (1.0 - exp(-density * stepSize * 12.8)) * cloudOpacity;
+                            float alpha = (1.0 - exp(-density * stepSize * uDensityMultiplier)) * cloudOpacity;
                             cloudCol += (1.0 - densityAcc) * lighting * alpha;
                             densityAcc += (1.0 - densityAcc) * alpha;
                         } else if (macro > 0.35) {

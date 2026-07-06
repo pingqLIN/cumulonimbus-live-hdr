@@ -16,7 +16,7 @@ import {
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
-const requestedPort = readIntegerArg(args, "port", 5183);
+const requestedPort = readIntegerArg(args, "port", 6173);
 const port = await resolveCapturePort(requestedPort, Object.hasOwn(args, "port"));
 const orientation = normalizeOrientation(args.orientation);
 const defaultDimensions = getOrientationDimensions(orientation);
@@ -168,7 +168,7 @@ function readPreviewTuningArgs(parsed) {
 }
 
 async function resolveCapturePort(startPort, strictPort) {
-  for (let portCandidate = startPort; portCandidate < startPort + 20; portCandidate += 1) {
+  for (let portCandidate = startPort; portCandidate < startPort + 80; portCandidate += 1) {
     if (await isPortAvailable(portCandidate)) {
       return portCandidate;
     }

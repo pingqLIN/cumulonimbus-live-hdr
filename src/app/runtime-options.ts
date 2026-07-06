@@ -2,7 +2,8 @@ import { type BrowserDisplayProfile } from "./display-profile.js";
 import { type RaymarchCloudOptions } from "./raymarch-cloud-renderer.js";
 
 export const SAFE_LIVE_MAX_PIXELS = 1280 * 720;
-export const ATTACHED_06_RENDER_SCALE = 0.8;
+export const LIVE_LITE_MAX_PIXELS = Math.round(SAFE_LIVE_MAX_PIXELS * 0.5 * 0.5);
+export const ATTACHED_06_RENDER_SCALE = 1;
 export const ATTACHED_06_MOBILE_RENDER_SCALE = 0.68;
 export const ATTACHED_06_STEP_SIZE = 0.18;
 export const ATTACHED_06_MOBILE_STEP_SIZE = 0.2;
@@ -96,6 +97,25 @@ const MANUAL_RENDER_QUALITY_PARAM_NAMES = [
   "staticMaxSteps",
   "compileSteps",
   "shaderSteps",
+  "earlyExitAlpha",
+  "earlyExit",
+  "shadowSamples",
+  "shadowStep",
+  "shadowOcclusion",
+  "transmittanceScale",
+  "densityMultiplier",
+  "densityScale",
+  "carvingWeight",
+  "edgeErosionWeight",
+  "surfaceShadowSamples",
+  "surfaceShadowStep",
+  "surfaceShadowStrength",
+  "terrainFuzz",
+  "oceanCrestStrength",
+  "surfaceRadius",
+  "terrainRadius",
+  "modelRadius",
+  "groundRadius",
   "maxPixels"
 ] as const;
 
@@ -201,6 +221,101 @@ export function resolveRuntimeOptions(
       24,
       96
     ),
+    earlyExitAlpha: readNumber(
+      params,
+      ["earlyExitAlpha", "earlyExit"],
+      preset.earlyExitAlpha ?? 0.955,
+      0.88,
+      0.985
+    ),
+    shadowSamples: Math.round(
+      readNumber(
+        params,
+        ["shadowSamples", "shadowMarchSamples"],
+        preset.shadowSamples ?? (displayProfile.mobileWideView ? 2 : 3),
+        0,
+        5
+      )
+    ),
+    shadowStep: readNumber(
+      params,
+      ["shadowStep", "lStep", "lightStep"],
+      preset.shadowStep ?? 0.34,
+      0.18,
+      0.9
+    ),
+    shadowOcclusion: readNumber(
+      params,
+      ["shadowOcclusion", "transmittanceScale", "shadowBlock"],
+      preset.shadowOcclusion ?? 1,
+      0.25,
+      1.6
+    ),
+    densityMultiplier: readNumber(
+      params,
+      ["densityMultiplier", "densityScale", "alphaDensity"],
+      preset.densityMultiplier ?? 12.8,
+      6,
+      18
+    ),
+    carvingWeight: readNumber(
+      params,
+      ["carvingWeight", "carving", "noiseCarving"],
+      preset.carvingWeight ?? 1,
+      0.35,
+      1.8
+    ),
+    edgeErosionWeight: readNumber(
+      params,
+      ["edgeErosionWeight", "edgeErosion", "erosionWeight"],
+      preset.edgeErosionWeight ?? 1,
+      0.25,
+      1.8
+    ),
+    surfaceShadowSamples: Math.round(
+      readNumber(
+        params,
+        ["surfaceShadowSamples", "groundShadowSamples", "cloudShadowSamples"],
+        preset.surfaceShadowSamples ?? (displayProfile.mobileWideView ? 2 : 3),
+        0,
+        5
+      )
+    ),
+    surfaceShadowStep: readNumber(
+      params,
+      ["surfaceShadowStep", "groundShadowStep", "cloudShadowStep"],
+      preset.surfaceShadowStep ?? 1.15,
+      0.3,
+      2.4
+    ),
+    surfaceShadowStrength: readNumber(
+      params,
+      ["surfaceShadowStrength", "groundShadowStrength", "cloudShadowStrength"],
+      preset.surfaceShadowStrength ?? 0.38,
+      0,
+      0.85
+    ),
+    terrainFuzz: readNumber(
+      params,
+      ["terrainFuzz", "feltFuzz", "fuzz"],
+      preset.terrainFuzz ?? 0.52,
+      0,
+      1
+    ),
+    oceanCrestStrength: readNumber(
+      params,
+      ["oceanCrestStrength", "crestStrength", "waveCrest"],
+      preset.oceanCrestStrength ?? 0.72,
+      0,
+      1.4
+    ),
+    surfaceRadius: readNumber(
+      params,
+      ["surfaceRadius", "terrainRadius", "modelRadius", "groundRadius"],
+      preset.surfaceRadius ?? 12,
+      8,
+      32
+    ),
     sunIntensity: readNumber(params, ["sun", "sunIntensity"], preset.sunIntensity ?? 7.2, 0, 10),
     ambientIntensity: readNumber(
       params,
@@ -243,6 +358,10 @@ export function resolveRuntimeOptions(
     showGrid: readBoolean(params, ["grid", "showGrid"], preset.showGrid ?? false),
     surfaceMode: resolveSurfaceMode(params.get("surface")) ?? preset.surfaceMode ?? "none",
     morphologyStyle: STABLE_CLOUD_MORPHOLOGY_STYLE,
+    shaderVariant:
+      resolveShaderVariantName(
+        params.get("shaderVariant") ?? params.get("shader") ?? params.get("cloudShader")
+      ) ?? preset.shaderVariant,
     mobileCumulusMode: readBoolean(
       params,
       ["mobileCumulusMode", "mobileShape"],
@@ -393,6 +512,9 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         morphologyStyle: "giant-cumulonimbus",
         cameraDistance: 24,
         maxPixels: mobileLow.maxPixels,
+        shaderVariant: "live-lite",
+        shadowSamples: 0,
+        surfaceShadowSamples: 0,
         mobileCumulusMode: false
       };
     }
@@ -417,6 +539,7 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         skyMode: "atmosphere",
         lightPreset: "daylight",
         photographicStyle: true,
+        shaderVariant: "full",
         cameraPitchDegrees: -1,
         cameraDistance: 30,
         maxPixels: Math.round(SAFE_LIVE_MAX_PIXELS * 0.64 * 0.64)
@@ -443,6 +566,7 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         skyMode: "moonlight",
         lightPreset: "backlit-edge",
         photographicStyle: true,
+        shaderVariant: "full",
         cameraPitchDegrees: -1,
         cameraDistance: 26,
         maxPixels: 1280 * 720
@@ -460,9 +584,14 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         fbmOctaves: 5,
         cloudCurl: 0.78,
         horizonStrength: 1,
-        stepSize: ATTACHED_06_STEP_SIZE,
-        maxSteps: ATTACHED_06_MAX_STEPS,
-        staticMaxSteps: 96,
+        stepSize: 0.32,
+        maxSteps: 52,
+        staticMaxSteps: 56,
+        earlyExitAlpha: 0.94,
+        shadowSamples: 1,
+        shadowStep: 0.48,
+        shadowOcclusion: 0.82,
+        surfaceShadowSamples: 0,
         sunIntensity: 4,
         ambientIntensity: 0.68,
         sunElevation: 32,
@@ -471,10 +600,9 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         lightPreset: "daylight",
         photographicStyle: false,
         morphologyStyle: "giant-cumulonimbus",
+        shaderVariant: "live-lite",
         cameraDistance: 16,
-        maxPixels: Math.round(
-          SAFE_LIVE_MAX_PIXELS * ATTACHED_06_RENDER_SCALE * ATTACHED_06_RENDER_SCALE
-        ),
+        maxPixels: LIVE_LITE_MAX_PIXELS,
         mobileCumulusMode: false
       };
     default:
@@ -580,6 +708,24 @@ function resolveSurfaceMode(value: string | null): RaymarchCloudOptions["surface
     return value;
   }
   return undefined;
+}
+
+function resolveShaderVariantName(
+  value: string | null
+): RaymarchCloudOptions["shaderVariant"] | undefined {
+  switch (value?.toLowerCase()) {
+    case "lite":
+    case "live":
+    case "live-lite":
+    case "cloud-live-lite":
+      return "live-lite";
+    case "full":
+    case "full-hdr":
+    case "cloud-full-hdr":
+      return "full";
+    default:
+      return undefined;
+  }
 }
 
 function readTransparentBackground(params: URLSearchParams): boolean {

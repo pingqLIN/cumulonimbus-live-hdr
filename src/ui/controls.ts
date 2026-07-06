@@ -11,6 +11,8 @@ const QUALITY_MAX_PIXELS = SAFE_LIVE_MAX_PIXELS;
 const MOBILE_AUTO_INITIAL_DELAY_MS = 900;
 const MOBILE_AUTO_STEP_DELAY_MS = 1400;
 const MOBILE_AUTO_RECHECK_DELAY_MS = 2600;
+const MOBILE_AUTO_READY_SETTLE_MS = 3000;
+const MOBILE_AUTO_STABLE_FRAME_COUNT = 4;
 let uiLanguage = "zh-TW";
 let renderTelemetryFrame: number | undefined;
 
@@ -127,14 +129,14 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     elements.qualitySlider,
     elements.qualityReadout,
     (value) => `${value.toFixed(2)}x`,
-    (value) => {
-      elements.autoQualityButton?.classList.remove("enabled");
-      app.setOptions({
-        autoQuality: false,
-        qualityTier: undefined,
-        maxPixels: Math.round(QUALITY_MAX_PIXELS * value * value)
-      });
-    },
+    (value) => applyRenderPowerScale(elements, app, value),
+    () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
+  );
+  bindSlider(
+    elements.advancedQualitySlider,
+    elements.advancedQualityReadout,
+    (value) => `${value.toFixed(2)}x`,
+    (value) => applyRenderPowerScale(elements, app, value),
     () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
   bindSlider(
@@ -198,6 +200,136 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     (value) => app.setOptions({ timeScale: value }),
     () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
+  bindSlider(
+    elements.stepSizeSlider,
+    elements.stepSizeReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ stepSize: value }),
+    () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
+  );
+  bindSlider(
+    elements.maxStepsSlider,
+    elements.maxStepsReadout,
+    (value) => value.toFixed(0),
+    (value) => app.setOptions({ maxSteps: Math.round(value) }),
+    () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
+  );
+  bindSlider(
+    elements.staticMaxStepsSlider,
+    elements.staticMaxStepsReadout,
+    (value) => value.toFixed(0),
+    (value) => app.setOptions({ staticMaxSteps: Math.round(value) }),
+    undefined,
+    "change"
+  );
+  bindSlider(
+    elements.earlyExitSlider,
+    elements.earlyExitReadout,
+    (value) => value.toFixed(3),
+    (value) => app.setOptions({ earlyExitAlpha: value })
+  );
+  bindSlider(
+    elements.shadowSamplesSlider,
+    elements.shadowSamplesReadout,
+    (value) => value.toFixed(0),
+    (value) => app.setOptions({ shadowSamples: Math.round(value) })
+  );
+  bindSlider(
+    elements.shadowStepSlider,
+    elements.shadowStepReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ shadowStep: value })
+  );
+  bindSlider(
+    elements.shadowOcclusionSlider,
+    elements.shadowOcclusionReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ shadowOcclusion: value })
+  );
+  bindSlider(
+    elements.densityMultiplierSlider,
+    elements.densityMultiplierReadout,
+    (value) => value.toFixed(1),
+    (value) => app.setOptions({ densityMultiplier: value })
+  );
+  bindSlider(
+    elements.carvingWeightSlider,
+    elements.carvingWeightReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ carvingWeight: value })
+  );
+  bindSlider(
+    elements.edgeErosionSlider,
+    elements.edgeErosionReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ edgeErosionWeight: value })
+  );
+  bindSlider(
+    elements.fbmOctavesSlider,
+    elements.fbmOctavesReadout,
+    (value) => value.toFixed(0),
+    (value) => app.setOptions({ fbmOctaves: Math.round(value) })
+  );
+  bindSlider(
+    elements.cloudCurlSlider,
+    elements.cloudCurlReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ cloudCurl: value })
+  );
+  bindSlider(
+    elements.surfaceShadowSamplesSlider,
+    elements.surfaceShadowSamplesReadout,
+    (value) => value.toFixed(0),
+    (value) => app.setOptions({ surfaceShadowSamples: Math.round(value) })
+  );
+  bindSlider(
+    elements.surfaceShadowStepSlider,
+    elements.surfaceShadowStepReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ surfaceShadowStep: value })
+  );
+  bindSlider(
+    elements.surfaceShadowStrengthSlider,
+    elements.surfaceShadowStrengthReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ surfaceShadowStrength: value })
+  );
+  bindSlider(
+    elements.terrainFuzzSlider,
+    elements.terrainFuzzReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ terrainFuzz: value })
+  );
+  bindSlider(
+    elements.surfaceRadiusSlider,
+    elements.surfaceRadiusReadout,
+    (value) => `${value.toFixed(1)}km`,
+    (value) => app.setOptions({ surfaceRadius: value })
+  );
+  bindSlider(
+    elements.oceanCrestSlider,
+    elements.oceanCrestReadout,
+    (value) => value.toFixed(2),
+    (value) => app.setOptions({ oceanCrestStrength: value })
+  );
+  bindSlider(
+    elements.cameraYawSlider,
+    elements.cameraYawReadout,
+    (value) => `${value.toFixed(0)}deg`,
+    (value) => app.setOptions({ cameraYawDegrees: value })
+  );
+  bindSlider(
+    elements.cameraPitchSlider,
+    elements.cameraPitchReadout,
+    (value) => `${value.toFixed(0)}deg`,
+    (value) => app.setOptions({ cameraPitchDegrees: value })
+  );
+  bindSlider(
+    elements.cameraDistanceSlider,
+    elements.cameraDistanceReadout,
+    (value) => value.toFixed(0),
+    (value) => app.setOptions({ cameraDistance: value })
+  );
 
   restartMobileAutoQuality();
 }
@@ -247,6 +379,56 @@ function collectControls(root: ParentNode) {
     linkSunElevationButton: root.querySelector<HTMLButtonElement>("#btn-link-sun-elevation"),
     linkElevationSunButton: root.querySelector<HTMLButtonElement>("#btn-link-elevation-sun"),
     atmosphereCanvas: root.querySelector<HTMLCanvasElement>("#atm-canvas"),
+    advancedQualitySlider: root.querySelector<HTMLInputElement>("#slider-advanced-quality"),
+    advancedQualityReadout: root.querySelector<HTMLElement>("#advanced-quality-readout"),
+    stepSizeSlider: root.querySelector<HTMLInputElement>("#slider-step-size"),
+    stepSizeReadout: root.querySelector<HTMLElement>("#step-size-readout"),
+    maxStepsSlider: root.querySelector<HTMLInputElement>("#slider-max-steps"),
+    maxStepsReadout: root.querySelector<HTMLElement>("#max-steps-readout"),
+    staticMaxStepsSlider: root.querySelector<HTMLInputElement>("#slider-static-max-steps"),
+    staticMaxStepsReadout: root.querySelector<HTMLElement>("#static-max-steps-readout"),
+    earlyExitSlider: root.querySelector<HTMLInputElement>("#slider-early-exit"),
+    earlyExitReadout: root.querySelector<HTMLElement>("#early-exit-readout"),
+    shadowSamplesSlider: root.querySelector<HTMLInputElement>("#slider-shadow-samples"),
+    shadowSamplesReadout: root.querySelector<HTMLElement>("#shadow-samples-readout"),
+    shadowStepSlider: root.querySelector<HTMLInputElement>("#slider-shadow-step"),
+    shadowStepReadout: root.querySelector<HTMLElement>("#shadow-step-readout"),
+    shadowOcclusionSlider: root.querySelector<HTMLInputElement>("#slider-shadow-occlusion"),
+    shadowOcclusionReadout: root.querySelector<HTMLElement>("#shadow-occlusion-readout"),
+    densityMultiplierSlider: root.querySelector<HTMLInputElement>("#slider-density-multiplier"),
+    densityMultiplierReadout: root.querySelector<HTMLElement>("#density-multiplier-readout"),
+    carvingWeightSlider: root.querySelector<HTMLInputElement>("#slider-carving-weight"),
+    carvingWeightReadout: root.querySelector<HTMLElement>("#carving-weight-readout"),
+    edgeErosionSlider: root.querySelector<HTMLInputElement>("#slider-edge-erosion"),
+    edgeErosionReadout: root.querySelector<HTMLElement>("#edge-erosion-readout"),
+    fbmOctavesSlider: root.querySelector<HTMLInputElement>("#slider-fbm-octaves"),
+    fbmOctavesReadout: root.querySelector<HTMLElement>("#fbm-octaves-readout"),
+    cloudCurlSlider: root.querySelector<HTMLInputElement>("#slider-cloud-curl"),
+    cloudCurlReadout: root.querySelector<HTMLElement>("#cloud-curl-readout"),
+    surfaceShadowSamplesSlider: root.querySelector<HTMLInputElement>(
+      "#slider-surface-shadow-samples"
+    ),
+    surfaceShadowSamplesReadout: root.querySelector<HTMLElement>("#surface-shadow-samples-readout"),
+    surfaceShadowStepSlider: root.querySelector<HTMLInputElement>("#slider-surface-shadow-step"),
+    surfaceShadowStepReadout: root.querySelector<HTMLElement>("#surface-shadow-step-readout"),
+    surfaceShadowStrengthSlider: root.querySelector<HTMLInputElement>(
+      "#slider-surface-shadow-strength"
+    ),
+    surfaceShadowStrengthReadout: root.querySelector<HTMLElement>(
+      "#surface-shadow-strength-readout"
+    ),
+    terrainFuzzSlider: root.querySelector<HTMLInputElement>("#slider-terrain-fuzz"),
+    terrainFuzzReadout: root.querySelector<HTMLElement>("#terrain-fuzz-readout"),
+    surfaceRadiusSlider: root.querySelector<HTMLInputElement>("#slider-surface-radius"),
+    surfaceRadiusReadout: root.querySelector<HTMLElement>("#surface-radius-readout"),
+    oceanCrestSlider: root.querySelector<HTMLInputElement>("#slider-ocean-crest"),
+    oceanCrestReadout: root.querySelector<HTMLElement>("#ocean-crest-readout"),
+    cameraYawSlider: root.querySelector<HTMLInputElement>("#slider-camera-yaw"),
+    cameraYawReadout: root.querySelector<HTMLElement>("#camera-yaw-readout"),
+    cameraPitchSlider: root.querySelector<HTMLInputElement>("#slider-camera-pitch"),
+    cameraPitchReadout: root.querySelector<HTMLElement>("#camera-pitch-readout"),
+    cameraDistanceSlider: root.querySelector<HTMLInputElement>("#slider-camera-distance"),
+    cameraDistanceReadout: root.querySelector<HTMLElement>("#camera-distance-readout"),
     elevationValue: root.querySelector<HTMLElement>("#dash-elev-val"),
     elevationFill: root.querySelector<HTMLElement>("#dash-elev-fill"),
     directValue: root.querySelector<HTMLElement>("#dash-dir-val"),
@@ -297,6 +479,8 @@ function bindMobileAutoQuality(
   app: CloudAppController
 ): () => void {
   let timer: number | undefined;
+  let readySince: number | undefined;
+  let lastUpgradeFrameCount = 0;
 
   const clearTimer = (): void => {
     if (timer !== undefined) {
@@ -325,6 +509,7 @@ function bindMobileAutoQuality(
       return;
     }
     if (document.documentElement.dataset.renderStatus !== "ready") {
+      readySince = undefined;
       schedule(500);
       return;
     }
@@ -338,7 +523,17 @@ function bindMobileAutoQuality(
     }
 
     const stats = app.getRenderStats();
-    const frameMs = stats.lastFrameDurationMs ?? stats.averageFrameDurationMs;
+    const now = performance.now();
+    readySince ??= now;
+    if (
+      now - readySince < MOBILE_AUTO_READY_SETTLE_MS ||
+      stats.frameCount - lastUpgradeFrameCount < MOBILE_AUTO_STABLE_FRAME_COUNT
+    ) {
+      schedule(MOBILE_AUTO_RECHECK_DELAY_MS);
+      return;
+    }
+
+    const frameMs = stats.averageFrameDurationMs ?? stats.lastFrameDurationMs;
     if (frameMs === undefined || !Number.isFinite(frameMs)) {
       schedule(MOBILE_AUTO_RECHECK_DELAY_MS);
       return;
@@ -346,9 +541,10 @@ function bindMobileAutoQuality(
 
     if (frameMs <= currentSettings.upgradeFrameBudgetMs) {
       app.setOptions({
-        ...createMobileQualityPatch(nextTier),
+        ...createRuntimeMobileQualityPatch(nextTier),
         autoQuality: true
       });
+      lastUpgradeFrameCount = app.getRenderStats().frameCount;
       syncControls(elements, app.getOptions(), app.isPaused());
       schedule(MOBILE_AUTO_STEP_DELAY_MS);
       return;
@@ -358,6 +554,14 @@ function bindMobileAutoQuality(
   };
 
   return schedule;
+}
+
+function createRuntimeMobileQualityPatch(
+  tier: Parameters<typeof createMobileQualityPatch>[0]
+): Partial<RuntimeOptions> {
+  const { staticMaxSteps, ...runtimePatch } = createMobileQualityPatch(tier);
+  void staticMaxSteps;
+  return runtimePatch;
 }
 
 function syncControls(
@@ -383,6 +587,31 @@ function syncControls(
   setValue(elements.atmosphereTimeInput, formatAtmosphereTime(estimateAtmosphereTime(options)));
   setValue(elements.timeSlider, String(options.timeScale ?? 1));
   setValue(elements.qualitySlider, qualityScale.toFixed(2));
+  setValue(elements.advancedQualitySlider, qualityScale.toFixed(2));
+  setValue(elements.stepSizeSlider, String(options.stepSize ?? 0.24));
+  setValue(elements.maxStepsSlider, String(options.maxSteps ?? 40));
+  setValue(elements.staticMaxStepsSlider, String(options.staticMaxSteps ?? 40));
+  setValue(elements.earlyExitSlider, String(options.earlyExitAlpha ?? 0.955));
+  setValue(elements.shadowSamplesSlider, String(options.shadowSamples ?? 3));
+  setValue(elements.shadowStepSlider, String(options.shadowStep ?? 0.34));
+  setValue(elements.shadowOcclusionSlider, String(options.shadowOcclusion ?? 1));
+  setValue(elements.densityMultiplierSlider, String(options.densityMultiplier ?? 12.8));
+  setValue(elements.carvingWeightSlider, String(options.carvingWeight ?? 1));
+  setValue(elements.edgeErosionSlider, String(options.edgeErosionWeight ?? 1));
+  setValue(elements.fbmOctavesSlider, String(options.fbmOctaves ?? 5));
+  setValue(elements.cloudCurlSlider, String(options.cloudCurl ?? 0.78));
+  setValue(elements.surfaceShadowSamplesSlider, String(options.surfaceShadowSamples ?? 3));
+  setValue(elements.surfaceShadowStepSlider, String(options.surfaceShadowStep ?? 1.15));
+  setValue(elements.surfaceShadowStrengthSlider, String(options.surfaceShadowStrength ?? 0.38));
+  setValue(elements.terrainFuzzSlider, String(options.terrainFuzz ?? 0.52));
+  setValue(elements.surfaceRadiusSlider, String(options.surfaceRadius ?? 12));
+  setValue(elements.oceanCrestSlider, String(options.oceanCrestStrength ?? 0.72));
+  setValue(elements.cameraYawSlider, String(options.cameraYawDegrees ?? 0));
+  setValue(elements.cameraPitchSlider, String(options.cameraPitchDegrees ?? -1));
+  setValue(
+    elements.cameraDistanceSlider,
+    String(options.cameraDistance ?? defaultCameraDistanceForOptions(options))
+  );
   updateText(elements.systemsReadout, String(options.systems ?? 1));
   updateText(elements.tropoReadout, `${(options.tropopause ?? 11.2).toFixed(1)}km`);
   updateText(elements.freezingReadout, `${(options.freezingLevel ?? 4.4).toFixed(1)}km`);
@@ -393,6 +622,37 @@ function syncControls(
   updateText(elements.sunAngleReadout, `${(options.sunViewerAngle ?? 18).toFixed(0)}deg`);
   updateText(elements.timeReadout, `${(options.timeScale ?? 1).toFixed(1)}x`);
   updateText(elements.qualityReadout, `${qualityScale.toFixed(2)}x`);
+  updateText(elements.advancedQualityReadout, `${qualityScale.toFixed(2)}x`);
+  updateText(elements.stepSizeReadout, (options.stepSize ?? 0.24).toFixed(2));
+  updateText(elements.maxStepsReadout, String(Math.round(options.maxSteps ?? 40)));
+  updateText(elements.staticMaxStepsReadout, String(Math.round(options.staticMaxSteps ?? 40)));
+  updateText(elements.earlyExitReadout, (options.earlyExitAlpha ?? 0.955).toFixed(3));
+  updateText(elements.shadowSamplesReadout, String(Math.round(options.shadowSamples ?? 3)));
+  updateText(elements.shadowStepReadout, (options.shadowStep ?? 0.34).toFixed(2));
+  updateText(elements.shadowOcclusionReadout, (options.shadowOcclusion ?? 1).toFixed(2));
+  updateText(elements.densityMultiplierReadout, (options.densityMultiplier ?? 12.8).toFixed(1));
+  updateText(elements.carvingWeightReadout, (options.carvingWeight ?? 1).toFixed(2));
+  updateText(elements.edgeErosionReadout, (options.edgeErosionWeight ?? 1).toFixed(2));
+  updateText(elements.fbmOctavesReadout, String(Math.round(options.fbmOctaves ?? 5)));
+  updateText(elements.cloudCurlReadout, (options.cloudCurl ?? 0.78).toFixed(2));
+  updateText(
+    elements.surfaceShadowSamplesReadout,
+    String(Math.round(options.surfaceShadowSamples ?? 3))
+  );
+  updateText(elements.surfaceShadowStepReadout, (options.surfaceShadowStep ?? 1.15).toFixed(2));
+  updateText(
+    elements.surfaceShadowStrengthReadout,
+    (options.surfaceShadowStrength ?? 0.38).toFixed(2)
+  );
+  updateText(elements.terrainFuzzReadout, (options.terrainFuzz ?? 0.52).toFixed(2));
+  updateText(elements.surfaceRadiusReadout, `${(options.surfaceRadius ?? 12).toFixed(1)}km`);
+  updateText(elements.oceanCrestReadout, (options.oceanCrestStrength ?? 0.72).toFixed(2));
+  updateText(elements.cameraYawReadout, `${(options.cameraYawDegrees ?? 0).toFixed(0)}deg`);
+  updateText(elements.cameraPitchReadout, `${(options.cameraPitchDegrees ?? -1).toFixed(0)}deg`);
+  updateText(
+    elements.cameraDistanceReadout,
+    (options.cameraDistance ?? defaultCameraDistanceForOptions(options)).toFixed(0)
+  );
   elements.autoQualityButton?.classList.toggle("enabled", options.autoQuality);
   setPlaybackButton(elements.timeToggleButton, paused);
   setDockPlaybackButton(elements.dockTimeToggleButton, paused);
@@ -404,7 +664,7 @@ function syncControls(
 }
 
 function toggleSecondaryPanels(root: ParentNode): void {
-  const panels = ["timePanel", "cloudPanel", "atmospherePanel"]
+  const panels = ["timePanel", "cloudPanel", "atmospherePanel", "advancedPanel"]
     .map((key) => root.querySelector<HTMLElement>(`[data-panel-key="${key}"]`))
     .filter((panel): panel is HTMLElement => Boolean(panel));
   const shouldShow = panels.some((panel) => panel.hidden);
@@ -449,22 +709,165 @@ export function updateRestoreDock(root: ParentNode): void {
   dock.hidden = !hasHiddenItem;
 }
 
+function applyRenderPowerScale(
+  elements: ReturnType<typeof collectControls>,
+  app: CloudAppController,
+  value: number
+): void {
+  const scale = clampNumber(value, 0.45, 1);
+  elements.autoQualityButton?.classList.remove("enabled");
+  app.setOptions({
+    autoQuality: false,
+    qualityTier: undefined,
+    maxPixels: Math.round(QUALITY_MAX_PIXELS * scale * scale)
+  });
+  setValue(elements.qualitySlider, scale.toFixed(2));
+  setValue(elements.advancedQualitySlider, scale.toFixed(2));
+  updateText(elements.qualityReadout, `${scale.toFixed(2)}x`);
+  updateText(elements.advancedQualityReadout, `${scale.toFixed(2)}x`);
+}
+
 function bindSlider(
   slider: HTMLInputElement | null,
   readout: HTMLElement | null,
   format: (value: number) => string,
   onValue: (value: number) => void,
-  afterValue?: () => void
+  afterValue?: () => void,
+  commitMode: "input" | "change" = "input"
 ): void {
-  slider?.addEventListener("input", () => {
-    const value = Number(slider.value);
+  if (!slider) {
+    return;
+  }
+
+  const applyValue = (rawValue: number, syncStepper = true, commit = true): void => {
+    const value = normalizeSliderValue(slider, rawValue);
     if (!Number.isFinite(value)) {
       return;
     }
+    slider.value = formatSliderNumber(slider, value);
+    if (syncStepper) {
+      syncSliderStepper(slider, value);
+    }
     updateText(readout, format(value));
-    onValue(value);
-    afterValue?.();
+    if (commit) {
+      onValue(value);
+      afterValue?.();
+    }
+  };
+
+  slider.addEventListener("input", () => {
+    const value = readFiniteNumber(slider.value);
+    if (value !== null) {
+      applyValue(value, true, commitMode === "input");
+    }
   });
+  slider.addEventListener("change", () => {
+    applyValue(readFiniteNumber(slider.value) ?? readSliderFallback(slider), true, true);
+  });
+
+  bindSliderStepper(slider, applyValue, commitMode);
+}
+
+function bindSliderStepper(
+  slider: HTMLInputElement,
+  applyValue: (value: number, syncStepper?: boolean, commit?: boolean) => void,
+  commitMode: "input" | "change"
+): void {
+  const stepper = slider
+    .closest<HTMLElement>(".slider-group")
+    ?.querySelector<HTMLElement>(`[data-stepper-for="${slider.id}"]`);
+  const input = stepper?.querySelector<HTMLInputElement>(".range-stepper__input");
+  if (!stepper || !input) {
+    return;
+  }
+
+  input.addEventListener("input", () => {
+    const value = readFiniteNumber(input.value);
+    if (value !== null) {
+      applyValue(value, shouldSyncStepperInput(slider, value), commitMode === "input");
+    }
+  });
+  input.addEventListener("change", () => {
+    applyValue(readFiniteNumber(input.value) ?? readSliderFallback(slider), true, true);
+  });
+
+  for (const button of stepper.querySelectorAll<HTMLButtonElement>("[data-stepper-delta]")) {
+    button.addEventListener("click", () => {
+      const delta = readFiniteNumber(button.dataset.stepperDelta ?? "") ?? 0;
+      applyValue(readSliderFallback(slider) + delta * getSliderStep(slider));
+    });
+  }
+}
+
+function readSliderFallback(slider: HTMLInputElement): number {
+  return readFiniteNumber(slider.value) ?? readNumericAttribute(slider, "min", 0);
+}
+
+function normalizeSliderValue(slider: HTMLInputElement, value: number): number {
+  const min = readNumericAttribute(slider, "min", Number.NEGATIVE_INFINITY);
+  const max = readNumericAttribute(slider, "max", Number.POSITIVE_INFINITY);
+  const clamped = clampNumber(value, min, max);
+  const step = getSliderStep(slider);
+  if (!Number.isFinite(step) || step <= 0) {
+    return clamped;
+  }
+  const base = Number.isFinite(min) ? min : 0;
+  const stepped = base + Math.round((clamped - base) / step) * step;
+  return clampNumber(roundSliderNumber(slider, stepped), min, max);
+}
+
+function shouldSyncStepperInput(slider: HTMLInputElement, value: number): boolean {
+  return Math.abs(normalizeSliderValue(slider, value) - value) > 0.000001;
+}
+
+function getSliderStep(slider: HTMLInputElement): number {
+  const step = readNumericAttribute(slider, "step", 1);
+  return step > 0 ? step : 1;
+}
+
+function syncSliderStepper(slider: HTMLInputElement, value: number): void {
+  const input = slider
+    .closest<HTMLElement>(".slider-group")
+    ?.querySelector<HTMLInputElement>(`[data-stepper-for="${slider.id}"] .range-stepper__input`);
+  if (input) {
+    input.value = formatSliderNumber(slider, value);
+  }
+}
+
+function formatSliderNumber(slider: HTMLInputElement, value: number): string {
+  const precision = sliderDecimalPlaces(slider);
+  return precision > 0 ? value.toFixed(precision) : String(Math.round(value));
+}
+
+function roundSliderNumber(slider: HTMLInputElement, value: number): number {
+  return Number(value.toFixed(Math.min(8, sliderDecimalPlaces(slider) + 2)));
+}
+
+function sliderDecimalPlaces(slider: HTMLInputElement): number {
+  const step = slider.getAttribute("step") ?? "";
+  const decimal = /\.(\d+)/.exec(step);
+  return decimal?.[1]?.length ?? 0;
+}
+
+function readNumericAttribute(
+  element: HTMLInputElement,
+  attribute: "min" | "max" | "step",
+  fallback: number
+): number {
+  const rawValue = element.getAttribute(attribute);
+  if (rawValue === null || rawValue === "any") {
+    return fallback;
+  }
+  const value = Number(rawValue);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function readFiniteNumber(value: string): number | null {
+  if (value.trim() === "") {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function bindNumberInput(input: HTMLInputElement | null, onValue: (value: number) => void): void {
@@ -582,6 +985,12 @@ function resolveAtmospherePointerPatch(
 function setValue(element: HTMLInputElement | HTMLSelectElement | null, value: string): void {
   if (element) {
     element.value = value;
+    if (element instanceof HTMLInputElement && element.type === "range") {
+      const numericValue = readFiniteNumber(value);
+      if (numericValue !== null) {
+        syncSliderStepper(element, normalizeSliderValue(element, numericValue));
+      }
+    }
   }
 }
 
@@ -850,4 +1259,8 @@ function formatMetric(value: number | undefined, digits: number): string {
 
 function resolveQualityScale(options: RuntimeOptions): number {
   return Math.sqrt((options.maxPixels ?? QUALITY_MAX_PIXELS) / QUALITY_MAX_PIXELS);
+}
+
+function defaultCameraDistanceForOptions(options: RuntimeOptions): number {
+  return options.displayProfile.mobileWideView ? 24 : 16;
 }

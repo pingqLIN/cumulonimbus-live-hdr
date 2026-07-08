@@ -26,11 +26,16 @@ export function createAppShell(
     orientation: options.orientation,
     renderMode: options.renderMode,
     compactControls,
-    controlsVisible: options.controlsVisible
+    controlsVisible: options.controlsVisible,
+    showAdvancedPanel: options.showAdvancedPanel,
+    degradedPreview: options.shaderVariant === "live-lite"
   });
-  if (compactControls) {
+  if (compactControls && options.shaderVariant !== "live-lite") {
     configureCompactControlSurface(root);
   }
+  root.querySelector<HTMLButtonElement>("#btn-degraded-refresh")?.addEventListener("click", () => {
+    window.location.reload();
+  });
   const renderContainer = requireElement<HTMLElement>("#render-container");
   const canvas = requireElement<HTMLCanvasElement>("#cloud-canvas");
   const canvasSize = resolveInitialCanvasSize(options);

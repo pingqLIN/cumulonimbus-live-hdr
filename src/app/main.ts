@@ -11,6 +11,7 @@ const query = new URLSearchParams(window.location.search);
 const displayProfile = detectBrowserDisplayProfile();
 const options = resolveRuntimeOptions(query, displayProfile);
 const experienceProfile = resolveExperienceProfile(options);
+const degradedPreview = options.shaderVariant === "live-lite";
 const shell = createAppShell(options, experienceProfile);
 const cleanupStageEdgeFill = bindStageEdgeFill(shell.renderContainer);
 let disposeApp: (() => void) | undefined;
@@ -19,7 +20,9 @@ document.documentElement.dataset.renderStatus = "shell-ready";
 document.documentElement.dataset.appModuleStatus = "loading";
 document.body.dataset.ui = "tracing-paper";
 document.body.dataset.viewportMode = "background";
-document.body.dataset.controlsHidden = options.controlsVisible ? "false" : "true";
+document.body.dataset.previewMode = degradedPreview ? "degraded" : "standard";
+document.body.dataset.controlsHidden =
+  options.controlsVisible && !degradedPreview ? "false" : "true";
 
 window.addEventListener("beforeunload", () => {
   cleanupStageEdgeFill();
@@ -31,8 +34,10 @@ void import("./cloud-app.js")
     document.documentElement.dataset.appModuleStatus = "loaded";
     const app = new CloudApp(shell.canvas, options, experienceProfile);
     disposeApp = () => app.dispose();
-    bindControls(shell.root, app);
-    bindPanels(shell.root);
+    if (!degradedPreview) {
+      bindControls(shell.root, app);
+      bindPanels(shell.root);
+    }
     app.start();
   })
   .catch((error: unknown) => {

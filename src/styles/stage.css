@@ -99,3 +99,12 @@ html[data-render-mode="canvas"] #cloud-hud,
 html[data-render-mode="canvas"] #panel-restore-dock {
   display: none;
 }
+
+body[data-preview-mode="degraded"] #ui-bar,
+body[data-preview-mode="degraded"] #cloud-hud,
+body[data-preview-mode="degraded"] #panel-restore-dock,
+.cloud-app-shell[data-preview-mode="degraded"] #ui-bar,
+.cloud-app-shell[data-preview-mode="degraded"] #cloud-hud,
+.cloud-app-shell[data-preview-mode="degraded"] #panel-restore-dock {
+  display: none;
+}

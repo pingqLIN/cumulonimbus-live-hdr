@@ -1,5 +1,8 @@
-export function renderRestoreDock(compactControls: boolean): string {
+export function renderRestoreDock(compactControls: boolean, showAdvancedPanel: boolean): string {
   const restoreSuppressed = compactControls ? ' data-restore-suppressed="true"' : "";
+  const advancedRestore = showAdvancedPanel
+    ? '\n        <button type="button" data-panel-restore="advancedPanel" hidden>Advanced</button>'
+    : "";
 
   return `
       <div id="panel-restore-dock" class="panel-restore-dock" hidden${restoreSuppressed} aria-label="Closed panels">
@@ -8,7 +11,6 @@ export function renderRestoreDock(compactControls: boolean): string {
         <button type="button" data-panel-restore="timePanel" hidden>Time</button>
         <button id="dock-time-toggle" class="dock-time-toggle" type="button" hidden>PAUSE</button>
         <button type="button" data-panel-restore="cloudPanel" hidden>Cloud</button>
-        <button type="button" data-panel-restore="atmospherePanel" hidden>Atmosphere</button>
-        <button type="button" data-panel-restore="advancedPanel" hidden>Advanced</button>
+        <button type="button" data-panel-restore="atmospherePanel" hidden>Atmosphere</button>${advancedRestore}
       </div>`;
 }

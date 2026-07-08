@@ -18,7 +18,6 @@ export const raymarchCloudFragmentShader = String.raw`
             uniform float uStepSize;
             uniform float uMaxSteps;
             uniform float uEarlyExitAlpha;
-            uniform float uShadowSamples;
             uniform float uShadowStep;
             uniform float uShadowOcclusion;
             uniform float uDensityMultiplier;
@@ -36,7 +35,6 @@ export const raymarchCloudFragmentShader = String.raw`
             uniform float uSunViewerAngle;
             uniform float uFreezingLevel;
             uniform float uWindShear;
-            uniform float uFbmOctaves;
             uniform float uCloudCurl;
             uniform float uMorphologyStyle;
             uniform float uPhotographicStyle;
@@ -54,6 +52,14 @@ export const raymarchCloudFragmentShader = String.raw`
 
 #ifndef CUMULONIMBUS_MAX_RAY_STEPS
 #define CUMULONIMBUS_MAX_RAY_STEPS 96
+#endif
+
+#ifndef CUMULONIMBUS_FBM_OCTAVES
+#define CUMULONIMBUS_FBM_OCTAVES 5
+#endif
+
+#ifndef CUMULONIMBUS_SHADOW_SAMPLES
+#define CUMULONIMBUS_SHADOW_SAMPLES 3
 #endif
 
             float hash(float n) { return fract(sin(n) * 43758.5453123); }
@@ -88,9 +94,8 @@ export const raymarchCloudFragmentShader = String.raw`
             float fbmAdaptive(vec3 p) {
                 float f = 0.0;
                 float weight = 0.5;
-                for (int i = 0; i < 6; i++) {
-                    float octaveGate = 1.0 - step(uFbmOctaves, float(i));
-                    f += octaveGate * weight * (1.0 - abs(noise(p * 2.0 - 1.0)));
+                for (int i = 0; i < CUMULONIMBUS_FBM_OCTAVES; i++) {
+                    f += weight * (1.0 - abs(noise(p * 2.0 - 1.0)));
                     p = vec3(
                         p.x * 1.74 + p.z * 0.31,
                         p.y * 1.91 + p.x * 0.17,
@@ -667,14 +672,14 @@ export const raymarchCloudFragmentShader = String.raw`
                     float c3Blend = mix(mix(1.45, 0.96, photo), mix(1.58, 1.06, photo), triangleLayout);
                     c3Blend = mix(c3Blend, mix(1.82, 1.2, photo), clusterLayout);
 
-                    float c1 = getCell01(modelP, vec2(0.0, 0.0), mix(3.2, 1.95, photo), 0.0, 5.0, 1.0, 0.0, 0.02, 1.0);
+                    float c1 = getCell01(modelP, vec2(0.0, 0.0), mix(3.2, 2.75, photo), 0.0, 2.95, 1.0, 0.0, 0.02, 1.0);
                     macro = c1;
                     if (uSystemCount >= 1.5) {
-                        float c2 = getCell01(modelP, c2Offset, mix(2.8, 1.65, photo), 2.0, mix(3.75, 3.35, photo), 0.82, 1.12, 0.28, mix(0.8, 0.48, photo));
+                        float c2 = getCell01(modelP, c2Offset, mix(2.8, 2.25, photo), 2.0, mix(2.45, 2.3, photo), 0.82, 1.12, 0.28, mix(0.8, 0.48, photo));
                         macro = smin(macro, c2, c2Blend);
                     }
                     if (uSystemCount >= 2.5) {
-                        float c3 = getCell01(modelP, c3Offset, mix(2.65, 1.75, photo), 4.0, 4.55, 1.26, 4.85, 0.1, mix(1.14, 0.74, photo));
+                        float c3 = getCell01(modelP, c3Offset, mix(2.65, 2.35, photo), 4.0, 2.75, 1.26, 4.85, 0.1, mix(1.14, 0.74, photo));
                         macro = smin(macro, c3, c3Blend);
                     }
                     for (int i = 3; i < 10; i++) {
@@ -690,8 +695,8 @@ export const raymarchCloudFragmentShader = String.raw`
                             hash(fi * 41.1 + uSeed * 0.013) - 0.5
                         ) * 1.65;
                         vec2 offset = vec2(cos(angle), sin(angle)) * ring + jitter;
-                        float maxR = mix(1.55, 2.65, hash(fi * 53.9 + uSeed * 0.007));
-                        float maxH = mix(3.15, 5.0, hash(fi * 67.1 + uSeed * 0.009));
+                        float maxR = mix(1.85, 3.1, hash(fi * 53.9 + uSeed * 0.007));
+                        float maxH = mix(2.05, 3.15, hash(fi * 67.1 + uSeed * 0.009));
                         float speedScale = mix(0.72, 1.32, hash(fi * 71.3 + uSeed * 0.003));
                         float ageOffset = hash(fi * 83.5 + uSeed * 0.005) * 6.28318;
                         float earlyDecay = hash(fi * 97.7 + uSeed * 0.006) * 0.34;
@@ -1217,8 +1222,8 @@ export const raymarchCloudFragmentShader = String.raw`
                 vec3 ambientColor = mix(dayAmbient, nightAmbient, night01);
                 float skyT = smoothstep(0.0, 1.0, clamp(uv.y + 0.5, 0.0, 1.0));
                 float screenY = clamp(gl_FragCoord.y / res.y, 0.0, 1.0);
-                vec3 localhostBottomSky = vec3(0.055, 0.078, 0.145);
-                vec3 localhostTopSky = vec3(0.044, 0.064, 0.125);
+                vec3 localhostBottomSky = vec3(0.052, 0.105, 0.195);
+                vec3 localhostTopSky = vec3(0.014, 0.044, 0.128);
                 vec3 workbenchSky = mix(localhostBottomSky, localhostTopSky, screenY) * uAmbientIntensity;
                 vec3 clearSky = workbenchSky;
                 vec3 sunsetSky = mix(vec3(0.86, 0.42, 0.22), vec3(0.08, 0.12, 0.34), skyT) * uAmbientIntensity;
@@ -1238,8 +1243,8 @@ export const raymarchCloudFragmentShader = String.raw`
                 vec3 emberZenithSky = vec3(0.030, 0.026, 0.064);
                 vec3 duskHorizonSky = vec3(0.42, 0.19, 0.075);
                 vec3 duskZenithSky = vec3(0.026, 0.045, 0.105);
-                vec3 dayHorizonSky = vec3(0.070, 0.105, 0.190);
-                vec3 dayZenithSky = vec3(0.018, 0.080, 0.220);
+                vec3 dayHorizonSky = vec3(0.056, 0.118, 0.23);
+                vec3 dayZenithSky = vec3(0.012, 0.052, 0.158);
                 float toEmber = smoothstep(-0.34, -0.10, sunSin);
                 float toDusk = smoothstep(-0.05, 0.15, sunSin);
                 float toDay = smoothstep(0.18, 0.44, sunSin);
@@ -1307,11 +1312,9 @@ export const raymarchCloudFragmentShader = String.raw`
                             float shadow = 0.0;
                             vec3 lPos = p;
                             float lStep = uShadowStep;
-                            float shadowNormalizer = 3.0 / max(1.0, uShadowSamples);
-                            for(int j = 0; j < 5; j++) {
-                                if (float(j) >= uShadowSamples) {
-                                    continue;
-                                }
+#if CUMULONIMBUS_SHADOW_SAMPLES > 0
+                            float shadowNormalizer = 3.0 / float(CUMULONIMBUS_SHADOW_SAMPLES);
+                            for(int j = 0; j < CUMULONIMBUS_SHADOW_SAMPLES; j++) {
                                 float jitter = float(j) * 1.37 + hash(dot(p.xz, vec2(17.0, 31.0)));
                                 vec3 shadowDir = normalize(lightDir + vec3(
                                     sin(jitter) * 0.16,
@@ -1324,6 +1327,7 @@ export const raymarchCloudFragmentShader = String.raw`
                                     shadow += mapCloudFromMacro(lPos, shadowMacro) * shadowNormalizer;
                                 }
                             }
+#endif
                             float mixedPhaseShadow = 1.0 + smoothstep(0.36, 0.7, height01) * (1.0 - smoothstep(0.78, 0.94, height01)) * mix(0.38, 0.64, uPhotographicStyle);
                             float transmittance = exp(-shadow * uShadowOcclusion * mix(0.86, 0.58, iceFactor) * mixedPhaseShadow);
                             float surfaceRelief = smoothstep(-0.72, 0.18, macro) * (1.0 - smoothstep(0.2, 0.92, macro));

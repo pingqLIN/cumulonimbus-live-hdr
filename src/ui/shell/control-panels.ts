@@ -30,6 +30,7 @@ export function renderMainPanel(): string {
               <span class="control-group__label">Framing</span>
               <div class="framing-controls">
                 <button id="btn-grid" class="btn-toggle" type="button">Scale ruler</button>
+                <button id="btn-ortho-toggle" class="btn-toggle" type="button" aria-pressed="false">透視</button>
               </div>
               <label class="select-group">
                 <span>Surface</span>
@@ -60,7 +61,7 @@ export function renderTimePanel(hidden: boolean): string {
               <span class="control-group__label">Time</span>
               <div class="slider-group">
                 <label for="slider-time">Speed</label>
-                <input id="slider-time" type="range" min="0" max="5" step="0.1" value="1">
+                <input id="slider-time" type="range" min="0" max="3" step="0.05" value="1">
                 <span id="time-readout" class="readout">1.0x</span>
               </div>
               <button id="btn-time-toggle" class="btn-toggle icon-play-toggle" type="button" aria-label="Resume" title="Resume">Resume</button>

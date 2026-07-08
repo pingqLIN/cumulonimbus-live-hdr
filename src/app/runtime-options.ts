@@ -3,6 +3,7 @@ import { type RaymarchCloudOptions } from "./raymarch-cloud-renderer.js";
 
 export const SAFE_LIVE_MAX_PIXELS = 1280 * 720;
 export const LIVE_LITE_MAX_PIXELS = Math.round(SAFE_LIVE_MAX_PIXELS * 0.5 * 0.5);
+const DEGRADED_PREVIEW_MAX_PIXELS = Math.round(SAFE_LIVE_MAX_PIXELS * 0.4 * 0.4);
 export const ATTACHED_06_RENDER_SCALE = 1;
 export const ATTACHED_06_MOBILE_RENDER_SCALE = 0.68;
 export const ATTACHED_06_STEP_SIZE = 0.18;
@@ -129,6 +130,7 @@ export type RuntimeOptions = RaymarchCloudOptions & {
   readonly simHeight?: number;
   readonly timeScale: number;
   readonly controlsVisible: boolean;
+  readonly showAdvancedPanel: boolean;
   readonly captureFrameLimit: number;
   readonly exposeRuntimeDebug: boolean;
   readonly autoQuality: boolean;
@@ -151,7 +153,7 @@ export function resolveRuntimeOptions(
     readNumber(params, ["seed"], preset.seed ?? createRuntimeSeed(), 1, Number.MAX_SAFE_INTEGER)
   );
 
-  return {
+  const resolved: RuntimeOptions = {
     ...preset,
     ...presetSelection,
     displayProfile,
@@ -393,8 +395,100 @@ export function resolveRuntimeOptions(
     preserveDrawingBuffer: shouldPreserveDrawingBuffer(params),
     debugShaderDiagnostics: readBoolean(params, ["debugShaders", "shaderDiagnostics"], false),
     controlsVisible: shouldShowControls(params, renderMode),
+    showAdvancedPanel: shouldShowAdvancedPanel(params),
     captureFrameLimit: Math.round(readNumber(params, ["captureFrames"], 0, 0, 600)),
     exposeRuntimeDebug: shouldExposeRuntimeDebug(params)
+  };
+
+  return ensureSurfaceCanvasFraming(
+    applyDegradedPreviewDefaults(promoteSurfaceToFullShader(resolved), params),
+    params,
+    renderMode
+  );
+}
+
+function promoteSurfaceToFullShader(options: RuntimeOptions): RuntimeOptions {
+  if (options.surfaceMode === "none" || options.shaderVariant !== "live-lite") {
+    return options;
+  }
+  return {
+    ...options,
+    shaderVariant: "full"
+  };
+}
+
+function ensureSurfaceCanvasFraming(
+  options: RuntimeOptions,
+  params: URLSearchParams,
+  renderMode: RenderMode
+): RuntimeOptions {
+  if (
+    renderMode !== "canvas" ||
+    params.has("maxPixels") ||
+    options.surfaceMode === "none" ||
+    options.simWidth === undefined ||
+    options.simHeight === undefined
+  ) {
+    return options;
+  }
+
+  const requestedPixels = Math.ceil(options.simWidth * options.simHeight);
+  const currentMaxPixels = options.maxPixels ?? 0;
+  if (requestedPixels <= currentMaxPixels) {
+    return options;
+  }
+
+  return {
+    ...options,
+    maxPixels: Math.min(requestedPixels, 3840 * 2160)
+  };
+}
+
+function applyDegradedPreviewDefaults(
+  options: RuntimeOptions,
+  params: URLSearchParams
+): RuntimeOptions {
+  if (options.shaderVariant !== "live-lite") {
+    return options;
+  }
+
+  const requestedMaxPixels = readOptionalClampedNumber(
+    params,
+    ["maxPixels"],
+    128 * 128,
+    3840 * 2160
+  );
+  return {
+    ...options,
+    timeScale: readNumber(params, ["timeScale", "speed"], 0.5, 0, 12),
+    fps: Math.min(options.fps ?? 12, 12),
+    systems: 1,
+    fbmOctaves: 4,
+    stepSize: 0.6,
+    maxSteps: 24,
+    staticMaxSteps: 24,
+    shadowSamples: 0,
+    shadowOcclusion: 0,
+    surfaceShadowSamples: 0,
+    surfaceShadowStrength: 0,
+    cloudCurl: 0.2,
+    densityMultiplier: 6,
+    photographicStyle: false,
+    lightPreset: "daylight",
+    skyMode: "clear",
+    hdr10: false,
+    dither: false,
+    surfaceMode: "none",
+    showGrid: false,
+    cameraPitchDegrees: 0,
+    cameraDistance: 18,
+    cameraTargetOffsetX: 0,
+    cameraTargetOffsetY: 0,
+    cameraTargetOffsetZ: 0,
+    maxPixels: Math.min(
+      requestedMaxPixels ?? options.maxPixels ?? DEGRADED_PREVIEW_MAX_PIXELS,
+      DEGRADED_PREVIEW_MAX_PIXELS
+    )
   };
 }
 
@@ -523,15 +617,17 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         seed: 574,
         time: 2.2,
         systems: 3,
-        tropopause: 12,
-        freezingLevel: 5,
+        tropopause: 8.8,
+        freezingLevel: 4,
         windShear: 0.7,
-        fbmOctaves: 5,
+        fbmOctaves: 4,
         cloudCurl: 0.76,
         horizonStrength: 1,
-        stepSize: 0.32,
-        maxSteps: 40,
-        staticMaxSteps: 40,
+        stepSize: 0.36,
+        maxSteps: 32,
+        staticMaxSteps: 32,
+        shadowSamples: 0,
+        surfaceShadowSamples: 0,
         sunIntensity: 4.6,
         ambientIntensity: 0.68,
         sunElevation: 35,
@@ -600,7 +696,7 @@ export function resolvePreset(name: string | undefined): RaymarchCloudOptions {
         lightPreset: "daylight",
         photographicStyle: false,
         morphologyStyle: "giant-cumulonimbus",
-        shaderVariant: "live-lite",
+        shaderVariant: "full",
         cameraDistance: 16,
         maxPixels: LIVE_LITE_MAX_PIXELS,
         mobileCumulusMode: false
@@ -625,6 +721,10 @@ function shouldShowControls(params: URLSearchParams, renderMode: RenderMode): bo
   return isTruthy(value);
 }
 
+function shouldShowAdvancedPanel(params: URLSearchParams): boolean {
+  return readBoolean(params, ["advanced", "fullConsole", "debugControls"], false);
+}
+
 function resolvePresetSelection(
   params: URLSearchParams,
   displayProfile: BrowserDisplayProfile
@@ -636,7 +736,7 @@ function resolvePresetSelection(
   if (displayProfile.narrowViewport) {
     return { presetName: "mobile-cumulus", presetSource: "browser-profile" };
   }
-  return { presetName: "single-cumulus-day", presetSource: "default" };
+  return { presetName: "broadcast-landscape", presetSource: "default" };
 }
 
 function shouldExposeRuntimeDebug(params: URLSearchParams): boolean {

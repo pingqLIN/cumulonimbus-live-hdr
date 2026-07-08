@@ -345,8 +345,11 @@ export class CloudApp {
   ) {
     this.frameIntervalMs = 1000 / (options.fps ?? 30);
     this.playbackTimeSeconds = options.time ?? 0;
+    const degradedPreview = options.shaderVariant === "live-lite";
     this.paused =
-      (options.renderMode === "page" && !options.displayProfile.mobileWideView) ||
+      (!degradedPreview &&
+        options.renderMode === "page" &&
+        !options.displayProfile.mobileWideView) ||
       options.timeScale <= 0;
     this.startTime = performance.now();
     this.nextFrameTime = this.startTime;
@@ -736,7 +739,9 @@ export class CloudApp {
     this.interactionMaxPixelsRestore ??= currentMaxPixels;
     const reducedMaxPixels = Math.max(
       MIN_INTERACTION_MAX_PIXELS,
-      Math.round(this.interactionMaxPixelsRestore * INTERACTION_RENDER_SCALE * INTERACTION_RENDER_SCALE)
+      Math.round(
+        this.interactionMaxPixelsRestore * INTERACTION_RENDER_SCALE * INTERACTION_RENDER_SCALE
+      )
     );
     if (currentMaxPixels > reducedMaxPixels) {
       this.setOptions({ maxPixels: reducedMaxPixels });
@@ -945,7 +950,10 @@ export class CloudApp {
     document.body.dataset.background = this.options.transparentBackground ? "transparent" : "sky";
     document.body.dataset.ui = "tracing-paper";
     document.body.dataset.viewportMode = "background";
-    document.body.dataset.controlsHidden = this.options.controlsVisible ? "false" : "true";
+    document.body.dataset.previewMode =
+      this.options.shaderVariant === "live-lite" ? "degraded" : "standard";
+    document.body.dataset.controlsHidden =
+      this.options.controlsVisible && this.options.shaderVariant !== "live-lite" ? "false" : "true";
 
     const renderContainer = document.querySelector<HTMLElement>("#render-container");
     renderContainer?.classList.toggle(
@@ -1041,8 +1049,7 @@ function resolveCameraPanFromScreenDelta(options: {
   const yaw = degreesToRadians(options.startYaw);
   const rightX = Math.cos(yaw);
   const rightZ = Math.sin(yaw);
-  const panScale =
-    options.startDistance * options.unitsPerPixelAtDistance * options.precisionScale;
+  const panScale = options.startDistance * options.unitsPerPixelAtDistance * options.precisionScale;
   const panRight = options.dx * panScale;
   const panUp = options.dy * panScale;
   return {

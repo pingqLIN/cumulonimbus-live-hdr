@@ -1,8 +1,5 @@
 import * as THREE from "three";
-import {
-  detectBrowserDisplayProfile,
-  type BrowserDisplayProfile
-} from "./display-profile.js";
+import { detectBrowserDisplayProfile, type BrowserDisplayProfile } from "./display-profile.js";
 import { raymarchCloudLiteFragmentShader } from "./raymarch-cloud-lite-shader.js";
 import { raymarchCloudFragmentShader, raymarchCloudVertexShader } from "./raymarch-cloud-shader.js";
 
@@ -148,6 +145,8 @@ export class RaymarchCloudRenderer {
     this.material = new THREE.ShaderMaterial({
       defines: {
         CUMULONIMBUS_MAX_RAY_STEPS: this.staticRayStepLimit(),
+        CUMULONIMBUS_FBM_OCTAVES: this.staticFbmOctaves(this.shaderVariant),
+        CUMULONIMBUS_SHADOW_SAMPLES: this.staticShadowSamples(this.shaderVariant),
         CUMULONIMBUS_SINGLE_CLOUD: usesSingleCloudModel(options) ? 1 : 0,
         CUMULONIMBUS_MORPHOLOGY_STYLE: resolveMorphologyStyleValue(options.morphologyStyle)
       },
@@ -164,9 +163,13 @@ export class RaymarchCloudRenderer {
         uSurfaceVisible: { value: options.surfaceMode && options.surfaceMode !== "none" ? 1 : 0 },
         uSurfaceMode: { value: resolveSurfaceModeValue(options.surfaceMode) },
         uSeed: { value: normalizeShaderSeed(options.seed, 574) },
-        uFbmOctaves: { value: clampFinite(options.fbmOctaves, 5, 4, 6) },
         uCloudCurl: {
-          value: clampFinite(options.cloudCurl, this.displayProfile.mobileWideView ? 0.86 : 0.78, 0, 1.2)
+          value: clampFinite(
+            options.cloudCurl,
+            this.displayProfile.mobileWideView ? 0.86 : 0.78,
+            0,
+            1.2
+          )
         },
         uMorphologyStyle: { value: resolveMorphologyStyleValue(options.morphologyStyle) },
         uSystemCount: { value: resolveSystemCount(options.systems) },
@@ -176,7 +179,6 @@ export class RaymarchCloudRenderer {
         uStepSize: { value: clampFinite(options.stepSize, this.defaultStepSize(), 0.08, 0.6) },
         uMaxSteps: { value: clampFinite(options.maxSteps, this.defaultMaxSteps(), 24, 144) },
         uEarlyExitAlpha: { value: clampFinite(options.earlyExitAlpha, 0.955, 0.88, 0.985) },
-        uShadowSamples: { value: clampFinite(options.shadowSamples, 3, 0, 5) },
         uShadowStep: { value: clampFinite(options.shadowStep, 0.34, 0.18, 0.9) },
         uShadowOcclusion: { value: clampFinite(options.shadowOcclusion, 1, 0.25, 1.6) },
         uDensityMultiplier: { value: clampFinite(options.densityMultiplier, 12.8, 6, 18) },
@@ -184,7 +186,9 @@ export class RaymarchCloudRenderer {
         uEdgeErosionWeight: { value: clampFinite(options.edgeErosionWeight, 1, 0.25, 1.8) },
         uSurfaceShadowSamples: { value: clampFinite(options.surfaceShadowSamples, 3, 0, 5) },
         uSurfaceShadowStep: { value: clampFinite(options.surfaceShadowStep, 1.15, 0.3, 2.4) },
-        uSurfaceShadowStrength: { value: clampFinite(options.surfaceShadowStrength, 0.38, 0, 0.85) },
+        uSurfaceShadowStrength: {
+          value: clampFinite(options.surfaceShadowStrength, 0.38, 0, 0.85)
+        },
         uTerrainFuzz: { value: clampFinite(options.terrainFuzz, 0.52, 0, 1) },
         uOceanCrestStrength: { value: clampFinite(options.oceanCrestStrength, 0.72, 0, 1.4) },
         uSurfaceRadius: { value: clampFinite(options.surfaceRadius, 12, 8, 32) },
@@ -194,7 +198,12 @@ export class RaymarchCloudRenderer {
         uSunViewerAngle: { value: clampFinite(options.sunViewerAngle, 25, -180, 180) },
         uFreezingLevel: { value: clampFinite(options.freezingLevel, 5, 0, 16) },
         uWindShear: {
-          value: clampFinite(options.windShear, this.displayProfile.mobileWideView ? 0.9 : 0.82, 0, 1)
+          value: clampFinite(
+            options.windShear,
+            this.displayProfile.mobileWideView ? 0.9 : 0.82,
+            0,
+            1
+          )
         },
         uPhotographicStyle: { value: options.photographicStyle ? 1 : 0 },
         uLightPreset: { value: resolveLightPresetValue(options.lightPreset) },
@@ -217,17 +226,27 @@ export class RaymarchCloudRenderer {
     this.orthoFrustumSize = this.defaultOrthoFrustumSize();
     this.updateCameraFromOptions();
 
-    const staticStepLimit = this.staticRayStepLimit();
-    const singleCloudDefine = usesSingleCloudModel(this.options) ? 1 : 0;
-    const morphologyStyleDefine = resolveMorphologyStyleValue(this.options.morphologyStyle);
     const shaderVariant = resolveShaderVariant(this.options);
     if (this.shaderVariant !== shaderVariant) {
       this.shaderVariant = shaderVariant;
       this.material.fragmentShader = resolveFragmentShader(shaderVariant);
       this.material.needsUpdate = true;
     }
+    const staticStepLimit = this.staticRayStepLimit();
+    const staticFbmOctaves = this.staticFbmOctaves(shaderVariant);
+    const staticShadowSamples = this.staticShadowSamples(shaderVariant);
+    const singleCloudDefine = usesSingleCloudModel(this.options) ? 1 : 0;
+    const morphologyStyleDefine = resolveMorphologyStyleValue(this.options.morphologyStyle);
     if (this.material.defines.CUMULONIMBUS_MAX_RAY_STEPS !== staticStepLimit) {
       this.material.defines.CUMULONIMBUS_MAX_RAY_STEPS = staticStepLimit;
+      this.material.needsUpdate = true;
+    }
+    if (this.material.defines.CUMULONIMBUS_FBM_OCTAVES !== staticFbmOctaves) {
+      this.material.defines.CUMULONIMBUS_FBM_OCTAVES = staticFbmOctaves;
+      this.material.needsUpdate = true;
+    }
+    if (this.material.defines.CUMULONIMBUS_SHADOW_SAMPLES !== staticShadowSamples) {
+      this.material.defines.CUMULONIMBUS_SHADOW_SAMPLES = staticShadowSamples;
       this.material.needsUpdate = true;
     }
     if (this.material.defines.CUMULONIMBUS_SINGLE_CLOUD !== singleCloudDefine) {
@@ -247,7 +266,6 @@ export class RaymarchCloudRenderer {
       this.options.surfaceMode && this.options.surfaceMode !== "none" ? 1 : 0;
     this.material.uniforms.uSurfaceMode!.value = resolveSurfaceModeValue(this.options.surfaceMode);
     this.material.uniforms.uSeed!.value = normalizeShaderSeed(this.options.seed, 574);
-    this.material.uniforms.uFbmOctaves!.value = clampFinite(this.options.fbmOctaves, 5, 4, 6);
     this.material.uniforms.uCloudCurl!.value = clampFinite(
       this.options.cloudCurl,
       this.displayProfile.mobileWideView ? 0.86 : 0.78,
@@ -278,8 +296,12 @@ export class RaymarchCloudRenderer {
       0.88,
       0.985
     );
-    this.material.uniforms.uShadowSamples!.value = clampFinite(this.options.shadowSamples, 3, 0, 5);
-    this.material.uniforms.uShadowStep!.value = clampFinite(this.options.shadowStep, 0.34, 0.18, 0.9);
+    this.material.uniforms.uShadowStep!.value = clampFinite(
+      this.options.shadowStep,
+      0.34,
+      0.18,
+      0.9
+    );
     this.material.uniforms.uShadowOcclusion!.value = clampFinite(
       this.options.shadowOcclusion,
       1,
@@ -335,7 +357,12 @@ export class RaymarchCloudRenderer {
       8,
       32
     );
-    this.material.uniforms.uSunIntensity!.value = clampFinite(this.options.sunIntensity, 4.6, 0, 10);
+    this.material.uniforms.uSunIntensity!.value = clampFinite(
+      this.options.sunIntensity,
+      4.6,
+      0,
+      10
+    );
     this.material.uniforms.uAmbientIntensity!.value = clampFinite(
       this.options.ambientIntensity,
       0.75,
@@ -378,7 +405,9 @@ export class RaymarchCloudRenderer {
       0,
       1
     );
-    this.material.uniforms.uTransparentBackground!.value = this.options.transparentBackground ? 1 : 0;
+    this.material.uniforms.uTransparentBackground!.value = this.options.transparentBackground
+      ? 1
+      : 0;
     this.material.uniforms.uHdr10Mode!.value = this.options.hdr10 ? 1 : 0;
     this.material.uniforms.uDitherEnabled!.value = this.options.dither ? 1 : 0;
     this.material.uniforms.uMobileCumulusMode!.value = resolveMobileCumulusMode(
@@ -425,7 +454,8 @@ export class RaymarchCloudRenderer {
       : RESET_CAMERA_HEIGHT_RATIO;
     this.cameraTarget.set(
       clampFinite(this.options.cameraTargetOffsetX, 0, -24, 24),
-      this.heightAtCloudRatio(targetRatio) + clampFinite(this.options.cameraTargetOffsetY, 0, -12, 12),
+      this.heightAtCloudRatio(targetRatio) +
+        clampFinite(this.options.cameraTargetOffsetY, 0, -12, 12),
       clampFinite(this.options.cameraTargetOffsetZ, 0, -24, 24)
     );
     this.cameraPosition.set(
@@ -447,7 +477,9 @@ export class RaymarchCloudRenderer {
 
   private defaultOrthoFrustumSize(): number {
     const baseSize = this.tropopause + FRAME_VERTICAL_PADDING_KM * 2;
-    const occupancy = this.displayProfile.mobileWideView ? MOBILE_MODEL_VIEW_OCCUPANCY : MODEL_VIEW_OCCUPANCY;
+    const occupancy = this.displayProfile.mobileWideView
+      ? MOBILE_MODEL_VIEW_OCCUPANCY
+      : MODEL_VIEW_OCCUPANCY;
     return Math.max(MIN_ORTHO_FRUSTUM_SIZE, baseSize / occupancy);
   }
 
@@ -504,8 +536,26 @@ export class RaymarchCloudRenderer {
   }
 
   private staticRayStepLimit(): number {
-    const fallback = this.displayProfile.iosChrome ? 40 : this.displayProfile.mobileWideView ? 48 : 40;
+    const fallback = this.displayProfile.iosChrome
+      ? 40
+      : this.displayProfile.mobileWideView
+        ? 48
+        : 40;
     return Math.round(clampFinite(this.options.staticMaxSteps, fallback, 24, 96));
+  }
+
+  private staticFbmOctaves(
+    shaderVariant: NonNullable<RaymarchCloudOptions["shaderVariant"]>
+  ): number {
+    const octaves = Math.round(clampFinite(this.options.fbmOctaves, 5, 4, 6));
+    return shaderVariant === "live-lite" ? Math.min(octaves, 4) : octaves;
+  }
+
+  private staticShadowSamples(
+    shaderVariant: NonNullable<RaymarchCloudOptions["shaderVariant"]>
+  ): number {
+    const samples = Math.round(clampFinite(this.options.shadowSamples, 3, 0, 5));
+    return shaderVariant === "live-lite" ? Math.min(samples, 3) : samples;
   }
 }
 
@@ -590,11 +640,11 @@ function resolveFragmentShader(
 function requiresFullShader(options: RaymarchCloudOptions): boolean {
   return Boolean(
     options.hdr10 ||
-      options.dither ||
-      options.photographicStyle ||
-      (options.surfaceMode && options.surfaceMode !== "none") ||
-      (options.skyMode && options.skyMode !== "clear" && options.skyMode !== "workbench") ||
-      (options.morphologyStyle && options.morphologyStyle !== "giant-cumulonimbus")
+    options.dither ||
+    options.photographicStyle ||
+    (options.surfaceMode && options.surfaceMode !== "none") ||
+    (options.skyMode && options.skyMode !== "clear" && options.skyMode !== "workbench") ||
+    (options.morphologyStyle && options.morphologyStyle !== "giant-cumulonimbus")
   );
 }
 

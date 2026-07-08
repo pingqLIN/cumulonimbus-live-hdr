@@ -13,6 +13,9 @@ const MOBILE_AUTO_STEP_DELAY_MS = 1400;
 const MOBILE_AUTO_RECHECK_DELAY_MS = 2600;
 const MOBILE_AUTO_READY_SETTLE_MS = 3000;
 const MOBILE_AUTO_STABLE_FRAME_COUNT = 4;
+const TIME_SPEED_LINEAR_MAX = 1;
+const TIME_SPEED_SLIDER_MAX = 3;
+const TIME_SPEED_MAX = 5;
 let uiLanguage = "zh-TW";
 let renderTelemetryFrame: number | undefined;
 
@@ -43,6 +46,10 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     const next = !app.getOptions().showGrid;
     app.setOptions({ showGrid: next });
     elements.gridButton?.classList.toggle("enabled", next);
+  });
+  elements.orthoToggleButton?.addEventListener("click", () => {
+    app.setOptions({ ortho: !app.getOptions().ortho });
+    syncControls(elements, app.getOptions(), app.isPaused());
   });
   elements.randomSeedButton?.addEventListener("click", () => {
     const seed = app.randomizeSeed();
@@ -193,10 +200,9 @@ export function bindControls(root: ParentNode, app: CloudAppController): void {
     syncControls(elements, app.getOptions(), app.isPaused());
   });
   bindAtmosphereSunDrag(elements, app);
-  bindSlider(
+  bindTimeScaleSlider(
     elements.timeSlider,
     elements.timeReadout,
-    (value) => `${value.toFixed(1)}x`,
     (value) => app.setOptions({ timeScale: value }),
     () => updateFpsLine(elements.fpsCounter, app.getOptions(), app.isPaused(), elements)
   );
@@ -341,6 +347,7 @@ function collectControls(root: ParentNode) {
     fullscreenButton: root.querySelector<HTMLButtonElement>("#btn-fullscreen"),
     toggleOtherPanelsButton: root.querySelector<HTMLButtonElement>("#btn-toggle-other-panels"),
     gridButton: root.querySelector<HTMLButtonElement>("#btn-grid"),
+    orthoToggleButton: root.querySelector<HTMLButtonElement>("#btn-ortho-toggle"),
     languageSelect: root.querySelector<HTMLSelectElement>("#select-language"),
     surfaceSelect: root.querySelector<HTMLSelectElement>("#select-surface"),
     seedInput: root.querySelector<HTMLInputElement>("#input-seed"),
@@ -584,8 +591,11 @@ function syncControls(
   setValue(elements.sunElevationSlider, String(options.sunElevation ?? 62));
   setValue(elements.ambientSlider, String(options.ambientIntensity ?? 0.66));
   setValue(elements.sunAngleSlider, String(options.sunViewerAngle ?? 18));
-  setValue(elements.atmosphereTimeInput, formatAtmosphereTime(estimateAtmosphereTime(options)));
-  setValue(elements.timeSlider, String(options.timeScale ?? 1));
+  setValue(
+    elements.atmosphereTimeInput,
+    formatAtmosphereTime(options.time ?? estimateAtmosphereTime(options))
+  );
+  setValue(elements.timeSlider, formatTimeSpeedSliderPosition(options.timeScale ?? 1));
   setValue(elements.qualitySlider, qualityScale.toFixed(2));
   setValue(elements.advancedQualitySlider, qualityScale.toFixed(2));
   setValue(elements.stepSizeSlider, String(options.stepSize ?? 0.24));
@@ -620,7 +630,7 @@ function syncControls(
   updateText(elements.sunElevationReadout, `${(options.sunElevation ?? 62).toFixed(0)}deg`);
   updateText(elements.ambientReadout, (options.ambientIntensity ?? 0.66).toFixed(2));
   updateText(elements.sunAngleReadout, `${(options.sunViewerAngle ?? 18).toFixed(0)}deg`);
-  updateText(elements.timeReadout, `${(options.timeScale ?? 1).toFixed(1)}x`);
+  updateText(elements.timeReadout, formatTimeScale(options.timeScale ?? 1));
   updateText(elements.qualityReadout, `${qualityScale.toFixed(2)}x`);
   updateText(elements.advancedQualityReadout, `${qualityScale.toFixed(2)}x`);
   updateText(elements.stepSizeReadout, (options.stepSize ?? 0.24).toFixed(2));
@@ -654,6 +664,13 @@ function syncControls(
     (options.cameraDistance ?? defaultCameraDistanceForOptions(options)).toFixed(0)
   );
   elements.autoQualityButton?.classList.toggle("enabled", options.autoQuality);
+  elements.orthoToggleButton?.classList.toggle("enabled", options.ortho ?? false);
+  elements.orthoToggleButton?.setAttribute("aria-pressed", options.ortho ? "true" : "false");
+  elements.orthoToggleButton?.setAttribute(
+    "aria-label",
+    options.ortho ? "Switch to perspective projection" : "Switch to orthographic projection"
+  );
+  updateText(elements.orthoToggleButton, options.ortho ? "正焦" : "透視");
   setPlaybackButton(elements.timeToggleButton, paused);
   setDockPlaybackButton(elements.dockTimeToggleButton, paused);
   updateAtmosphereWidget(elements, options);
@@ -727,6 +744,41 @@ function applyRenderPowerScale(
   updateText(elements.advancedQualityReadout, `${scale.toFixed(2)}x`);
 }
 
+function bindTimeScaleSlider(
+  slider: HTMLInputElement | null,
+  readout: HTMLElement | null,
+  onValue: (value: number) => void,
+  afterValue?: () => void
+): void {
+  if (!slider) {
+    return;
+  }
+
+  const applyValue = (rawPosition: number, commit = true): void => {
+    const sliderPosition = normalizeSliderValue(slider, rawPosition);
+    if (!Number.isFinite(sliderPosition)) {
+      return;
+    }
+    const timeScale = sliderPositionToTimeScale(sliderPosition);
+    slider.value = formatSliderNumber(slider, sliderPosition);
+    updateText(readout, formatTimeScale(timeScale));
+    if (commit) {
+      onValue(timeScale);
+      afterValue?.();
+    }
+  };
+
+  slider.addEventListener("input", () => {
+    const value = readFiniteNumber(slider.value);
+    if (value !== null) {
+      applyValue(value);
+    }
+  });
+  slider.addEventListener("change", () => {
+    applyValue(readFiniteNumber(slider.value) ?? readSliderFallback(slider));
+  });
+}
+
 function bindSlider(
   slider: HTMLInputElement | null,
   readout: HTMLElement | null,
@@ -766,6 +818,39 @@ function bindSlider(
   });
 
   bindSliderStepper(slider, applyValue, commitMode);
+}
+
+function sliderPositionToTimeScale(position: number): number {
+  const sliderPosition = clampNumber(position, 0, TIME_SPEED_SLIDER_MAX);
+  if (sliderPosition <= TIME_SPEED_LINEAR_MAX) {
+    return roundToStep(sliderPosition, 0.1);
+  }
+  const highRangeProgress =
+    (sliderPosition - TIME_SPEED_LINEAR_MAX) / (TIME_SPEED_SLIDER_MAX - TIME_SPEED_LINEAR_MAX);
+  return roundToStep(
+    TIME_SPEED_LINEAR_MAX + highRangeProgress * (TIME_SPEED_MAX - TIME_SPEED_LINEAR_MAX),
+    0.1
+  );
+}
+
+function timeScaleToSliderPosition(timeScale: number): number {
+  const speed = clampNumber(timeScale, 0, TIME_SPEED_MAX);
+  if (speed <= TIME_SPEED_LINEAR_MAX) {
+    return speed;
+  }
+  const highRangeProgress =
+    (speed - TIME_SPEED_LINEAR_MAX) / (TIME_SPEED_MAX - TIME_SPEED_LINEAR_MAX);
+  return (
+    TIME_SPEED_LINEAR_MAX + highRangeProgress * (TIME_SPEED_SLIDER_MAX - TIME_SPEED_LINEAR_MAX)
+  );
+}
+
+function formatTimeSpeedSliderPosition(timeScale: number): string {
+  return timeScaleToSliderPosition(timeScale).toFixed(2);
+}
+
+function formatTimeScale(timeScale: number): string {
+  return `${timeScale.toFixed(1)}x`;
 }
 
 function bindSliderStepper(
@@ -904,7 +989,7 @@ function bindAtmosphereSunDrag(
   const widget = canvas.closest<HTMLElement>("#solar-orbit-widget");
   let pointerId: number | null = null;
   const applyPointer = (event: PointerEvent): void => {
-    app.setOptions(resolveAtmospherePointerPatch(canvas, event.clientX, event.clientY));
+    app.setOptions(resolveAtmosphereRenderPatch(canvas, event.clientX, event.clientY));
     if (elements.syncTimeCheckbox) {
       elements.syncTimeCheckbox.checked = false;
     }
@@ -956,7 +1041,7 @@ function bindAtmosphereSunDrag(
   });
 }
 
-function resolveAtmospherePointerPatch(
+function resolveAtmosphereRenderPatch(
   canvas: HTMLCanvasElement,
   clientX: number,
   clientY: number
@@ -977,8 +1062,8 @@ function resolveAtmospherePointerPatch(
   const hour = 6 + progress * 12;
   const sunElevation = Math.round(Math.sin(orbitAngle) * 82);
   return {
-    ...resolveAtmosphereTimePatch(hour),
-    ...resolveSunLightingPatch(sunElevation)
+    ...resolveSunLightingPatch(sunElevation),
+    sunViewerAngle: Math.round((hour - 12) * 15)
   };
 }
 
@@ -1094,6 +1179,10 @@ function normalizeDayHour(hour: number): number {
     return 9;
   }
   return ((hour % 24) + 24) % 24;
+}
+
+function roundToStep(value: number, step: number): number {
+  return Number((Math.round(value / step) * step).toFixed(8));
 }
 
 function clampNumber(value: number, min: number, max: number): number {
